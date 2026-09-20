@@ -22,6 +22,18 @@ TypeScript is compiled, not transpiled at runtime: `src/ts/**/*.ts` → `dist/js
 plain ES modules. The shipped site has **zero runtime dependencies** — no framework, no
 polyfills, no bundler. Requires Node 20+ to build.
 
+## Design
+
+Two palettes — light and dark — from one token file. `src/styles/tokens.css` holds every
+colour as a custom property, and `[data-theme="dark"]` overrides them wholesale; nothing
+below that file hard-codes a colour, so the modes cannot drift apart. The header toggle
+writes the choice to `localStorage`, and an inline script in `index.html` resolves
+`stored → prefers-color-scheme → dark` before first paint so the page never flashes the
+wrong theme. Trust tiers are CSS classes rather than inline hex, because the greens and
+ambers that read well on near-black do not read well on paper.
+
+Both themes hold at least 5:1 contrast on every text element — comfortably past WCAG AA.
+
 ## Architecture
 
 ```

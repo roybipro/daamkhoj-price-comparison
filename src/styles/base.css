@@ -11,8 +11,8 @@ body {
   line-height: 1.55;
   color: var(--text);
   background:
-    radial-gradient(1100px 500px at 8% -10%, rgba(47, 212, 143, .09), transparent 62%),
-    radial-gradient(760px 420px at 98% 4%, rgba(255, 193, 77, .06), transparent 60%),
+    radial-gradient(1100px 500px at 8% -10%, var(--glow-1), transparent 62%),
+    radial-gradient(760px 420px at 98% 4%, var(--glow-2), transparent 60%),
     var(--bg);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
@@ -29,7 +29,14 @@ button, select, input { font: inherit; color: inherit; }
 .wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
 
 :focus-visible { outline: none; box-shadow: var(--ring); border-radius: 6px; }
-::selection { background: rgba(47, 212, 143, .28); }
+::selection { background: var(--selection); }
+
+/* Trust tiers are classes, not inline colours, so both palettes can tune contrast. */
+.tier-strong { color: var(--tier-strong); }
+.tier-good { color: var(--tier-good); }
+.tier-caution { color: var(--tier-caution); }
+.tier-risk { color: var(--tier-risk); }
+.tier-closed { color: var(--tier-closed); }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

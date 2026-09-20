@@ -103,11 +103,11 @@ const SIGNALS: Record<SignalId, SignalFn> = {
 const incidentOf = (shop: Shop): string => shop.incidents[0]?.t ?? 'Business no longer trading';
 
 export function trustTier(score: number, shop: Shop): TrustTier {
-  if (shop.closed) return { id: 'closed', label: 'Closed', color: '#8fa39b' };
-  if (score >= 82) return { id: 'strong', label: 'Trusted', color: '#34d399' };
-  if (score >= 68) return { id: 'good', label: 'Good', color: '#2dd4bf' };
-  if (score >= 50) return { id: 'caution', label: 'Caution', color: '#f0b429' };
-  return { id: 'risk', label: 'Risky', color: '#ff6b6b' };
+  if (shop.closed) return { id: 'closed', label: 'Closed' };
+  if (score >= 82) return { id: 'strong', label: 'Trusted' };
+  if (score >= 68) return { id: 'good', label: 'Good' };
+  if (score >= 50) return { id: 'caution', label: 'Caution' };
+  return { id: 'risk', label: 'Risky' };
 }
 
 export function scoreTrust(shop: Shop, offer: TrustInput, marketMedian: number, weights: TrustWeight[]): TrustAssessment {

@@ -18,8 +18,8 @@ export function sparkline(points: number[]): string {
 export function meter(offer: Offer): string {
   const { score, tier } = offer.trust;
   return `<div class="meter">
-    <div class="bar"><i style="width:${score}%;background:${tier.color}"></i></div>
-    <div class="cap"><span>Trust ${score}</span><span>${tier.label}</span></div>
+    <div class="bar"><i data-tier="${tier.id}" style="width:${score}%"></i></div>
+    <div class="cap"><span>Trust ${score}</span><span class="tier-${tier.id}">${tier.label}</span></div>
   </div>`;
 }
 
@@ -69,7 +69,7 @@ export function offerRow(offer: Offer, options: OfferRowOptions): string {
   const delta = gapToAverage > 0
     ? `<span class="save num">−${money(gapToAverage)} under market average</span>`
     : gapToAverage < 0
-      ? `<span class="save num" style="color:var(--warn)">${money(-gapToAverage)} over average</span>`
+      ? `<span class="save num over">${money(-gapToAverage)} over average</span>`
       : '';
 
   return `<div class="offer ${isBest ? 'pick' : ''} ${dropped ? 'dropped' : ''}" data-offer="${offer.id}">

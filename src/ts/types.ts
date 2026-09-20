@@ -64,9 +64,13 @@ export interface TrustInput {
   sellerReviews?: number;
 }
 
+export type ThemeName = 'light' | 'dark';
+export type TierId = 'closed' | 'strong' | 'good' | 'caution' | 'risk';
+
 export interface TrustSignal { v: number; why: string }
 export type Signals = Record<SignalId, TrustSignal>;
-export interface TrustTier { id: 'closed' | 'strong' | 'good' | 'caution' | 'risk'; label: string; color: string }
+/** Tier colour lives in CSS so light and dark can tune contrast independently. */
+export interface TrustTier { id: TierId; label: string }
 export interface TrustAssessment { score: number; signals: Signals; flags: string[]; tier: TrustTier }
 
 export interface MarketStats { min: number; median: number; max: number; count: number }

@@ -1,7 +1,83 @@
-/* Design tokens — "night bazaar": near-black green surfaces, ivory type, saffron prices.
-   Chosen so the data reads first and price movement is the loudest thing on screen. */
+/* Design tokens — two palettes for one "data-forward" layout.
+   :root is the light theme; [data-theme="dark"] overrides every colour token.
+   Anything theme-dependent must be a token here — no hard-coded colours below,
+   otherwise the two modes drift apart. */
 
 :root {
+  color-scheme: light;
+
+  --bg: #f6f3ea;
+  --surface: #fffdf7;
+  --surface-2: #f1ece0;
+  --raised: #ffffff;
+  --line: #ddd5c4;
+  --line-2: #eae3d5;
+
+  --text: #14201b;
+  --muted: #4d5f57;
+  --dim: #5f7168;
+
+  --brand: #0f7a50;
+  --brand-2: #0a5c3d;
+  --brand-hover: #0d8a5b;
+  --on-brand: #f4fffa;
+
+  --price: #a2570b;
+  --sun: #b4740d;
+  --taka: #0f7a50;
+  --over: #b5451f;
+  --risk: #b3261e;
+  --warn: #9a6106;
+
+  /* Names kept because generated markup references them. */
+  --ink: #14201b;
+  --ink-2: #33463d;
+  --ink-3: #5f7168;
+  --paper: #f6f3ea;
+  --paper-2: #f1ece0;
+  --card: #fffdf7;
+
+  --tile: #ffffff;
+  --tile-line: #d8d0bf;
+
+  --header-bg: rgba(246, 243, 234, .9);
+  --row-hover: rgba(20, 32, 27, .032);
+  --head-tint: rgba(20, 32, 27, .035);
+  --brand-tint: rgba(15, 122, 80, .11);
+  --brand-tint-soft: rgba(15, 122, 80, .06);
+  --risk-tint: rgba(179, 38, 30, .07);
+  --risk-text: #9c2b22;
+  --risk-line: rgba(179, 38, 30, .34);
+  --ok-tint: rgba(15, 122, 80, .08);
+  --ok-text: #0c653f;
+  --ok-line: rgba(15, 122, 80, .28);
+
+  --tier-strong: #0f7a50;
+  --tier-good: #0d6b62;
+  --tier-caution: #9a6106;
+  --tier-risk: #b3261e;
+  --tier-closed: #6b7a74;
+
+  --glow-1: rgba(15, 122, 80, .08);
+  --glow-2: rgba(162, 87, 11, .07);
+  --selection: rgba(15, 122, 80, .2);
+
+  --shadow: 0 1px 2px rgba(20, 32, 27, .05), 0 14px 30px -20px rgba(20, 32, 27, .3);
+  --overlay-shadow: 0 26px 60px -26px rgba(20, 32, 27, .45);
+  --ring: 0 0 0 1px var(--brand), 0 0 0 5px rgba(15, 122, 80, .18);
+
+  --r: 12px;
+  --r-sm: 8px;
+  --maxw: 1220px;
+
+  --font: Inter, "Hind Siliguri", "Noto Sans Bengali", system-ui, -apple-system, sans-serif;
+  --display: "Space Grotesk", Inter, "Hind Siliguri", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
   --bg: #080d0b;
   --surface: #0f1815;
   --surface-2: #14201c;
@@ -11,10 +87,11 @@
 
   --text: #e9f1ec;
   --muted: #93a99e;
-  --dim: #6d8279;
+  --dim: #7e948a;
 
   --brand: #2fd48f;
   --brand-2: #16a86c;
+  --brand-hover: #46e3a1;
   --on-brand: #04170f;
 
   --price: #ffc14d;
@@ -23,9 +100,7 @@
   --over: #ff9169;
   --risk: #ff6b6b;
   --warn: #f0b429;
-  --good: #34d399;
-  /* Legacy names kept because generated markup references them.
-     --ink is the dark ink used *on* light surfaces such as the logo tiles. */
+
   --ink: #0b1512;
   --ink-2: #c3d2c9;
   --ink-3: #93a99e;
@@ -33,13 +108,32 @@
   --paper-2: #14201c;
   --card: #0f1815;
 
-  --shadow: 0 1px 0 rgba(255, 255, 255, .035) inset, 0 18px 40px -30px rgba(0, 0, 0, .9);
-  --ring: 0 0 0 1px var(--brand), 0 0 0 5px rgba(47, 212, 143, .14);
-  --r: 12px;
-  --r-sm: 8px;
-  --maxw: 1220px;
+  --tile: #f4f6f5;
+  --tile-line: #23332c;
 
-  --font: Inter, "Hind Siliguri", "Noto Sans Bengali", system-ui, -apple-system, sans-serif;
-  --display: "Space Grotesk", Inter, "Hind Siliguri", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --header-bg: rgba(8, 13, 11, .9);
+  --row-hover: rgba(255, 255, 255, .022);
+  --head-tint: rgba(255, 255, 255, .035);
+  --brand-tint: rgba(47, 212, 143, .11);
+  --brand-tint-soft: rgba(47, 212, 143, .07);
+  --risk-tint: rgba(255, 107, 107, .055);
+  --risk-text: #ffb3b3;
+  --risk-line: rgba(255, 107, 107, .4);
+  --ok-tint: rgba(47, 212, 143, .1);
+  --ok-text: #7fe8b8;
+  --ok-line: rgba(47, 212, 143, .34);
+
+  --tier-strong: #34d399;
+  --tier-good: #2dd4bf;
+  --tier-caution: #f0b429;
+  --tier-risk: #ff6b6b;
+  --tier-closed: #8fa39b;
+
+  --glow-1: rgba(47, 212, 143, .09);
+  --glow-2: rgba(255, 193, 77, .06);
+  --selection: rgba(47, 212, 143, .28);
+
+  --shadow: 0 1px 0 rgba(255, 255, 255, .035) inset, 0 18px 40px -30px rgba(0, 0, 0, .9);
+  --overlay-shadow: 0 26px 60px -26px rgba(0, 0, 0, .9);
+  --ring: 0 0 0 1px var(--brand), 0 0 0 5px rgba(47, 212, 143, .14);
 }

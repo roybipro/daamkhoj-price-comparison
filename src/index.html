@@ -6,6 +6,18 @@
 <title>DaamKhoj — Compare prices and trust across Bangladesh's online shops</title>
 <meta name="description" content="Search any product and see every Bangladeshi shop's price side by side — Daraz, Star Tech, Ryans, Chaldal, Pickaboo, Rokomari and more — with a transparent trust score next to each price.">
 <meta name="theme-color" content="#080d0b">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f3ea">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#080d0b">
+<script>
+  /* Resolve the palette before first paint so the page never flashes the wrong theme. */
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem('daamkhoj:theme'); } catch (e) { /* storage blocked */ }
+    var theme = (saved === 'light' || saved === 'dark') ? saved
+      : (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+    document.documentElement.dataset.theme = theme;
+  })();
+</script>
 <meta property="og:title" content="DaamKhoj — compare before you buy in Bangladesh">
 <meta property="og:description" content="Every shop's price for one product, side by side, with a trust score you can argue with.">
 <meta property="og:type" content="website">
@@ -38,6 +50,16 @@
       <button role="tab" data-view="stores" aria-selected="false">Shops</button>
       <button role="tab" data-view="how" aria-selected="false">How it works</button>
     </nav>
+    <button class="theme-toggle" type="button" data-act="theme" aria-label="Switch colour theme" title="Switch between light and dark">
+      <span class="in-light">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        <span class="label">Dark</span>
+      </span>
+      <span class="in-dark">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
+        <span class="label">Light</span>
+      </span>
+    </button>
     <p class="snap">Sample data<br><b>27 Sep 2026</b></p>
   </div>
 </header>

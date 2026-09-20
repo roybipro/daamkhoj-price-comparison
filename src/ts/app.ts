@@ -1,6 +1,7 @@
 import { SNAPSHOT, TRUST_WEIGHTS } from './data/meta.js';
 import { buildCatalog } from './core/catalog.js';
 import { createSearch } from './core/search.js';
+import { toggleTheme } from './core/theme.js';
 import type { Group, Offer, RenderContext, SortKey, State, ViewName } from './types.js';
 import { compareView, howView, resultsView, storesView, suggestionsView, toolbarView, trayView } from './ui/views.js';
 
@@ -165,6 +166,7 @@ function setView(next: string | undefined): void {
 }
 
 const actions: Record<string, (trigger: HTMLElement) => void> = {
+  theme: () => { toggleTheme(); },
   view: trigger => setView(trigger.dataset.view),
   compare: trigger => toggleCompare(trigger.dataset.id ?? ''),
   remove: trigger => toggleCompare(trigger.dataset.id ?? ''),

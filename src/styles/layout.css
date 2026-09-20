@@ -2,7 +2,7 @@
 
 header.top {
   position: sticky; top: 0; z-index: 40;
-  background: rgba(8, 13, 11, .9);
+  background: var(--header-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line-2);
 }
@@ -40,6 +40,8 @@ footer .fine { flex: 1 1 340px; max-width: 720px; }
   .top-in { height: auto; padding: 12px 0; flex-wrap: wrap; }
   nav.tabs { margin-left: 0; order: 3; width: 100%; overflow: auto; }
   .snap { margin-left: auto; }
+  .theme-toggle .label { display: none; }
+  .theme-toggle { padding: 8px 9px; }
 
   /* Stack as: shop + price, then the trust read, then actions, then terms. */
   .offer { grid-template-columns: 1fr auto; gap: 10px 14px; padding: 14px 15px; }

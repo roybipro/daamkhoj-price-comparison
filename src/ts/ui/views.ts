@@ -65,7 +65,7 @@ export function storesView(ctx: RenderContext): string {
       <div class="row1">
         ${logo(store)}
         <div><h4>${escapeHtml(store.name)}</h4><div class="site">${escapeHtml(store.url)} · ${store.since}${store.closed ? `–${store.closed}` : ''}</div></div>
-        <div class="score-big"><div class="n num" style="color:${store.tier.color}">${store.score}</div><div class="l">${store.tier.label}</div></div>
+        <div class="score-big"><div class="n num tier-${store.tier.id}">${store.score}</div><div class="l">${store.tier.label}</div></div>
       </div>
       <p class="blurb">${escapeHtml(store.blurb)}</p>
       <div class="facts">
@@ -126,7 +126,7 @@ export function compareView(ctx: RenderContext): string {
       <tbody>
         ${row('All-in price', o => money(o.landed), o => o.landed)}
         ${row('Vs market average', vsAverage)}
-        ${row('Trust score', o => `${o.trust.score} <span style="color:${o.trust.tier.color};font-weight:700">(${o.trust.tier.label})</span>`, o => o.trust.score, 'max')}
+        ${row('Trust score', o => `${o.trust.score} <span class="tier-${o.trust.tier.id}" style="font-weight:700">(${o.trust.tier.label})</span>`, o => o.trust.score, 'max')}
         ${row('Value score', o => `${o.value} <span style="color:var(--ink-3);font-weight:400">/100</span>`, o => o.value, 'max')}
         ${row('Cash on delivery', o => o.store.cod ? 'Yes' : 'No')}
         ${row('Return window', o => o.store.returnsDays ? `${o.store.returnsDays} days` : 'None', o => o.store.returnsDays, 'max')}
@@ -148,8 +148,8 @@ export function howView(ctx: RenderContext): string {
   const { weights, snapshot } = ctx;
   const total = weights.reduce((sum, w) => sum + w.weight, 0);
   const tiers: [string, string][] = [
-    ['Trusted · 82+', '#34d399'], ['Good · 68–81', '#2dd4bf'], ['Caution · 50–67', '#f0b429'],
-    ['Risky · under 50', '#ff6b6b'], ['Closed — do not buy', '#8fa39b']
+    ['Trusted · 82+', 'tier-strong'], ['Good · 68–81', 'tier-good'], ['Caution · 50–67', 'tier-caution'],
+    ['Risky · under 50', 'tier-risk'], ['Closed — do not buy', 'tier-closed']
   ];
   return `<div class="lead"><h2>How the trust score is built</h2>
     <p>Not a black box. Seven checked signals add up to 100, then risk rules take points away. Hover or focus any score in the results to see its breakdown.</p></div>
@@ -164,7 +164,7 @@ export function howView(ctx: RenderContext): string {
         • If a business has shut down, its offers are dropped from the comparison but still shown, in red, with the reason.
       </p></div>
       <div class="panel"><h4>What the numbers mean</h4><p class="blurb">
-        ${tiers.map(([label, color]) => `<span class="tag" style="border-color:${color};color:${color};margin:0 4px 6px 0">${label}</span>`).join('')}
+        ${tiers.map(([label, tierClass]) => `<span class="tag ${tierClass}">${label}</span>`).join('')}
       </p></div>
       <div class="panel"><h4>Where the data comes from</h4><p class="blurb"><b>${escapeHtml(snapshot.label)}</b> — every price, rating and policy in this build is sample data placed for the demo, not a live feed. A live version needs: Daraz and Pickaboo seller APIs, published price feeds or direct partnerships with each shop, IMEI warranty checks, and trade-licence and BTRIS registration lookups.</p></div>
       <div class="panel"><h4>What we don't do</h4><p class="blurb">No commissions from shops, no paid rankings, and buying a higher position is not possible. Corrections to a shop's information are published as corrections, not quietly edited.</p></div>
