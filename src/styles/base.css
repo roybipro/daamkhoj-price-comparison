@@ -9,24 +9,27 @@ body {
   font-family: var(--font);
   font-size: 15px;
   line-height: 1.55;
-  color: var(--ink);
+  color: var(--text);
   background:
-    radial-gradient(900px 420px at 12% -8%, rgba(14, 107, 79, .10), transparent 60%),
-    radial-gradient(700px 380px at 96% 2%, rgba(217, 72, 15, .07), transparent 60%),
-    var(--paper);
+    radial-gradient(1100px 500px at 8% -10%, rgba(47, 212, 143, .09), transparent 62%),
+    radial-gradient(760px 420px at 98% 4%, rgba(255, 193, 77, .06), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3, h4, h5 { margin: 0; line-height: 1.25; font-weight: 700; letter-spacing: -.015em; font-family: var(--display); }
+h1, h2, h3, h4, h5 { margin: 0; line-height: 1.22; font-weight: 700; letter-spacing: -.02em; font-family: var(--display); }
 p { margin: 0; }
 a { color: inherit; }
 button, select, input { font: inherit; color: inherit; }
 
-.num { font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+/* Prices, scores and every other number sit in mono so columns of digits align. */
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 20px; }
+.wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
 
-:focus-visible { outline: 2.5px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
+:focus-visible { outline: none; box-shadow: var(--ring); border-radius: 6px; }
+::selection { background: rgba(47, 212, 143, .28); }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

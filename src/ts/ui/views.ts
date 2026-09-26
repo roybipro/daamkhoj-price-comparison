@@ -148,8 +148,8 @@ export function howView(ctx: RenderContext): string {
   const { weights, snapshot } = ctx;
   const total = weights.reduce((sum, w) => sum + w.weight, 0);
   const tiers: [string, string][] = [
-    ['Trusted · 82+', '#15803D'], ['Good · 68–81', '#0F766E'], ['Caution · 50–67', '#B45309'],
-    ['Risky · under 50', '#B91C1C'], ['Closed — do not buy', '#6B7280']
+    ['Trusted · 82+', '#34d399'], ['Good · 68–81', '#2dd4bf'], ['Caution · 50–67', '#f0b429'],
+    ['Risky · under 50', '#ff6b6b'], ['Closed — do not buy', '#8fa39b']
   ];
   return `<div class="lead"><h2>How the trust score is built</h2>
     <p>Not a black box. Seven checked signals add up to 100, then risk rules take points away. Hover or focus any score in the results to see its breakdown.</p></div>
