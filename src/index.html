@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DaamKhoj — Compare prices and trust across Bangladesh's online shops</title>
+<meta name="description" content="Search any product and see every Bangladeshi shop's price side by side — Daraz, Star Tech, Ryans, Chaldal, Pickaboo, Rokomari and more — with a transparent trust score next to each price.">
+<meta name="theme-color" content="#0b211a">
+<meta property="og:title" content="DaamKhoj — compare before you buy in Bangladesh">
+<meta property="og:description" content="Every shop's price for one product, side by side, with a trust score you can argue with.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles/tokens.css">
+<link rel="stylesheet" href="styles/base.css">
+<link rel="stylesheet" href="styles/components.css">
+<link rel="stylesheet" href="styles/layout.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap top-in">
+    <a class="brand" href="./" aria-label="DaamKhoj — home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 5.5V19M8.5 19h7M5 7.5h14"/>
+          <path d="M5 7.5 2.8 11.7M5 7.5l2.2 4.2M19 7.5l-2.2 4.2M19 7.5l2.2 4.2"/>
+          <path d="M2.4 11.7h5.2a2.6 2.6 0 0 1-5.2 0zM16.4 11.7h5.2a2.6 2.6 0 0 1-5.2 0z"/>
+        </svg>
+      </span>
+      <span class="brand-name">DaamKhoj<small>Bangladesh price comparison</small></span>
+    </a>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" data-view="results" aria-selected="true">Prices</button>
+      <button role="tab" data-view="compare" aria-selected="false">Side by side</button>
+      <button role="tab" data-view="stores" aria-selected="false">Shops</button>
+      <button role="tab" data-view="how" aria-selected="false">How it works</button>
+    </nav>
+    <p class="snap">Sample data<br><b>27 Sep 2026</b></p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="search-zone">
+    <form class="search-bar" id="sform" role="search">
+      <div class="field">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+        <input id="q" type="search" autocomplete="off" placeholder="Search a product — mobile, rice, earbuds, laptop…"
+               role="combobox" aria-expanded="false" aria-controls="suggest-wrap" aria-autocomplete="list"
+               aria-label="Search for a product or shop">
+        <button type="button" class="clear" data-act="clearQuery" aria-label="Clear search">✕</button>
+        <button type="submit" class="go">Search</button>
+      </div>
+      <div id="suggest-wrap"></div>
+    </form>
+    <div class="chips">
+      <span class="lbl">Popular searches</span>
+      <button class="chip" data-act="query" data-q="mobile">mobile</button>
+      <button class="chip" data-act="query" data-q="laptop">laptop</button>
+      <button class="chip" data-act="query" data-q="earbuds">earbuds</button>
+      <button class="chip" data-act="query" data-q="rice">rice</button>
+      <button class="chip" data-act="query" data-q="soybean oil">soybean oil</button>
+      <button class="chip" data-act="query" data-q="router">router</button>
+      <button class="chip" data-act="query" data-q="iPhone">iPhone</button>
+      <button class="chip" data-act="query" data-q="power bank">power bank</button>
+    </div>
+  </div>
+
+  <div id="out"></div>
+</main>
+
+<div id="tray"></div>
+
+<footer>
+  <div class="wrap in">
+    <p class="fine"><b>What DaamKhoj is not:</b> we are not a shop and nothing is bought here. We line up the prices and terms each store already publishes. <b>Every price, rating and policy in this build is sample data for the demo</b> — check the shop's own site for the live price, warranty and return terms before you pay.</p>
+    <p class="fine"><b>The trust score</b> comes from seven checkable signals: business history, buyer reviews, payment safety, returns, authenticity, delivery and support. The full method is in the <button class="chip" data-act="view" data-view="how">How it works</button> tab.</p>
+  </div>
+</footer>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

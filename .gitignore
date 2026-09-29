@@ -1,0 +1,22 @@
+# Build output — regenerate with `npm run build`
+dist/
+
+# Dependencies
+node_modules/
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Local environment and secrets
+.env
+.env.*
+*.key
+*.pem
+
+# Logs
+*.log
+npm-debug.log*
