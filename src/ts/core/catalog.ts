@@ -16,7 +16,12 @@ type Listing = Omit<Offer, 'landed' | 'market' | 'trust' | 'savedVsMarket' | 'va
 const EMPTY_MARKET: MarketStats = { min: 0, median: 0, max: 0, count: 0 };
 
 function median(values: number[]): number {
-  return values.length ? values[Math.floor((values.length - 1) / 2)] : 0;
+  if (!values.length) return 0;
+  const mid = Math.floor(values.length / 2);
+  /* Even-length lists must average the two middle prices. Taking the lower one
+     pulled every market baseline down by half a step, which shrank the measured
+     gap and made the under-market rule harder to trip than it was written. */
+  return values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
 }
 
 /* Market stats ignore shops that no longer trade, so a dead site's bargain price
