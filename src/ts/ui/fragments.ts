@@ -111,7 +111,7 @@ export interface GroupCardOptions {
 
 export function groupCard(group: Group, options: GroupCardOptions): string {
   const { open, showToggle, weights, selected, maxCompare } = options;
-  const { product, live, dropped, best, category, stats } = group;
+  const { product, live, dropped, best, category, stats, market } = group;
   const visible = open ? live : live.slice(0, 3);
   const rowOptions = (offer: Offer) => ({
     isBest: Boolean(best && offer.id === best.id),
@@ -132,7 +132,7 @@ export function groupCard(group: Group, options: GroupCardOptions): string {
       <div class="gh-price">
         <div class="from num">${live.length ? money(stats.min) : '—'}</div>
         <div class="range num">${live.length ? `from · ${pluralCount(live.length, 'shop')}` : 'not in these filters'}</div>
-        <div class="avg num">${live.length ? `Average ${money(stats.median)} · highest ${money(stats.max)}` : ''}</div>
+        <div class="avg num">${live.length ? `Market average ${money(market.median)} · highest ${money(stats.max)}` : ''}</div>
       </div>
     </div>
     <div class="offers">

@@ -123,7 +123,10 @@ export interface Group {
   category: Category;
   live: Offer[];
   dropped: Offer[];
-  stats: { min: number; median: number; max: number };
+  /** Spread across the listings the current filters leave standing. */
+  stats: { min: number; max: number };
+  /** The product's market baseline: filter-independent, and the same figure the offer rows compare against. */
+  market: MarketStats;
   best: Offer | null;
 }
 

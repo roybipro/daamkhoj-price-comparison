@@ -85,9 +85,9 @@ function buildGroups(): Group[] {
       dropped,
       stats: {
         min: landed[0] ?? 0,
-        median: landed.length ? landed[Math.floor((landed.length - 1) / 2)] : 0,
         max: landed[landed.length - 1] ?? 0
       },
+      market: all[0].market,
       best: live.length ? [...live].sort(SORTS.value)[0] : null
     });
   }
