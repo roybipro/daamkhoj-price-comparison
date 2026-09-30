@@ -1,5 +1,5 @@
 import type { Group, Offer, Shop, TrustAssessment, TrustWeight } from '../types.js';
-import { escapeHtml, money } from '../core/format.js';
+import { escapeHtml, money, pluralCount, pluralNoun } from '../core/format.js';
 import { homeUrl, iconUrl } from '../core/links.js';
 
 export function logo(store: Shop & { icon?: string }, size?: 'xs' | 'md'): string {
@@ -131,7 +131,7 @@ export function groupCard(group: Group, options: GroupCardOptions): string {
       </div>
       <div class="gh-price">
         <div class="from num">${live.length ? money(stats.min) : '—'}</div>
-        <div class="range num">${live.length ? `from · ${live.length} shops` : 'not in these filters'}</div>
+        <div class="range num">${live.length ? `from · ${pluralCount(live.length, 'shop')}` : 'not in these filters'}</div>
         <div class="avg num">${live.length ? `Average ${money(stats.median)} · highest ${money(stats.max)}` : ''}</div>
       </div>
     </div>
@@ -142,6 +142,6 @@ export function groupCard(group: Group, options: GroupCardOptions): string {
       ${open ? dropped.map(offer => offerRow(offer, rowOptions(offer))).join('') : ''}
     </div>
     ${showToggle && live.length > 3 ? `<button class="more" data-act="expand" data-id="${product.id}" aria-expanded="${open}">
-      ${open ? 'Show fewer shops' : `Show ${live.length - 3} more shops`}</button>` : ''}
+      ${open ? 'Show fewer shops' : `Show ${live.length - 3} more ${pluralNoun(live.length - 3, 'shop')}`}</button>` : ''}
   </section>`;
 }

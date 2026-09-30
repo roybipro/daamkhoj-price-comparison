@@ -6,6 +6,12 @@ export const money = (amount: number): string => '৳' + Math.round(amount).toLo
 
 export const normalise = (text: string): string => text.toLowerCase().normalize('NFKD').trim();
 
+export const pluralNoun = (count: number, singular: string): string =>
+  count === 1 ? singular : `${singular}s`;
+
+export const pluralCount = (count: number, singular: string): string =>
+  `${count} ${pluralNoun(count, singular)}`;
+
 const ENTITIES: Readonly<Record<string, string>> = {
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 };

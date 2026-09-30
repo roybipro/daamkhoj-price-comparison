@@ -1,5 +1,5 @@
 import type { Offer, RenderContext, ShopProfile, TrustWeight } from '../types.js';
-import { escapeHtml, money } from '../core/format.js';
+import { escapeHtml, money, pluralCount, pluralNoun } from '../core/format.js';
 import { homeUrl } from '../core/links.js';
 import { groupCard, logo } from './fragments.js';
 
@@ -12,7 +12,7 @@ export function resultsView(ctx: RenderContext): string {
   const shopHints = state.q ? ctx.search.stores(state.q) : [];
 
   const heading = state.q
-    ? `<div class="lead"><h2>${priceCount} prices across ${groups.length} products for “${escapeHtml(state.q)}”</h2>
+    ? `<div class="lead"><h2>${pluralCount(priceCount, 'price')} across ${pluralCount(groups.length, 'product')} for “${escapeHtml(state.q)}”</h2>
         <p>Every shop selling it, side by side, with a trust score next to the price. The cheapest listing is not always the safest one — low scores stay visible, they are never hidden.</p></div>`
     : `<div class="lead"><h2>Today's best deals in Bangladesh</h2>
         <p>Type a product above — in English, Bangla or Banglish. ${catalog.totals.offers} prices from ${catalog.totals.stores} shops across ${catalog.totals.products} products are being compared right now.</p></div>`;
@@ -43,7 +43,7 @@ export function resultsView(ctx: RenderContext): string {
       <div class="chips" style="justify-content:center">${TRENDING.map(t =>
         `<button class="chip" data-act="query" data-q="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join('')}</div></div>` : ''}
     ${!showAll && groups.length > shown.length ? `<button class="more" data-act="all"
-      style="border:1px dashed var(--line);border-radius:var(--r);background:var(--card)">Show the other ${groups.length - shown.length} products</button>` : ''}`;
+      style="border:1px dashed var(--line);border-radius:var(--r);background:var(--card)">Show the other ${groups.length - shown.length} ${pluralNoun(groups.length - shown.length, 'product')}</button>` : ''}`;
 }
 
 function signalSummary(store: ShopProfile, weights: TrustWeight[]): string {
@@ -69,7 +69,7 @@ export function storesView(ctx: RenderContext): string {
       </div>
       <p class="blurb">${escapeHtml(store.blurb)}</p>
       <div class="facts">
-        <span class="tag">${store.offerCount} offers</span>
+        <span class="tag">${pluralCount(store.offerCount, 'offer')}</span>
         <span class="tag">${store.kind === 'marketplace' ? 'Marketplace' : store.kind === 'brand' ? 'Manufacturer' : 'Retailer'}</span>
         <span class="tag">${store.coverage === 'nationwide' ? 'Nationwide' : store.coverage === 'none' ? 'No delivery' : 'Limited area'}</span>
         ${store.cod ? '<span class="tag ok">Cash on delivery</span>' : ''}
@@ -119,7 +119,7 @@ export function compareView(ctx: RenderContext): string {
   const cheapest = [...picked].sort((a, b) => a.landed - b.landed)[0];
   const safest = [...picked].sort((a, b) => b.trust.score - a.trust.score)[0];
 
-  return `<div class="lead"><h2>${escapeHtml(picked[0].product.name)} — ${picked.length} shops side by side</h2>
+  return `<div class="lead"><h2>${escapeHtml(picked[0].product.name)} — ${pluralCount(picked.length, 'shop')} side by side</h2>
     <p>${escapeHtml(picked[0].product.spec)} · market average ${money(picked[0].market.median)}. Cheapest and safest are not always the same shop — ✦ marks the best value in each row.</p></div>
     <div class="cmp-table"><table class="table cmp-grid">
       <thead><tr><th></th>${picked.map(offer => `<th>${logo(offer.store, 'md')}<div style="margin-top:6px">${escapeHtml(offer.store.name)}</div></th>`).join('')}</tr></thead>
