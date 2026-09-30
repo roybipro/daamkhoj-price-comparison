@@ -5,6 +5,11 @@ import { clamp, money } from './format.js';
 
 const CURRENT_YEAR = 2026;
 
+/** The one under-market gap the How it works tab publishes: it both costs
+    authenticity points and raises the warning. Keeping it in a single constant
+    is what stops the scoring and the published method from drifting apart. */
+export const UNDER_MARKET_RULE = 0.18;
+
 type SignalFn = (shop: Shop, offer: TrustInput, marketMedian: number) => TrustSignal;
 
 function identity(shop: Shop): TrustSignal {
@@ -49,6 +54,12 @@ function returns(shop: Shop): TrustSignal {
   return { v: tier, why: shop.returnsDays ? `${shop.returnsDays}-day return or exchange window` : 'Return policy not published' };
 }
 
+/* Market stats are built from landed prices, so the under-market test has to use
+   the same basis — otherwise a shop with a delivery fee can read as a bargain on
+   the score while the row beside it says "over average". */
+const marketGap = (offer: TrustInput, marketMedian: number): number =>
+  marketMedian ? (marketMedian - (offer.price + (offer.ship ?? 0))) / marketMedian : 0;
+
 /* Authenticity is where a suspiciously low price becomes a risk, not a bargain. */
 function authenticity(shop: Shop, offer: TrustInput, marketMedian: number): TrustSignal {
   let v: number;
@@ -61,8 +72,8 @@ function authenticity(shop: Shop, offer: TrustInput, marketMedian: number): Trus
     v = official ? 0.85 : 0.45;
     why = official ? 'Official or partner seller on the marketplace' : 'Third-party seller — not the platform’s own stock';
   }
-  const gap = marketMedian ? (marketMedian - offer.price) / marketMedian : 0;
-  if (gap > 0.22) { v *= 0.55; why += ` · priced ${Math.round(gap * 100)}% under the market`; }
+  const gap = marketGap(offer, marketMedian);
+  if (gap > UNDER_MARKET_RULE) { v *= 0.55; why += ` · priced ${Math.round(gap * 100)}% under the market`; }
   return { v: clamp(v, 0, 1), why };
 }
 
@@ -122,8 +133,8 @@ export function scoreTrust(shop: Shop, offer: TrustInput, marketMedian: number, 
     else score = Math.max(0, score - 25);
   }
 
-  const gap = marketMedian ? (marketMedian - offer.price) / marketMedian : 0;
-  if (!shop.closed && gap > 0.18) {
+  const gap = marketGap(offer, marketMedian);
+  if (!shop.closed && gap > UNDER_MARKET_RULE) {
     flags.push(`${Math.round(gap * 100)}% under the market average — check warranty, seller and condition`);
   }
   if (offer.seller && offer.sellerReviews !== undefined && offer.sellerReviews < 60) {
