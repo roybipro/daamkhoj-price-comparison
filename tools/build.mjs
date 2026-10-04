@@ -8,15 +8,21 @@ const src = path.join(root, 'src');
 const out = path.join(root, 'dist');
 const tsc = path.join(root, 'node_modules', 'typescript', 'bin', 'tsc');
 
-/* Clean before tsc runs, or the compile output gets deleted along with the old build. */
-await rm(out, { recursive: true, force: true });
-await mkdir(out, { recursive: true });
+const noEmit = process.argv.includes('--no-emit');
 
-const args = process.argv.includes('--no-emit') ? ['--noEmit'] : [];
+/* Only the emitting build may clear dist/ — a typecheck that wiped it left the
+   project with an empty build directory and nothing to deploy. Clean before tsc
+   runs, or the compile output gets deleted along with the old build. */
+if (!noEmit) {
+  await rm(out, { recursive: true, force: true });
+  await mkdir(out, { recursive: true });
+}
+
+const args = noEmit ? ['--noEmit'] : [];
 const result = spawnSync(process.execPath, [tsc, ...args], { cwd: root, stdio: 'inherit' });
 if (result.status !== 0) process.exit(result.status ?? 1);
 
-if (process.argv.includes('--no-emit')) {
+if (noEmit) {
   console.log('typecheck passed');
   process.exit(0);
 }
