@@ -153,6 +153,7 @@ export interface State {
   showAll: boolean;
   suggest: SuggestItem[];
   suggestIndex: number;
+  linkCopied: boolean;
 }
 
 /** Everything a view needs to render, passed in rather than reached for globally. */

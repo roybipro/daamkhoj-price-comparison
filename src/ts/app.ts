@@ -1,6 +1,7 @@
 import { SNAPSHOT, TRUST_WEIGHTS } from './data/meta.js';
 import { buildCatalog } from './core/catalog.js';
 import { createSearch } from './core/search.js';
+import { decodeState, encodeState } from './core/urlstate.js';
 import { toggleTheme } from './core/theme.js';
 import type { Group, Offer, RenderContext, SortKey, State, ViewName } from './types.js';
 import { compareView, howView, resultsView, storesView, suggestionsView, toolbarView, trayView } from './ui/views.js';
@@ -38,7 +39,8 @@ const state: State = {
   maxCompare: 4,
   showAll: false,
   suggest: [],
-  suggestIndex: -1
+  suggestIndex: -1,
+  linkCopied: false
 };
 
 function must<T extends Element>(selector: string): T {
@@ -55,6 +57,14 @@ const dom = {
   tabs: must<HTMLElement>('#tabs'),
   suggest: must<HTMLElement>('#suggest-wrap')
 };
+
+/* A pasted link is a supported entry point, so read it before the first render. */
+Object.assign(state, decodeState(window.location.search, {
+  stores: new Set(catalog.stores.map(store => store.id)),
+  offers: new Set(catalog.offers.map(offer => offer.id)),
+  maxCompare: state.maxCompare
+}));
+if (state.q) dom.input.value = state.q;
 
 function passesFilters(offer: Offer): boolean {
   return (!state.minTrust || offer.trust.score >= state.minTrust) &&
@@ -114,6 +124,16 @@ function renderSuggestions(ctx: RenderContext): void {
   dom.input.setAttribute('aria-expanded', String(Boolean(document.querySelector('#suggest'))));
 }
 
+/* replaceState, not pushState: filtering is one continuous view, and the back button
+   should leave the site, not walk back through every keypress. */
+function syncUrl(): void {
+  const query = encodeState(state);
+  const next = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+  if (`${window.location.pathname}${window.location.search}` !== next) {
+    window.history.replaceState(null, '', next);
+  }
+}
+
 function render(): void {
   const ctx = context();
   dom.out.innerHTML = `${toolbarView(ctx)}${VIEWS[state.view](ctx)}`;
@@ -122,6 +142,7 @@ function render(): void {
     tab.setAttribute('aria-selected', String(tab.dataset.view === state.view)));
   renderSuggestions(ctx);
   syncControls();
+  syncUrl();
 }
 
 /* Typing re-renders only the results body, so the input keeps focus and the caret. */
@@ -136,6 +157,7 @@ function onQueryChange(value: string): void {
     dom.out.innerHTML = `${toolbarView(ctx)}${resultsView(ctx)}`;
     renderSuggestions(ctx);
     syncControls();
+    syncUrl();
   }, 90);
 }
 
@@ -181,6 +203,15 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
   query: trigger => { state.q = trigger.dataset.q ?? ''; dom.input.value = state.q; render(); },
   shop: trigger => { state.storeId = trigger.dataset.id ?? ''; state.view = 'results'; state.showAll = true; render(); window.scrollTo({ top: 0 }); },
   cod: () => { state.codOnly = !state.codOnly; render(); },
+  copyLink: () => {
+    /* The label only flips on a real success; a rejected clipboard write leaves the
+       button saying "Copy link", which is the truth about what just happened. */
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      state.linkCopied = true;
+      render();
+      setTimeout(() => { state.linkCopied = false; render(); }, 1600);
+    }, () => { state.linkCopied = false; });
+  },
   reset: () => { state.codOnly = false; state.minTrust = 0; state.storeId = ''; render(); },
   clearQuery: () => { state.q = ''; dom.input.value = ''; render(); dom.input.focus(); }
 };

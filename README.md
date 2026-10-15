@@ -56,12 +56,13 @@ src/
     │   ├── links.ts          product deep links and logo URLs
     │   ├── price-history.ts  deterministic 12-week series for the trend chart
     │   ├── catalog.ts        joins data into offers with market stats
+    │   ├── urlstate.ts       encode/restore a shareable comparison in the query string
     │   └── search.ts         tolerant search (English, Bangla, Banglish)
     └── ui/               HTML string rendering, no DOM access beyond what it's given
         ├── fragments.ts      offer rows, group cards, meters, logos
         └── views.ts          results, shops, compare, methodology, chrome
 tools/
-├── build.mjs             clean → tsc → copy static files
+├── build.mjs             clean → tsc → copy static files (the clean step is skipped for `--no-emit`)
 ├── serve.mjs             zero-dependency static server for dist/
 └── check.mjs             integrity gate (see below)
 ```
@@ -72,6 +73,14 @@ tools/
 Data flows one way: `data → core → ui → DOM`. Rendering is string templates into one
 container with a single delegated click handler — no virtual DOM, and the whole page is
 under 30 KB gzipped.
+
+The address bar is part of that flow rather than an extra: `core/urlstate.ts` turns the
+state into a query string (`?q=`, `view=`, `sort=`, `trust=`, `shop=`, `cod=`, `pick=`) and
+reads it back, so any search, filter or shortlist is a link you can paste to someone. It
+uses `replaceState`, never `pushState` — filtering is one continuous view. Unknown shop ids,
+out-of-range trust steps and hand-edited `pick=` listings that don't exist are dropped on
+read, and a shortlist mixing products is ignored rather than half-restored. `app.ts` is the
+only module that touches `window.history`.
 
 ### What `npm run check` guards
 

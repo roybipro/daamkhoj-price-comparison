@@ -120,7 +120,8 @@ export function compareView(ctx: RenderContext): string {
   const safest = [...picked].sort((a, b) => b.trust.score - a.trust.score)[0];
 
   return `<div class="lead"><h2>${escapeHtml(picked[0].product.name)} — ${pluralCount(picked.length, 'shop')} side by side</h2>
-    <p>${escapeHtml(picked[0].product.spec)} · market average ${money(picked[0].market.median)}. Cheapest and safest are not always the same shop — ✦ marks the best value in each row.</p></div>
+    <p>${escapeHtml(picked[0].product.spec)} · market average ${money(picked[0].market.median)}. Cheapest and safest are not always the same shop — ✦ marks the best value in each row.
+      <button class="toggle" data-act="copyLink" style="margin-left:6px">${ctx.state.linkCopied ? 'Link copied ✓' : 'Copy this comparison'}</button></p></div>
     <div class="cmp-table"><table class="table cmp-grid">
       <thead><tr><th></th>${picked.map(offer => `<th>${logo(offer.store, 'md')}<div style="margin-top:6px">${escapeHtml(offer.store.name)}</div></th>`).join('')}</tr></thead>
       <tbody>
@@ -190,6 +191,7 @@ export function toolbarView(ctx: RenderContext): string {
     </label>
     <button class="toggle" data-act="cod" aria-pressed="${state.codOnly}"><input type="checkbox" ${state.codOnly ? 'checked' : ''} tabindex="-1">Cash on delivery only</button>
     ${state.minTrust || state.codOnly || state.storeId ? '<button class="toggle" data-act="reset">Clear filters ✕</button>' : ''}
+    <button class="toggle" data-act="copyLink">${state.linkCopied ? 'Link copied ✓' : 'Copy link'}</button>
   </div>`;
 }
 
