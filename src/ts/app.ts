@@ -40,7 +40,8 @@ const state: State = {
   showAll: false,
   suggest: [],
   suggestIndex: -1,
-  linkCopied: false
+  linkCopied: false,
+  trend: null
 };
 
 function must<T extends Element>(selector: string): T {
@@ -197,6 +198,11 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
     const id = trigger.dataset.id ?? '';
     if (state.open.has(id)) state.open.delete(id);
     else state.open.add(id);
+    render();
+  },
+  trend: trigger => {
+    const id = trigger.dataset.id ?? '';
+    state.trend = state.trend === id ? null : id;
     render();
   },
   all: () => { state.showAll = true; render(); },

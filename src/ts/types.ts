@@ -154,6 +154,8 @@ export interface State {
   suggest: SuggestItem[];
   suggestIndex: number;
   linkCopied: boolean;
+  /** Only one product's trend chart is open at a time; a wall of charts reads as noise. */
+  trend: string | null;
 }
 
 /** Everything a view needs to render, passed in rather than reached for globally. */

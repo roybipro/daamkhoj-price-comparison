@@ -217,6 +217,29 @@ select:hover { border-color: var(--brand); }
 .more { width: 100%; border: 0; border-top: 1px dashed var(--line); background: none; padding: 11px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--brand); }
 .more:hover { background: var(--brand-tint-soft); }
 
+/* ---------- 12-week trend ---------- */
+
+.t-btn { align-self: flex-start; margin-top: 9px; border: 1px dashed var(--line); border-radius: var(--r); background: none; padding: 5px 11px; font-size: 12px; font-weight: 600; color: var(--brand); cursor: pointer; }
+.t-btn:hover { background: var(--brand-tint-soft); }
+.trend-panel { margin-top: 6px; padding-top: 14px; border-top: 1px dashed var(--line); }
+.trend-wrap { display: grid; gap: 10px; }
+.trend { display: block; width: 100%; height: auto; }
+.t-grid { stroke: var(--line-2); stroke-width: 1; }
+.t-tick { fill: var(--dim); font-size: 11px; }
+.t-wk { fill: var(--dim); font-size: 10.5px; }
+.t-avg { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.t-avg-lab { fill: var(--muted); font-size: 11px; font-weight: 600; }
+.t-line { fill: none; stroke-width: 2; stroke-linejoin: round; opacity: .9; }
+/* Hollow ring, so each shop's cheapest week stays legible whatever the line colour. */
+.t-low { fill: none; stroke: var(--text); stroke-width: 1.4; }
+.t-legend-list { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; padding: 0; }
+.t-legend { display: flex; align-items: baseline; gap: 7px; font-size: 12.5px; }
+.t-legend .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; align-self: center; }
+.t-legend .t-name { font-weight: 600; color: var(--text); }
+.t-legend .num { color: var(--taka); font-weight: 700; }
+.t-legend .sub { color: var(--dim); }
+.t-note { font-size: 11.5px; color: var(--dim); margin: 0; }
+
 /* ---------- states and prose ---------- */
 
 .empty { text-align: center; padding: 56px 20px; border: 1px dashed var(--line); border-radius: var(--r); background: var(--surface); }

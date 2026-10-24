@@ -55,6 +55,7 @@ src/
     │   ├── trust.ts          seven weighted signals + risk rules → 0–100
     │   ├── links.ts          product deep links and logo URLs
     │   ├── price-history.ts  deterministic 12-week series for the trend chart
+    │   ├── trend.ts          chart geometry from those series — coordinates, never markup
     │   ├── catalog.ts        joins data into offers with market stats
     │   ├── urlstate.ts       encode/restore a shareable comparison in the query string
     │   └── search.ts         tolerant search (English, Bangla, Banglish)
@@ -111,6 +112,11 @@ Risk rules:
   platform is not the one who ships your order.
 - A **shut-down business** has its offers dropped from the average but still displayed, in
   red, with the reason. Evaly is in the catalogue specifically for this case.
+
+Every product sold by more than one shop can expand a 12-week price chart, plotting up to
+six shops against the market average and ring-marking each one's cheapest week. The series
+comes from `core/price-history.ts` — a hash of the listing id, so the chart is identical for
+every visitor — and the panel labels it as generated sample history, not recorded prices.
 
 `value = trust × 0.5 + savings × 0.35 + speed × 0.15` ranks "best deal", which is why the
 top-ranked row is sometimes not the cheapest one.

@@ -34,6 +34,7 @@ export function resultsView(ctx: RenderContext): string {
     ${shown.map((group, i) => groupCard(group, {
       open: showAll || state.open.has(group.product.id) || i === 0,
       showToggle: !state.q,
+      trend: state.trend === group.product.id,
       weights: ctx.weights,
       selected: state.compare,
       maxCompare: state.maxCompare

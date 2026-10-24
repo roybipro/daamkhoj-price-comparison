@@ -1,4 +1,6 @@
 import type { Group, Offer, Shop, TrustAssessment, TrustWeight } from '../types.js';
+import type { TrendChart } from '../core/trend.js';
+import { buildTrend, weekLabel } from '../core/trend.js';
 import { escapeHtml, money, pluralCount, pluralNoun } from '../core/format.js';
 import { homeUrl, iconUrl } from '../core/links.js';
 
@@ -13,6 +15,45 @@ export function sparkline(points: number[]): string {
   const span = high - low || 1;
   const coords = points.map((p, i) => `${(i / (points.length - 1)) * 76},${20 - ((p - low) / span) * 15}`).join(' ');
   return `<svg class="spark" width="78" height="22" viewBox="0 0 78 22" aria-hidden="true"><polyline points="${coords}"/></svg>`;
+}
+
+export function trendPanel(chart: TrendChart): string {
+  const { plot } = chart;
+  const line = (points: { x: number; y: number }[]): string =>
+    points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+  const grid = chart.ticks.map(tick => `<line class="t-grid" x1="${plot.left}" x2="${plot.right}" y1="${tick.y.toFixed(1)}" y2="${tick.y.toFixed(1)}"/>
+      <text class="t-tick" x="${plot.left - 8}" y="${(tick.y + 4).toFixed(1)}" text-anchor="end">${money(tick.value)}</text>`).join('');
+
+  /* Odd weeks, not even: the last week is index 11, and labelling even weeks left the
+     current price — the one point readers look for — without an axis label. */
+  const weeks = chart.weekXs.map((x, week) => week % 2 === 1
+    ? `<text class="t-wk" x="${x.toFixed(1)}" y="${plot.bottom + 16}" text-anchor="middle">${weekLabel(week)}</text>` : '').join('');
+
+  const average = chart.average
+    ? `<line class="t-avg" x1="${plot.left}" x2="${plot.right}" y1="${chart.average.y.toFixed(1)}" y2="${chart.average.y.toFixed(1)}"/>
+      <text class="t-avg-lab" x="${plot.right}" y="${(chart.average.y - 6).toFixed(1)}" text-anchor="end">market average ${money(chart.average.value)}</text>` : '';
+
+  const traces = chart.series.map(s => `<polyline class="t-line" style="stroke:${escapeHtml(s.accent)}" points="${line(s.points)}"/>
+      <circle class="t-low" cx="${s.lowest.x.toFixed(1)}" cy="${s.lowest.y.toFixed(1)}" r="3"/>
+      <circle class="t-now" cx="${s.points[s.points.length - 1].x.toFixed(1)}" cy="${s.points[s.points.length - 1].y.toFixed(1)}" r="2.5" style="fill:${escapeHtml(s.accent)}"/>`).join('');
+
+  const legend = chart.series.map(s => `<li class="t-legend">
+      <span class="dot" style="background:${escapeHtml(s.accent)}"></span>
+      <span class="t-name">${escapeHtml(s.shop)}${s.seller ? ` · ${escapeHtml(s.seller)}` : ''}</span>
+      <span class="num">${money(s.current)}</span>
+      <span class="sub">low ${money(s.lowest.value)} · ${weekLabel(s.lowest.week)}</span>
+    </li>`).join('');
+
+  return `<div class="trend-wrap">
+    <svg class="trend" viewBox="0 0 ${chart.width} ${chart.height}" role="img"
+      aria-label="Twelve week price history for ${pluralCount(chart.series.length, 'shop')} in this comparison">
+      ${grid}${average}${traces}${weeks}
+    </svg>
+    <ul class="t-legend-list">${legend}</ul>
+    ${chart.hidden ? `<p class="t-note">Showing ${chart.series.length} of ${chart.series.length + chart.hidden} shops — the rest stay as sparklines in the list.</p>` : ''}
+    <p class="t-note">Sample history generated for the demo, not recorded prices.</p>
+  </div>`;
 }
 
 export function meter(offer: Offer): string {
@@ -104,15 +145,17 @@ export function offerRow(offer: Offer, options: OfferRowOptions): string {
 export interface GroupCardOptions {
   open: boolean;
   showToggle: boolean;
+  trend: boolean;
   weights: TrustWeight[];
   selected: string[];
   maxCompare: number;
 }
 
 export function groupCard(group: Group, options: GroupCardOptions): string {
-  const { open, showToggle, weights, selected, maxCompare } = options;
+  const { open, showToggle, trend, weights, selected, maxCompare } = options;
   const { product, live, dropped, best, category, stats, market } = group;
   const visible = open ? live : live.slice(0, 3);
+  const chart = trend ? buildTrend(live, market.median) : null;
   const rowOptions = (offer: Offer) => ({
     isBest: Boolean(best && offer.id === best.id),
     selected: selected.includes(offer.id),
@@ -128,6 +171,8 @@ export function groupCard(group: Group, options: GroupCardOptions): string {
           ${best && best.trust.score >= 68 ? '<span class="pill best">Best deal — cheap and safe</span>' : ''}
         </div>
         <h3>${escapeHtml(product.name)}<span class="sub">${escapeHtml(product.brand)} · ${escapeHtml(product.spec)}</span></h3>
+        ${live.length > 1 ? `<button class="t-btn" data-act="trend" data-id="${product.id}"
+          aria-expanded="${trend}" aria-controls="trend-${escapeHtml(product.id)}">${trend ? 'Hide 12-week trend' : 'Show 12-week trend'}</button>` : ''}
       </div>
       <div class="gh-price">
         <div class="from num">${live.length ? money(stats.min) : '—'}</div>
@@ -141,6 +186,7 @@ export function groupCard(group: Group, options: GroupCardOptions): string {
         : '<div class="offer"><p class="sub" style="grid-column:1/-1;color:var(--ink-3)">No shop matches these filters for this product.</p></div>'}
       ${open ? dropped.map(offer => offerRow(offer, rowOptions(offer))).join('') : ''}
     </div>
+    ${chart ? `<div class="trend-panel" id="trend-${escapeHtml(product.id)}" role="region" aria-label="Twelve week trend for ${escapeHtml(product.name)}">${trendPanel(chart)}</div>` : ''}
     ${showToggle && live.length > 3 ? `<button class="more" data-act="expand" data-id="${product.id}" aria-expanded="${open}">
       ${open ? 'Show fewer shops' : `Show ${live.length - 3} more ${pluralNoun(live.length - 3, 'shop')}`}</button>` : ''}
   </section>`;
