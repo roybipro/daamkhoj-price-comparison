@@ -2,7 +2,8 @@ import type { Group, Offer, Shop, TrustAssessment, TrustWeight } from '../types.
 import type { TrendChart } from '../core/trend.js';
 import { buildTrend, weekLabel } from '../core/trend.js';
 import { escapeHtml, money, pluralCount, pluralNoun } from '../core/format.js';
-import { homeUrl, iconUrl } from '../core/links.js';
+import { iconUrl } from '../core/links.js';
+import { GOOD_SCORE } from '../core/trust.js';
 
 export function logo(store: Shop & { icon?: string }, size?: 'xs' | 'md'): string {
   return `<span class="mono ${size ?? ''}" style="color:${store.accent}">
@@ -32,7 +33,7 @@ export function trendPanel(chart: TrendChart): string {
 
   const average = chart.average
     ? `<line class="t-avg" x1="${plot.left}" x2="${plot.right}" y1="${chart.average.y.toFixed(1)}" y2="${chart.average.y.toFixed(1)}"/>
-      <text class="t-avg-lab" x="${plot.right}" y="${(chart.average.y - 6).toFixed(1)}" text-anchor="end">market average ${money(chart.average.value)}</text>` : '';
+      <text class="t-avg-lab" x="${plot.right}" y="${(chart.average.y - 6).toFixed(1)}" text-anchor="end">market median ${money(chart.average.value)}</text>` : '';
 
   const traces = chart.series.map(s => `<polyline class="t-line" style="stroke:${escapeHtml(s.accent)}" points="${line(s.points)}"/>
       <circle class="t-low" cx="${s.lowest.x.toFixed(1)}" cy="${s.lowest.y.toFixed(1)}" r="3"/>
@@ -105,12 +106,12 @@ export interface OfferRowOptions {
 export function offerRow(offer: Offer, options: OfferRowOptions): string {
   const { isBest = false, selected = false, compareFull = false, weights } = options;
   const dropped = offer.suppressed;
-  const gapToAverage = offer.market.median - offer.landed;
+  const gapToMedian = offer.market.median - offer.landed;
   const struck = offer.mrp > offer.price ? `<span class="mrp num">${money(offer.mrp)}</span>` : '';
-  const delta = gapToAverage > 0
-    ? `<span class="save num">−${money(gapToAverage)} under market average</span>`
-    : gapToAverage < 0
-      ? `<span class="save num over">${money(-gapToAverage)} over average</span>`
+  const delta = gapToMedian > 0
+    ? `<span class="save num">−${money(gapToMedian)} under market median</span>`
+    : gapToMedian < 0
+      ? `<span class="save num over">${money(-gapToMedian)} over median</span>`
       : '';
 
   return `<div class="offer ${isBest ? 'pick' : ''} ${dropped ? 'dropped' : ''}" data-offer="${offer.id}">
@@ -124,20 +125,19 @@ export function offerRow(offer: Offer, options: OfferRowOptions): string {
     <div class="price">
       <b class="num">${money(offer.price)}</b>${struck}
       ${delta}
-      <span class="total num">All-in ${money(offer.landed)} · 12-week trend ${sparkline(offer.history)}</span>
+      <span class="total num">All-in ${money(offer.landed)} · 12-week sample trend ${sparkline(offer.history)}</span>
     </div>
     <div class="trust" tabindex="0" aria-label="Trust score ${offer.trust.score} out of 100">
       ${meter(offer)}
       <div class="tip"><h5>How this ${offer.trust.score} was built</h5>${signalBreakdown(offer.trust, weights)}</div>
     </div>
     <div class="meta">${tags(offer)}</div>
-    <div class="acts">
+    ${dropped ? '' : `<div class="acts">
       <button class="cmp" data-act="compare" data-id="${offer.id}" aria-pressed="${selected}"
         ${!selected && compareFull ? 'disabled' : ''}>${selected ? '✓ Added' : '+ Compare'}</button>
-      <a href="${escapeHtml(dropped ? homeUrl(offer.store) : offer.link)}" target="_blank" rel="noopener noreferrer nofollow"
-        title="${escapeHtml(dropped ? `Open ${offer.store.name}` : `Find ${offer.product.name} on ${offer.store.name}`)}">
-        ${dropped ? 'Visit site' : 'Find this product'} ↗</a>
-    </div>
+      <a href="${escapeHtml(offer.link)}" target="_blank" rel="noopener noreferrer nofollow"
+        title="${escapeHtml(`Find ${offer.product.name} on ${offer.store.name}`)}">Find this product ↗</a>
+    </div>`}
     ${dropped ? `<div class="reason">Excluded: ${offer.trust.flags.map(escapeHtml).join(' · ')} — this price is not counted in the comparison.</div>` : ''}
   </div>`;
 }
@@ -168,7 +168,7 @@ export function groupCard(group: Group, options: GroupCardOptions): string {
       <div class="gh-main">
         <div class="gh-kicker">
           <span class="pill cat">${escapeHtml(category.en)}</span>
-          ${best && best.trust.score >= 68 ? '<span class="pill best">Best deal — cheap and safe</span>' : ''}
+          ${best && best.trust.score >= GOOD_SCORE ? '<span class="pill best">Best deal — cheap and safe</span>' : ''}
         </div>
         <h3>${escapeHtml(product.name)}<span class="sub">${escapeHtml(product.brand)} · ${escapeHtml(product.spec)}</span></h3>
         ${live.length > 1 ? `<button class="t-btn" data-act="trend" data-id="${product.id}"
@@ -177,7 +177,7 @@ export function groupCard(group: Group, options: GroupCardOptions): string {
       <div class="gh-price">
         <div class="from num">${live.length ? money(stats.min) : '—'}</div>
         <div class="range num">${live.length ? `from · ${pluralCount(live.length, 'shop')}` : 'not in these filters'}</div>
-        <div class="avg num">${live.length ? `Market average ${money(market.median)} · highest ${money(stats.max)}` : ''}</div>
+        <div class="avg num">${live.length ? `Market median ${money(market.median)} · highest ${money(stats.max)}` : ''}</div>
       </div>
     </div>
     <div class="offers">

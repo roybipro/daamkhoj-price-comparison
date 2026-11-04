@@ -70,6 +70,15 @@ RAW_OFFERS.forEach(([productId, storeId], i) => {
   if (!storeIds.has(storeId)) errors.push(`listing ${i} references unknown shop "${storeId}"`);
 });
 
+const listingKeys = RAW_OFFERS.map(([productId, storeId]) => `${productId}--${storeId}`);
+for (const key of new Set(listingKeys.filter((key, i) => listingKeys.indexOf(key) !== i))) {
+  errors.push(`duplicate listing ${key}: a shop lists a product once, and the id relies on it`);
+}
+RAW_OFFERS.forEach(([productId, storeId, price, , eta, ship, , rating], i) => {
+  if (!(price > 0) || eta < 0 || ship < 0) errors.push(`listing ${i} (${productId}/${storeId}) has an impossible price, delivery time or fee`);
+  if (rating < 0 || rating > 5) errors.push(`listing ${i} (${productId}/${storeId}) has a rating outside 0–5`);
+});
+
 const orphanProducts = [...productIds].filter(id => !RAW_OFFERS.some(row => row[0] === id));
 if (orphanProducts.length) errors.push(`products with no listing: ${orphanProducts.join(', ')}`);
 const deadShops = STORES.filter(s => s.closed && !s.incidents.length);
