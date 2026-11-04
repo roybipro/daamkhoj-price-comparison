@@ -77,7 +77,6 @@ export interface MarketStats { min: number; median: number; max: number; count: 
 
 export interface Offer extends TrustInput {
   id: string;
-  index: number;
   productId: string;
   storeId: string;
   price: number;

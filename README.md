@@ -5,8 +5,8 @@ retailer's price side by side, and read a trust score you can actually argue wit
 to each one — because the cheapest listing in Bangladesh is not always the safest.
 
 **The prices, ratings and policies in this repository are sample data**, labelled as such
-in the header, the footer and the *How it works* tab. Shop identities are real; the numbers
-are placeholders until live feeds are wired in (see [Going live](#going-live)).
+in a banner on every page, the header, the footer and the *How it works* tab. The page is
+marked `noindex` for the same reason. Shop identities are real; the numbers are placeholders until live feeds are wired in (see [Going live](#going-live)).
 
 ## Quick start
 
@@ -14,6 +14,7 @@ are placeholders until live feeds are wired in (see [Going live](#going-live)).
 npm install       # one dev dependency: typescript
 npm run dev       # build, then serve dist/ at http://127.0.0.1:5173/
 npm run check     # strict typecheck, build, then catalogue and reference integrity
+npm test          # build, then the regression tests in tests/
 npm run build     # emit dist/ (the deployable artifact)
 npm run typecheck # tsc --noEmit only
 ```
@@ -49,7 +50,7 @@ src/
     │   ├── stores.ts         26 shops and their trust signals
     │   ├── products.ts       21 products, with Bangla/Banglish search aliases
     │   ├── offers.ts         117 listings as compact tuples
-    │   └── search-patterns.ts  verified per-shop search URL templates
+    │   └── search-patterns.ts  per-shop search URL templates
     ├── core/             pure logic, no DOM — reusable server-side
     │   ├── format.ts         money, escaping, normalisation
     │   ├── trust.ts          seven weighted signals + risk rules → 0–100
@@ -66,6 +67,8 @@ tools/
 ├── build.mjs             clean → tsc → copy static files (the clean step is skipped for `--no-emit`)
 ├── serve.mjs             zero-dependency static server for dist/
 └── check.mjs             integrity gate (see below)
+tests/
+└── core.test.mjs         regression tests for scoring, search and rendering rules
 ```
 
 `tsconfig.json` runs `strict` plus `noUnusedLocals`, `noUnusedParameters`,
@@ -73,7 +76,7 @@ tools/
 
 Data flows one way: `data → core → ui → DOM`. Rendering is string templates into one
 container with a single delegated click handler — no virtual DOM, and the whole page is
-under 30 KB gzipped.
+about 37 KB gzipped.
 
 The address bar is part of that flow rather than an extra: `core/urlstate.ts` turns the
 state into a query string (`?q=`, `view=`, `sort=`, `trust=`, `shop=`, `cod=`, `pick=`) and
@@ -88,7 +91,7 @@ only module that touches `window.history`.
 It builds first, then inspects the artifact the browser will actually load: every emitted
 module's imports resolve, every `src`/`href` in `index.html` points at a file that exists,
 trust weights sum to exactly 100, no listing references an unknown shop or product, no
-product is left without listings, and any closed shop must carry a documented reason.
+shop lists a product twice, prices and ratings are in range, no product is left without listings, and any closed shop must carry a documented reason.
 
 ## The trust model
 
@@ -98,35 +101,37 @@ dispute a specific number rather than the whole score.
 
 | Signal | Weight | What it measures |
 | --- | --- | --- |
-| Verified business & history | 20 | Trade licence, years trading, physical shops |
+| Business history | 20 | Years trading, type of business, physical shops |
 | Buyer rating & review volume | 20 | The shop — or the exact marketplace seller — weighted by review count |
-| Payment & refund safety | 15 | Card gateway, mobile wallets, whether funds are held |
+| Payment & refund safety | 15 | Card gateway, mobile wallets, and marketplaces, assumed to hold funds |
 | Return & exchange window | 15 | Published days to send an item back |
-| Authenticity & warranty | 15 | Authorised distribution, and how far the price sits under market |
+| Authenticity & warranty | 15 | Official warranty, type of seller, and how far the price sits under market |
 | Delivery coverage & speed | 5 | Districts served and quoted days |
-| Reachable support | 10 | A hotline that answers, plus a service desk |
+| Reachable support | 10 | A published hotline, plus a service desk |
 
 Risk rules:
-- More than **18% under the market average** cuts the authenticity score and raises a warning.
+- More than **18% under the market median** cuts the authenticity score and raises a warning.
 - Marketplace listings from sellers with **under 60 reviews** are flagged separately — the
   platform is not the one who ships your order.
-- A **shut-down business** has its offers dropped from the average but still displayed, in
-  red, with the reason. Evaly is in the catalogue specifically for this case.
+- A **shut-down business** has its offers dropped from the median but still displayed, in
+  red, with the reason. They can't be shortlisted or followed to the shop's site.
+- Any other recorded incident takes **25 points** off the score. Evaly is in the catalogue specifically for this case.
 
 Every product sold by more than one shop can expand a 12-week price chart, plotting up to
-six shops against the market average and ring-marking each one's cheapest week. The series
+six shops against the market median and ring-marking each one's cheapest week. The series
 comes from `core/price-history.ts` — a hash of the listing id, so the chart is identical for
 every visitor — and the panel labels it as generated sample history, not recorded prices.
 
 `value = trust × 0.5 + savings × 0.35 + speed × 0.15` ranks "best deal", which is why the
-top-ranked row is sometimes not the cheapest one.
+top-ranked row is sometimes not the cheapest one. A listing below the Good tier (68) never
+ranks above one that reached it.
 
 ## Adding a shop or a product
 
 1. Add the record to `src/ts/data/stores.ts` or `products.ts`.
 2. Add listings to `src/ts/data/offers.ts`: `[productId, storeId, price, mrp, etaDays, deliveryFee, sellerName, sellerRating, sellerReviews]`.
 3. If you know the shop's own search URL works, add a template to
-   `data/search-patterns.js` (`{q}` is the encoded query). Otherwise leave it out and the
+   `data/search-patterns.ts` (`{q}` is the encoded query). Otherwise leave it out and the
    link falls back to a site-scoped search — a guessed deep link only ever 404s.
 4. `npm run check` catches typos in ids, unknown categories and products with no offers.
 
@@ -143,6 +148,13 @@ Real prices need real sources, in rough order of difficulty:
 
 Collection must run server-side: browser requests to those domains are blocked by CORS and
 bot protection, and any credentials have to stay off the client.
+
+## Before going public
+
+The code is ready to deploy as a demo, and CI runs `npm run check` and `npm test` on every
+push. Sample scores still sit next to real shop names, so before removing `noindex` or
+promoting the site, replace them with real data or get the shops' names out of the demo.
+The Evaly shutdown text in `data/stores.ts` is a factual claim and needs a citable source.
 
 ## Deployment
 

@@ -6,7 +6,7 @@ import type {
   Catalog, MarketStats, Offer, Shop, ShopProfile, TrustInput
 } from '../types.js';
 import { clamp } from './format.js';
-import { scoreTrust } from './trust.js';
+import { GOOD_SCORE, scoreTrust, UNDER_MARKET_RULE } from './trust.js';
 import { productLink, iconUrl } from './links.js';
 import { priceHistory } from './price-history.js';
 
@@ -25,7 +25,7 @@ function median(values: number[]): number {
 }
 
 /* Market stats ignore shops that no longer trade, so a dead site's bargain price
-   never drags the average the living ones are measured against. */
+   never drags the median the living ones are measured against. */
 function marketStats(listings: readonly Listing[]): Map<string, MarketStats> {
   const stats = new Map<string, MarketStats>();
   for (const product of PRODUCTS) {
@@ -47,7 +47,7 @@ function decorate(listing: Listing, market: MarketStats): Offer {
   const landed = listing.price + listing.ship;
   const trust = scoreTrust(listing.store, listing, market.median, TRUST_WEIGHTS);
   const savedVsMarket = market.median ? clamp((market.median - landed) / market.median, -1, 1) : 0;
-  const savingsScore = clamp(savedVsMarket / 0.18, 0, 1) * 100;
+  const savingsScore = clamp(savedVsMarket / UNDER_MARKET_RULE, 0, 1) * 100;
   const speedScore = clamp(1 - listing.eta / 12, 0, 1) * 100;
   return {
     ...listing,
@@ -56,10 +56,16 @@ function decorate(listing: Listing, market: MarketStats): Offer {
     trust,
     savedVsMarket,
     value: listing.store.closed ? -1 : Math.round(trust.score * 0.5 + savingsScore * 0.35 + speedScore * 0.15),
-    history: priceHistory(listing.id, listing.price),
+    /* All-in, like the market line it is charted against. */
+    history: priceHistory(listing.id, landed),
     suppressed: Boolean(listing.store.closed)
   };
 }
+
+/** Best value, but a listing below the Good tier never outranks one that reached it:
+    a saving should not be able to buy its way past a real gap in trust. */
+export const byBestValue = (a: Offer, b: Offer): number =>
+  Number(b.trust.score >= GOOD_SCORE) - Number(a.trust.score >= GOOD_SCORE) || b.value - a.value;
 
 function shopProfile(store: Shop, offers: readonly Offer[]): ShopProfile {
   const own = offers.filter(o => o.storeId === store.id);
@@ -92,8 +98,9 @@ export function buildCatalog(): Catalog {
       if (!product) throw new Error(`listing ${index} points at an unknown product "${productId}"`);
       if (!store) throw new Error(`listing ${index} points at an unknown shop "${storeId}"`);
       return {
-        id: `${productId}--${storeId}--${index}`,
-        index, productId, storeId, price, mrp, eta, ship,
+        /* Row order stays out of the id: shared links and the chart seed must survive edits to the list. */
+        id: `${productId}--${storeId}`,
+        productId, storeId, price, mrp, eta, ship,
         seller, sellerRating, sellerReviews,
         product, store,
         link: productLink(store, product),

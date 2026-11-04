@@ -22,7 +22,14 @@ const TYPES = {
 /* ES modules need an http(s) origin, so this stands in for the static host locally. */
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${host}`);
-  const target = path.resolve(dir, '.' + decodeURIComponent(url.pathname));
+  let pathname;
+  try {
+    pathname = decodeURIComponent(url.pathname);
+  } catch {
+    res.writeHead(400, { 'content-type': 'text/plain' }).end('bad request');
+    return;
+  }
+  const target = path.resolve(dir, '.' + pathname);
   if (target !== dir && !target.startsWith(dir + path.sep)) {
     res.writeHead(403, { 'content-type': 'text/plain' }).end('forbidden');
     return;

@@ -1,9 +1,14 @@
 import type {
   Shop, SignalId, Signals, TrustAssessment, TrustInput, TrustSignal, TrustTier, TrustWeight
 } from '../types.js';
+import { SNAPSHOT } from '../data/meta.js';
 import { clamp, money } from './format.js';
 
-const CURRENT_YEAR = 2026;
+/* Tenure is measured at the snapshot the data describes, so scores don't drift with the clock. */
+const CURRENT_YEAR = Number(SNAPSHOT.date.slice(0, 4));
+
+/** The floor of the Good tier, and the bar a listing has to clear to be recommended. */
+export const GOOD_SCORE = 68;
 
 /** The one under-market gap the How it works tab publishes: it both costs
     authenticity points and raises the warning. Keeping it in a single constant
@@ -56,7 +61,7 @@ function returns(shop: Shop): TrustSignal {
 
 /* Market stats are built from landed prices, so the under-market test has to use
    the same basis — otherwise a shop with a delivery fee can read as a bargain on
-   the score while the row beside it says "over average". */
+   the score while the row beside it says "over median". */
 const marketGap = (offer: TrustInput, marketMedian: number): number =>
   marketMedian ? (marketMedian - (offer.price + (offer.ship ?? 0))) / marketMedian : 0;
 
@@ -68,9 +73,9 @@ function authenticity(shop: Shop, offer: TrustInput, marketMedian: number): Trus
   else if (shop.officialWarranty) { v = 0.92; why = 'Authorised distribution with official warranty'; }
   else if (shop.kind === 'retailer') { v = 0.65; why = 'Import-line stock — warranty needs checking'; }
   else {
-    const official = /official|authorized|partner|store$/i.test(offer.seller);
-    v = official ? 0.85 : 0.45;
-    why = official ? 'Official or partner seller on the marketplace' : 'Third-party seller — not the platform’s own stock';
+    /* A seller picks its own name, so "Official" or "Partner Store" earns nothing here. */
+    v = 0.45;
+    why = 'Marketplace seller — authorisation not verified';
   }
   const gap = marketGap(offer, marketMedian);
   if (gap > UNDER_MARKET_RULE) { v *= 0.55; why += ` · priced ${Math.round(gap * 100)}% under the market`; }
@@ -96,8 +101,8 @@ function support(shop: Shop): TrustSignal {
   return {
     v: shop.supportVerified ? (shop.showrooms ? 1 : 0.85) : 0.35,
     why: shop.supportVerified
-      ? (shop.showrooms ? 'Working hotline plus in-store service desk' : 'Verified hotline')
-      : 'No public hotline that answers'
+      ? (shop.showrooms ? 'Published hotline plus in-store service desk' : 'Published hotline')
+      : 'No public hotline listed'
   };
 }
 
@@ -116,7 +121,7 @@ const incidentOf = (shop: Shop): string => shop.incidents[0]?.t ?? 'Business no 
 export function trustTier(score: number, shop: Shop): TrustTier {
   if (shop.closed) return { id: 'closed', label: 'Closed' };
   if (score >= 82) return { id: 'strong', label: 'Trusted' };
-  if (score >= 68) return { id: 'good', label: 'Good' };
+  if (score >= GOOD_SCORE) return { id: 'good', label: 'Good' };
   if (score >= 50) return { id: 'caution', label: 'Caution' };
   return { id: 'risk', label: 'Risky' };
 }
@@ -135,11 +140,13 @@ export function scoreTrust(shop: Shop, offer: TrustInput, marketMedian: number, 
 
   const gap = marketGap(offer, marketMedian);
   if (!shop.closed && gap > UNDER_MARKET_RULE) {
-    flags.push(`${Math.round(gap * 100)}% under the market average — check warranty, seller and condition`);
+    flags.push(`${Math.round(gap * 100)}% under the market median — check warranty, seller and condition`);
   }
   if (offer.seller && offer.sellerReviews !== undefined && offer.sellerReviews < 60) {
     flags.push(`Only ${offer.sellerReviews} reviews on this seller`);
   }
 
-  return { score: Math.round(score), signals, flags, tier: trustTier(score, shop) };
+  /* Tier from the rounded score: the one people read, and the one the bands are published for. */
+  const rounded = Math.round(score);
+  return { score: rounded, signals, flags, tier: trustTier(rounded, shop) };
 }

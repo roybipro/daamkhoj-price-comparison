@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DaamKhoj — Compare prices and trust across Bangladesh's online shops</title>
-<meta name="description" content="Search any product and see every Bangladeshi shop's price side by side — Daraz, Star Tech, Ryans, Chaldal, Pickaboo, Rokomari and more — with a transparent trust score next to each price.">
+<title>DaamKhoj demo — Compare prices and trust across Bangladesh's online shops</title>
+<meta name="description" content="A demo of price and trust comparison for Bangladeshi online shops. Every price, rating and trust score shown is sample data.">
+<!-- Sample prices attached to real shop names must not reach search results. Remove with live data. -->
+<meta name="robots" content="noindex">
 <meta name="theme-color" content="#080d0b">
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f3ea">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#080d0b">
@@ -18,8 +20,8 @@
     document.documentElement.dataset.theme = theme;
   })();
 </script>
-<meta property="og:title" content="DaamKhoj — compare before you buy in Bangladesh">
-<meta property="og:description" content="Every shop's price for one product, side by side, with a trust score you can argue with.">
+<meta property="og:title" content="DaamKhoj demo — compare before you buy in Bangladesh">
+<meta property="og:description" content="A demo using sample data: one product's prices side by side, with a trust score you can argue with.">
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -64,6 +66,10 @@
   </div>
 </header>
 
+<div class="sample-banner" role="note">
+  <p class="wrap"><b>Demo with sample data.</b> The shops are real businesses, but every price, rating, trust score and marketplace seller here is made up for this demo and says nothing about how those shops really operate. Check the shop's own site before you buy.</p>
+</div>
+
 <main class="wrap">
   <div class="search-zone">
     <form class="search-bar" id="sform" role="search">
@@ -90,7 +96,8 @@
     </div>
   </div>
 
-  <div id="out"></div>
+  <noscript><p class="note">DaamKhoj needs JavaScript to compare prices.</p></noscript>
+  <div id="out" tabindex="-1"></div>
 </main>
 
 <div id="tray"></div>
@@ -98,7 +105,7 @@
 <footer>
   <div class="wrap in">
     <p class="fine"><b>What DaamKhoj is not:</b> we are not a shop and nothing is bought here. We line up the prices and terms each store already publishes. <b>Every price, rating and policy in this build is sample data for the demo</b> — check the shop's own site for the live price, warranty and return terms before you pay.</p>
-    <p class="fine"><b>The trust score</b> comes from seven checkable signals: business history, buyer reviews, payment safety, returns, authenticity, delivery and support. The full method is in the <button class="chip" data-act="view" data-view="how">How it works</button> tab.</p>
+    <p class="fine"><b>The trust score</b> comes from seven signals: business history, buyer reviews, payment safety, returns, authenticity, delivery and support. The full method is in the <button class="chip" data-act="view" data-view="how">How it works</button> tab.</p>
   </div>
 </footer>
 

@@ -53,7 +53,7 @@ export const RAW_OFFERS: RawOffer[] = [
   ['lenovo-qct-2504', 'pickaboo', 1190, 1590, 3, 60, 'Gadget Zone', 4.0, 420],
   ['lenovo-qct-2504', 'app-bazar', 1490, 1490, 2, 0, '', 0, 0],
   ['lenovo-qct-2504', 'ajkerdeal', 990, 1690, 5, 80, 'Smart Shop BD', 3.5, 210],
-  ['lenovo-qct-2504', 'othoba', 799, 1800, 9, 0, 'Trendy Mart', 2.4, 47],
+  ['lenovo-qct-2504', 'othoba', 749, 1800, 9, 0, 'Trendy Mart', 2.4, 47],
   ['lenovo-qct-2504', 'evaly', 620, 1500, 20, 0, '', 0, 0],
 
   ['edifier-w800bt', 'daraz', 4290, 4990, 3, 0, 'Edifier Official BD', 4.6, 780],

@@ -64,3 +64,8 @@ footer .fine { flex: 1 1 340px; max-width: 720px; }
   .gh-price .from { font-size: 22px; }
   .tray .actions { margin-left: 0; width: 100%; }
 }
+
+.sample-banner { background: var(--risk-tint); border-bottom: 1px solid var(--risk-line); }
+.sample-banner p { padding-top: 9px; padding-bottom: 9px; font-size: 13px; line-height: 1.45; color: var(--text); }
+#out:focus { outline: none; }
+.tag.warn { white-space: normal; max-width: 100%; }

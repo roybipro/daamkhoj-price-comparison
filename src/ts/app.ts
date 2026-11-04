@@ -1,5 +1,5 @@
 import { SNAPSHOT, TRUST_WEIGHTS } from './data/meta.js';
-import { buildCatalog } from './core/catalog.js';
+import { buildCatalog, byBestValue } from './core/catalog.js';
 import { createSearch } from './core/search.js';
 import { decodeState, encodeState } from './core/urlstate.js';
 import { toggleTheme } from './core/theme.js';
@@ -11,7 +11,7 @@ const search = createSearch(catalog);
 const offersById = new Map(catalog.offers.map(offer => [offer.id, offer] as const));
 
 const SORTS: Record<SortKey, (a: Offer, b: Offer) => number> = {
-  value: (a, b) => b.value - a.value,
+  value: byBestValue,
   price: (a, b) => a.landed - b.landed,
   trust: (a, b) => b.trust.score - a.trust.score,
   eta: (a, b) => a.eta - b.eta || a.landed - b.landed
@@ -62,7 +62,8 @@ const dom = {
 /* A pasted link is a supported entry point, so read it before the first render. */
 Object.assign(state, decodeState(window.location.search, {
   stores: new Set(catalog.stores.map(store => store.id)),
-  offers: new Set(catalog.offers.map(offer => offer.id)),
+  /* A closed shop can't be shortlisted by hand, so it can't be by link either. */
+  offers: new Set(catalog.offers.filter(offer => !offer.suppressed).map(offer => offer.id)),
   maxCompare: state.maxCompare
 }));
 if (state.q) dom.input.value = state.q;
@@ -74,7 +75,7 @@ function passesFilters(offer: Offer): boolean {
 }
 
 /* One group per product: live offers sorted by the active sort, plus the listings
-   excluded by the trust rules, which stay visible but never move the average. */
+   excluded by the trust rules, which stay visible but never move the median. An explicit filter applies to them too. */
 function buildGroups(): Group[] {
   const hits = state.q ? search.products(state.q) : catalog.products.map(product => ({ product }));
   const groups: Group[] = [];
@@ -82,7 +83,7 @@ function buildGroups(): Group[] {
   for (const { product } of hits) {
     const all = catalog.byProduct.get(product.id) ?? [];
     const live = all.filter(o => !o.suppressed && passesFilters(o)).sort(SORTS[state.sort]);
-    const dropped = all.filter(o => o.suppressed);
+    const dropped = all.filter(o => o.suppressed && passesFilters(o));
     if (!live.length && !dropped.length) continue;
 
     const landed = live.map(o => o.landed).sort((a, b) => a - b);
@@ -123,6 +124,7 @@ function syncControls(): void {
 function renderSuggestions(ctx: RenderContext): void {
   dom.suggest.innerHTML = suggestionsView(ctx);
   dom.input.setAttribute('aria-expanded', String(Boolean(document.querySelector('#suggest'))));
+  if (ctx.state.suggestIndex < 0) dom.input.removeAttribute('aria-activedescendant');
 }
 
 /* replaceState, not pushState: filtering is one continuous view, and the back button
@@ -135,7 +137,19 @@ function syncUrl(): void {
   }
 }
 
+/* Rendering replaces the markup, so keyboard focus has to be carried across by hand. */
+function focusedControl(): string | null {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !(dom.out.contains(active) || dom.tray.contains(active))) return null;
+  if (active.id) return `#${active.id}`;
+  const { act, id, view, q } = active.dataset;
+  if (!act) return null;
+  return [`[data-act="${act}"]`, id && `[data-id="${id}"]`, view && `[data-view="${view}"]`, q && `[data-q="${q}"]`]
+    .filter(Boolean).join('');
+}
+
 function render(): void {
+  const focused = focusedControl();
   const ctx = context();
   dom.out.innerHTML = `${toolbarView(ctx)}${VIEWS[state.view](ctx)}`;
   dom.tray.innerHTML = trayView(ctx);
@@ -144,22 +158,17 @@ function render(): void {
   renderSuggestions(ctx);
   syncControls();
   syncUrl();
+  if (focused) (document.querySelector<HTMLElement>(focused) ?? dom.out).focus({ preventScroll: true });
 }
 
-/* Typing re-renders only the results body, so the input keeps focus and the caret. */
+/* Rendering leaves the input alone, so it keeps focus and the caret while typing. */
 let typing: ReturnType<typeof setTimeout> | undefined;
 function onQueryChange(value: string): void {
   state.q = value;
   state.view = 'results';
   state.suggestIndex = -1;
   clearTimeout(typing);
-  typing = setTimeout(() => {
-    const ctx = context();
-    dom.out.innerHTML = `${toolbarView(ctx)}${resultsView(ctx)}`;
-    renderSuggestions(ctx);
-    syncControls();
-    syncUrl();
-  }, 90);
+  typing = setTimeout(render, 90);
 }
 
 function chooseSuggestion(item: State['suggest'][number]): void {
@@ -167,12 +176,13 @@ function chooseSuggestion(item: State['suggest'][number]): void {
   else { state.q = item.label; state.open.add(item.id); state.showAll = true; }
   dom.input.value = state.q;
   state.suggestIndex = -1;
+  dom.input.blur();
   render();
 }
 
 function toggleCompare(id: string): void {
   const offer = offersById.get(id);
-  if (!offer) return;
+  if (!offer || offer.suppressed) return;
   const sameProduct = state.compare.every(other => offersById.get(other)?.productId === offer.productId);
   if (!sameProduct) state.compare = [];
   const index = state.compare.indexOf(id);
@@ -206,7 +216,7 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
     render();
   },
   all: () => { state.showAll = true; render(); },
-  query: trigger => { state.q = trigger.dataset.q ?? ''; dom.input.value = state.q; render(); },
+  query: trigger => { state.q = trigger.dataset.q ?? ''; state.view = 'results'; dom.input.value = state.q; render(); },
   shop: trigger => { state.storeId = trigger.dataset.id ?? ''; state.view = 'results'; state.showAll = true; render(); window.scrollTo({ top: 0 }); },
   cod: () => { state.codOnly = !state.codOnly; render(); },
   copyLink: () => {
@@ -254,6 +264,12 @@ dom.form.addEventListener('submit', event => {
   if (state.suggestIndex >= 0 && chosen) chooseSuggestion(chosen);
   dom.input.blur();
   render();
+});
+
+/* Holding focus through the press: the blur handler clears the list after 120 ms, and a
+   slower click would otherwise land on nothing. */
+document.addEventListener('mousedown', event => {
+  if (event.target instanceof Element && event.target.closest('[role="option"]')) event.preventDefault();
 });
 
 document.addEventListener('click', event => {

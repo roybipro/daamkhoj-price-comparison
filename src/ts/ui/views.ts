@@ -1,6 +1,7 @@
 import type { Offer, RenderContext, ShopProfile, TrustWeight } from '../types.js';
 import { escapeHtml, money, pluralCount, pluralNoun } from '../core/format.js';
 import { homeUrl } from '../core/links.js';
+import { UNDER_MARKET_RULE } from '../core/trust.js';
 import { groupCard, logo } from './fragments.js';
 
 const TRENDING = ['Mobile', 'Laptop', 'Earbuds', 'Rice', 'Soybean oil', 'Router', 'iPhone', 'Power bank'];
@@ -14,8 +15,8 @@ export function resultsView(ctx: RenderContext): string {
   const heading = state.q
     ? `<div class="lead"><h2>${pluralCount(priceCount, 'price')} across ${pluralCount(groups.length, 'product')} for “${escapeHtml(state.q)}”</h2>
         <p>Every shop selling it, side by side, with a trust score next to the price. The cheapest listing is not always the safest one — low scores stay visible, they are never hidden.</p></div>`
-    : `<div class="lead"><h2>Today's best deals in Bangladesh</h2>
-        <p>Type a product above — in English, Bangla or Banglish. ${catalog.totals.offers} prices from ${catalog.totals.stores} shops across ${catalog.totals.products} products are being compared right now.</p></div>`;
+    : `<div class="lead"><h2>See how DaamKhoj compares a deal</h2>
+        <p>Type a product above — in English, Bangla or Banglish. This demo lines up ${catalog.totals.offers} sample prices from ${catalog.totals.stores} shops across ${catalog.totals.products} products.</p></div>`;
 
   const hints = shopHints.length ? `<div class="note">That matches a shop: ${shopHints.map(store =>
     `<button class="chip" data-act="shop" data-id="${store.id}">${escapeHtml(store.name)} · trust ${store.score}</button>`).join(' ')}</div>` : '';
@@ -39,7 +40,7 @@ export function resultsView(ctx: RenderContext): string {
       selected: state.compare,
       maxCompare: state.maxCompare
     })).join('')}
-    ${!groups.length ? `<div class="empty"><h3>Nothing matches “${escapeHtml(state.q)}” yet</h3>
+    ${!groups.length ? `<div class="empty"><h3>${state.q ? `Nothing matches “${escapeHtml(state.q)}” yet` : 'No listing matches these filters'}</h3>
       <p>The sample catalogue is still small. Try a broader word, or pick one of the searches below.</p>
       <div class="chips" style="justify-content:center">${TRENDING.map(t =>
         `<button class="chip" data-act="query" data-q="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join('')}</div></div>` : ''}
@@ -83,7 +84,7 @@ export function storesView(ctx: RenderContext): string {
         `<span class="tag" style="background:var(--paper-2)">${escapeHtml(catalog.categories.get(c)?.en ?? c)}</span>`).join('')}</div>
       <div style="margin-top:11px;display:flex;gap:8px">
         <button class="cmp" data-act="shop" data-id="${store.id}">See this shop's prices</button>
-        <a class="cmp" href="${homeUrl(store)}" target="_blank" rel="noopener noreferrer nofollow" style="text-decoration:none">Website ↗</a>
+        ${store.closed ? '' : `<a class="cmp" href="${homeUrl(store)}" target="_blank" rel="noopener noreferrer nofollow" style="text-decoration:none">Website ↗</a>`}
       </div>
     </article>`).join('')}</div>`;
 }
@@ -111,23 +112,23 @@ export function compareView(ctx: RenderContext): string {
     }).join('')}</tr>`;
   };
 
-  const vsAverage = (offer: Offer): string => {
+  const vsMedian = (offer: Offer): string => {
     const gap = offer.market.median - offer.landed;
     return gap > 0 ? `<span style="color:var(--taka);font-weight:700">−${money(gap)}</span>`
-      : gap < 0 ? `+${money(-gap)}` : 'At the average';
+      : gap < 0 ? `+${money(-gap)}` : 'At the median';
   };
 
   const cheapest = [...picked].sort((a, b) => a.landed - b.landed)[0];
   const safest = [...picked].sort((a, b) => b.trust.score - a.trust.score)[0];
 
   return `<div class="lead"><h2>${escapeHtml(picked[0].product.name)} — ${pluralCount(picked.length, 'shop')} side by side</h2>
-    <p>${escapeHtml(picked[0].product.spec)} · market average ${money(picked[0].market.median)}. Cheapest and safest are not always the same shop — ✦ marks the best value in each row.
+    <p>${escapeHtml(picked[0].product.spec)} · market median ${money(picked[0].market.median)}. Cheapest and safest are not always the same shop — ✦ marks the best value in each row.
       <button class="toggle" data-act="copyLink" style="margin-left:6px">${ctx.state.linkCopied ? 'Link copied ✓' : 'Copy this comparison'}</button></p></div>
     <div class="cmp-table"><table class="table cmp-grid">
       <thead><tr><th></th>${picked.map(offer => `<th>${logo(offer.store, 'md')}<div style="margin-top:6px">${escapeHtml(offer.store.name)}</div></th>`).join('')}</tr></thead>
       <tbody>
         ${row('All-in price', o => money(o.landed), o => o.landed)}
-        ${row('Vs market average', vsAverage)}
+        ${row('Vs market median', vsMedian)}
         ${row('Trust score', o => `${o.trust.score} <span class="tier-${o.trust.tier.id}" style="font-weight:700">(${o.trust.tier.label})</span>`, o => o.trust.score, 'max')}
         ${row('Value score', o => `${o.value} <span style="color:var(--ink-3);font-weight:400">/100</span>`, o => o.value, 'max')}
         ${row('Cash on delivery', o => o.store.cod ? 'Yes' : 'No')}
@@ -154,22 +155,26 @@ export function howView(ctx: RenderContext): string {
     ['Risky · under 50', 'tier-risk'], ['Closed — do not buy', 'tier-closed']
   ];
   return `<div class="lead"><h2>How the trust score is built</h2>
-    <p>Not a black box. Seven checked signals add up to 100, then risk rules take points away. Hover or focus any score in the results to see its breakdown.</p></div>
+    <p>Not a black box. Seven signals add up to 100, then risk rules take points away. Hover or focus any score in the results to see its breakdown.</p></div>
     <table class="table"><thead><tr><th>Signal</th><th>What we look at</th><th style="text-align:right">Weight</th></tr></thead><tbody>
       ${weights.map(w => `<tr><td class="w">${escapeHtml(w.label)}</td><td>${escapeHtml(w.check)}</td><td class="num" style="text-align:right">${w.weight}</td></tr>`).join('')}
       <tr><td class="w">Total</td><td></td><td class="num" style="text-align:right">${total}</td></tr>
     </tbody></table>
     <div class="grid" style="margin-top:16px">
       <div class="panel"><h4>Risk rules</h4><p class="blurb">
-        • A price more than 18% under the market average loses authenticity points and gets a visible warning.<br>
+        • A price more than ${Math.round(UNDER_MARKET_RULE * 100)}% under the market median loses authenticity points and gets a visible warning.<br>
         • On a marketplace the shop is not the seller — listings from sellers with under 60 reviews are flagged separately.<br>
-        • If a business has shut down, its offers are dropped from the comparison but still shown, in red, with the reason.
+        • If a business has shut down, its offers are dropped from the comparison but still shown, in red, with the reason.<br>
+        • Any other recorded incident takes 25 points off the score.
       </p></div>
-      <div class="panel"><h4>What the numbers mean</h4><p class="blurb">
+      <div class="panel"><h4>How best value ranks</h4><p class="blurb">
+        Value is trust × 0.5 + savings × 0.35 + speed × 0.15. Savings are measured against the market median and stop counting at ${Math.round(UNDER_MARKET_RULE * 100)}% under it. A listing below the Good tier never ranks above one that reached it.
+      </p></div>
+      <div class="panel"><h4>What the numbers mean</h4><div class="facts">
         ${tiers.map(([label, tierClass]) => `<span class="tag ${tierClass}">${label}</span>`).join('')}
-      </p></div>
+      </div></div>
       <div class="panel"><h4>Where the data comes from</h4><p class="blurb"><b>${escapeHtml(snapshot.label)}</b> — every price, rating and policy in this build is sample data placed for the demo, not a live feed. A live version needs: Daraz and Pickaboo seller APIs, published price feeds or direct partnerships with each shop, IMEI warranty checks, and trade-licence and BTRIS registration lookups.</p></div>
-      <div class="panel"><h4>What we don't do</h4><p class="blurb">No commissions from shops, no paid rankings, and buying a higher position is not possible. Corrections to a shop's information are published as corrections, not quietly edited.</p></div>
+      <div class="panel"><h4>What we don't do</h4><p class="blurb">This demo takes no commissions from shops and has no paid rankings. It sells nothing, and it does not check any shop's claims yet.</p></div>
     </div>`;
 }
 
@@ -218,7 +223,11 @@ export function trayView(ctx: RenderContext): string {
 
 export function suggestionsView(ctx: RenderContext): string {
   const query = ctx.state.q.trim();
-  if (!query || document.activeElement !== ctx.input) return '';
+  if (!query || document.activeElement !== ctx.input) {
+    /* The keyboard handlers read this list, so it can't outlive the one on screen. */
+    ctx.state.suggest = [];
+    return '';
+  }
 
   const items = [
     ...ctx.search.products(query).slice(0, 6).map(hit => ({
