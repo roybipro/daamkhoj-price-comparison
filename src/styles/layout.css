@@ -69,3 +69,4 @@ footer .fine { flex: 1 1 340px; max-width: 720px; }
 .sample-banner p { padding-top: 9px; padding-bottom: 9px; font-size: 13px; line-height: 1.45; color: var(--text); }
 #out:focus { outline: none; }
 .tag.warn { white-space: normal; max-width: 100%; }
+.live-trust { color: var(--dim); white-space: nowrap; }

@@ -4,9 +4,10 @@ Price and trust comparison for Bangladeshi online shops. Search a product, see e
 retailer's price side by side, and read a trust score you can actually argue with next
 to each one — because the cheapest listing in Bangladesh is not always the safest.
 
-**The prices, ratings and policies in this repository are sample data**, labelled as such
-in a banner on every page, the header, the footer and the *How it works* tab. The page is
-marked `noindex` for the same reason. Shop identities are real; the numbers are placeholders until live feeds are wired in (see [Going live](#going-live)).
+**Search results marked Live are real prices** read from shops' own pages (see
+[Live search](#live-search)). **Everything else in this repository is sample data**, labelled
+as such in a banner on every page, the header, the footer and the *How it works* tab. The page
+is marked `noindex` for the same reason. Shop identities are real; the numbers are placeholders until live feeds are wired in (see [Going live](#going-live)).
 
 ## Quick start
 
@@ -21,7 +22,8 @@ npm run typecheck # tsc --noEmit only
 
 TypeScript is compiled, not transpiled at runtime: `src/ts/**/*.ts` → `dist/js/**/*.js` as
 plain ES modules. The shipped site has **zero runtime dependencies** — no framework, no
-polyfills, no bundler. Requires Node 20+ to build.
+polyfills, no bundler. Requires Node 20.12+ to build. Copy `.env.example` to `.env` to turn on
+live search; without it the site runs on sample prices.
 
 ## Design
 
@@ -67,8 +69,17 @@ tools/
 ├── build.mjs             clean → tsc → copy static files (the clean step is skipped for `--no-emit`)
 ├── serve.mjs             zero-dependency static server for dist/
 └── check.mjs             integrity gate (see below)
+server/
+├── api.mjs               GET /api/search, rate limits, error handling
+├── live-search.mjs       the two-step search, saved results, daily limit
+├── providers/            the search vendor, in one replaceable file
+├── page-price.mjs        reads one clear taka price from a page
+├── matching.mjs          is it this product, and which version?
+├── robots.mjs            robots.txt rules
+└── safe-fetch.mjs        keeps page fetches off private networks and size-limited
 tests/
-└── core.test.mjs         regression tests for scoring, search and rendering rules
+├── core.test.mjs         regression tests for scoring, search and rendering rules
+└── live.test.mjs         live search rules, with no network calls
 ```
 
 `tsconfig.json` runs `strict` plus `noUnusedLocals`, `noUnusedParameters`,
@@ -135,6 +146,38 @@ ranks above one that reached it.
    link falls back to a site-scoped search — a guessed deep link only ever 404s.
 4. `npm run check` catches typos in ids, unknown categories and products with no offers.
 
+## Live search
+
+Submitting a search (not typing) calls `GET /api/search?q=…`, which:
+
+1. Runs a web search through a third-party SERP provider, currently Bright Data, because Google
+   has no official API for this. `LIVE_SEARCH_ENGINE` picks `bing` (default) or `google`. Most
+   Google results link through `google.com/goto`, which throttled the server after about three
+   links in testing, so few shop pages get opened. Google sued one such provider, SerpApi, in
+   December 2025, and scraping-based search carries similar risk on any engine.
+2. Opens each shop page found, honouring `robots.txt` and refusing private network addresses.
+3. Keeps a price only if the page states one clear price in BDT, for the product searched.
+4. Groups by version (CPU, RAM, storage, or brand and pack size), and only names a lowest price
+   between in-stock offers of the same version. Pages that don't state a version are shown but
+   not compared.
+
+Shops show as *Not rated*: no trust data has been verified, and a real price must not sit beside
+an invented score.
+
+A new search takes about a minute, nearly all of it waiting for the search provider (37 to 86
+seconds in testing, against 3 to 18 for reading pages). So most customers shouldn't trigger one:
+results are saved for 3 hours (`LIVE_SEARCH_CACHE_MINUTES`), and `LIVE_SEARCH_WARM` keeps a list
+of popular searches refreshed in the background. Each new search is also a paid request, so
+identical searches share one, each client gets 20 searches a minute, and a daily limit
+(`LIVE_SEARCH_DAILY_LIMIT`, default 300) pauses paid searches, including background ones. These
+counters and saved results are in memory, so they reset on restart and aren't shared between
+server instances. Bing runs with `safesearch=strict`, and adult domains are refused before any
+request, because an unfiltered grocery search returned adult sites in testing.
+
+This needs a host that can run Node (`npm run build && HOST=0.0.0.0 npm start`), with the two
+Bright Data variables set as environment variables. On a purely static host the site still works,
+and search falls back to sample prices with a notice.
+
 ## Going live
 
 Real prices need real sources, in rough order of difficulty:
@@ -154,13 +197,15 @@ bot protection, and any credentials have to stay off the client.
 The code is ready to deploy as a demo, and CI runs `npm run check` and `npm test` on every
 push. Sample scores still sit next to real shop names, so before removing `noindex` or
 promoting the site, replace them with real data or get the shops' names out of the demo.
+Live search also reads shops' pages and depends on a scraping provider, so check each shop's
+terms and get legal advice on both before launch.
 The Evaly shutdown text in `data/stores.ts` is a factual claim and needs a citable source.
 
 ## Deployment
 
 `npm run build` emits `dist/`, which is already the shape Qoder Sites and any static host
-expects (`index.html` at the root, relative assets, no server runtime). The site is a single
-route, so no SPA fallback is needed.
+expects (`index.html` at the root, relative assets, no server runtime), though live search
+needs Node as described above. The site is a single route, so no SPA fallback is needed.
 
 ## Licence
 

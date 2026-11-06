@@ -3,11 +3,15 @@ import { escapeHtml, money, pluralCount, pluralNoun } from '../core/format.js';
 import { homeUrl } from '../core/links.js';
 import { UNDER_MARKET_RULE } from '../core/trust.js';
 import { groupCard, logo } from './fragments.js';
+import { liveUnavailableNote, liveView } from './live.js';
 
-const TRENDING = ['Mobile', 'Laptop', 'Earbuds', 'Rice', 'Soybean oil', 'Router', 'iPhone', 'Power bank'];
+const TRENDING = ['iPhone 15', 'Galaxy A16', 'HP 250 G9', 'Miniket rice 5kg', 'Soybean oil 5 litre', 'TP-Link Archer C6', 'Casio F91W', 'Romoss power bank 20000'];
+
+const showsLive = (ctx: RenderContext): boolean => ctx.state.live.status !== 'idle' && ctx.state.live.status !== 'unavailable';
 
 export function resultsView(ctx: RenderContext): string {
   const { state, catalog, groups } = ctx;
+  if (showsLive(ctx)) return liveView(state.live);
   const priceCount = groups.reduce((n, g) => n + g.live.length + g.dropped.length, 0);
   const shopFilter = state.storeId ? catalog.stores.find(s => s.id === state.storeId) : undefined;
   const shopHints = state.q ? ctx.search.stores(state.q) : [];
@@ -29,7 +33,7 @@ export function resultsView(ctx: RenderContext): string {
   const showAll = Boolean(state.q) || state.showAll;
   const shown = showAll ? groups : groups.slice(0, 6);
 
-  return `${heading}${hints}
+  return `${state.live.status === 'unavailable' ? liveUnavailableNote() : ''}${heading}${hints}
     ${shopFilter ? `<div class="note">Showing <b>${escapeHtml(shopFilter.name)}</b> only. <button class="chip" data-act="shop" data-id="">Back to all shops</button></div>` : ''}
     ${applied ? `<div class="note">Filters active: ${escapeHtml(applied)}</div>` : ''}
     ${shown.map((group, i) => groupCard(group, {
@@ -173,14 +177,15 @@ export function howView(ctx: RenderContext): string {
       <div class="panel"><h4>What the numbers mean</h4><div class="facts">
         ${tiers.map(([label, tierClass]) => `<span class="tag ${tierClass}">${label}</span>`).join('')}
       </div></div>
-      <div class="panel"><h4>Where the data comes from</h4><p class="blurb"><b>${escapeHtml(snapshot.label)}</b> — every price, rating and policy in this build is sample data placed for the demo, not a live feed. A live version needs: Daraz and Pickaboo seller APIs, published price feeds or direct partnerships with each shop, IMEI warranty checks, and trade-licence and BTRIS registration lookups.</p></div>
+      <div class="panel"><h4>Where the data comes from</h4><p class="blurb"><b>${escapeHtml(snapshot.label)}</b> — every price, rating and policy outside live results is sample data placed for the demo. Trust scores still need verified shop details, such as IMEI warranty checks and trade-licence and BTRIS registration lookups.</p></div>
+      <div class="panel"><h4>How live prices work</h4><p class="blurb">When you submit a search, we run a web search, then open the shop pages it finds and read the price each page publishes. We skip pages that ask not to be read automatically, and any page without one clear taka price for the product you searched. Only the same version is compared. Shops in live results show as not rated, because their trust details have not been verified.</p></div>
       <div class="panel"><h4>What we don't do</h4><p class="blurb">This demo takes no commissions from shops and has no paid rankings. It sells nothing, and it does not check any shop's claims yet.</p></div>
     </div>`;
 }
 
 export function toolbarView(ctx: RenderContext): string {
   const { state, catalog } = ctx;
-  if (state.view !== 'results') return '';
+  if (state.view !== 'results' || showsLive(ctx)) return '';
   return `<div class="toolbar">
     <span class="count" aria-live="polite">Comparing <b class="num">${catalog.totals.offers}</b> prices · <b class="num">${catalog.totals.stores}</b> shops · <b class="num">${catalog.totals.products}</b> products</span>
     <label class="control">Sort
