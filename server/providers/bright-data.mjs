@@ -29,11 +29,11 @@ const ENGINES = {
   }
 };
 
-export function createBrightDataSearch({ apiKey, zone, engine = 'bing', fetchImpl = fetch }) {
+export function createBrightDataSearch({ apiKey, zone, engine = 'bing', fetchImpl = fetch, timeoutMs = TIMEOUT_MS }) {
   const setup = ENGINES[engine];
   if (!setup) throw new Error(`unknown search engine "${engine}"`);
 
-  async function request(words) {
+  async function request(words, signal) {
     const target = new URL(setup.origin);
     target.search = new URLSearchParams({ q: words, ...setup.params }).toString();
 
@@ -42,15 +42,17 @@ export function createBrightDataSearch({ apiKey, zone, engine = 'bing', fetchImp
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
       /* Searching from Bangladesh matters: from elsewhere, results were often foreign shops. */
       body: JSON.stringify({ zone, url: target.href, format: 'raw', country: 'bd' }),
-      signal: AbortSignal.timeout(TIMEOUT_MS)
+      signal
     });
     if (!response.ok) throw new Error(`search provider answered ${response.status}`);
     return response.text();
   }
 
   async function searchWords(words) {
-    /* Empty answers do come back with a 200, so one retry is worth its cost. */
-    const text = (await request(words)) || (await request(words));
+    /* Empty answers do come back with a 200, so one retry is worth its cost. It shares the first
+       request's time limit: a fresh one would let a search outlast the browser's wait. */
+    const signal = AbortSignal.timeout(timeoutMs);
+    const text = (await request(words, signal)) || (await request(words, signal));
     if (!text) throw new Error('search provider returned nothing');
 
     const organic = JSON.parse(text).organic;

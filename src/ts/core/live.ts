@@ -3,7 +3,8 @@
 
 import type { LiveResult, LiveState } from '../types.js';
 
-const TIMEOUT_MS = 150_000;
+/* The server's worst case: 100 seconds searching, then up to 90 reading pages. */
+const TIMEOUT_MS = 200_000;
 
 export async function fetchLive(query: string, cancel: AbortSignal): Promise<LiveState> {
   try {

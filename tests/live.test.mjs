@@ -481,3 +481,23 @@ test('5G on a phone is a network, not a pack size, and splits versions', () => {
   assert.notEqual(variantOf('Samsung Galaxy A16 5G 128GB', 'galaxy a16').key, variantOf('Samsung Galaxy A16 128GB', 'galaxy a16').key);
   assert.notEqual(variantOf('Samsung Galaxy A16 5G 8GB 256GB', 'galaxy a16').key, variantOf('Samsung Galaxy A16 5G 6GB 128GB', 'galaxy a16').key);
 });
+
+test('a retry shares the first request\'s time limit, so a search cannot outlast the browser', async () => {
+  const signals = [];
+  const search = createBrightDataSearch({
+    apiKey: 'k', zone: 'z', engine: 'google', timeoutMs: 60,
+    fetchImpl: async (_, init) => {
+      signals.push(init.signal);
+      if (signals.length === 1) {
+        await new Promise(done => setTimeout(done, 40));
+        return new Response('');
+      }
+      return new Promise((_, fail) => init.signal.addEventListener('abort', () => fail(init.signal.reason)));
+    }
+  });
+  const started = Date.now();
+  await assert.rejects(search('iphone'));
+  assert.equal(signals.length, 2);
+  assert.equal(signals[0], signals[1]);
+  assert.ok(Date.now() - started < 150, 'the retry got a fresh time limit');
+});
