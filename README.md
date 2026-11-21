@@ -18,6 +18,7 @@ npm run check     # strict typecheck, build, then catalogue and reference integr
 npm test          # build, then the regression tests in tests/
 npm run build     # emit dist/ (the deployable artifact)
 npm run typecheck # tsc --noEmit only
+npm run crawl     # build the price list behind instant search (hours; see below)
 ```
 
 TypeScript is compiled, not transpiled at runtime: `src/ts/**/*.ts` → `dist/js/**/*.js` as
@@ -68,18 +69,24 @@ src/
 tools/
 ├── build.mjs             clean → tsc → copy static files (the clean step is skipped for `--no-emit`)
 ├── serve.mjs             zero-dependency static server for dist/
+├── crawl.mjs             npm run crawl: refreshes the price list
 └── check.mjs             integrity gate (see below)
 server/
 ├── api.mjs               GET /api/search, rate limits, error handling
 ├── live-search.mjs       the two-step search, saved results, daily limit
 ├── providers/            the search vendor, in one replaceable file
 ├── page-price.mjs        reads one clear taka price from a page
+├── sitemap.mjs           product pages from a shop's sitemap
+├── crawler.mjs           builds the price list, one shop at a time
+├── index-shops.mjs       the shops the price list reads, checked by hand
+├── price-index.mjs       the saved price list and the instant search over it
 ├── matching.mjs          is it this product, and which version?
 ├── robots.mjs            robots.txt rules
 └── safe-fetch.mjs        keeps page fetches off private networks and size-limited
 tests/
 ├── core.test.mjs         regression tests for scoring, search and rendering rules
-└── live.test.mjs         live search rules, with no network calls
+├── live.test.mjs         live search rules, with no network calls
+└── index.test.mjs        the price list and instant search, with no network calls
 ```
 
 `tsconfig.json` runs `strict` plus `noUnusedLocals`, `noUnusedParameters`,
@@ -178,6 +185,37 @@ request, because an unfiltered grocery search returned adult sites in testing.
 This needs a host that can run Node (`npm run build && HOST=0.0.0.0 npm start`), with the two
 Bright Data variables set as environment variables. On a purely static host the site still works,
 and search falls back to sample prices with a notice.
+
+## Instant search: the price list
+
+A web search takes a minute, so searches are answered first from a price list built ahead of
+time. `npm run crawl` reads each shop's sitemap (its own list of product pages), then opens each
+page and reads its price by the same rules as live search: `robots.txt` honoured, one clear BDT
+price, the product named on the page. Each shop is read one page at a time with a one-second
+pause, so a full run of about 18,000 pages takes several hours; progress is saved as it goes.
+
+```bash
+npm run crawl                                   # every shop in server/index-shops.mjs
+npm run crawl -- --shop=dazzle.com.bd --limit=50  # one shop, a sample
+```
+
+Submitting a search calls `GET /api/search/quick?q=…` and `GET /api/search?q=…` together. The
+quick one answers from the list in milliseconds, with no paid request and no Bright Data key
+needed, and its prices show at once; the web search's answer, which includes the list's, then
+replaces them. Each price shows when it was read, and prices more than a week old are left out.
+A shop selling one version in several colours counts once, at its cheapest price in stock.
+
+The list is saved to `data/price-index.json` (`PRICE_INDEX_FILE`), which git ignores, and the
+server picks up a new crawl within 30 seconds. Set `PRICE_INDEX_REFRESH_HOURS=24` to have the
+server crawl on that schedule itself. On a host that wipes its disk on deploy, such as Render
+without a persistent disk, point `PRICE_INDEX_FILE` at a persistent disk.
+
+Shops in the list were checked by hand: their `robots.txt` allows product pages, and a sample of
+25 pages gave a clear price for Apple Gadgets (25), Dazzle (25), Sumash Tech (22) and iStock
+(13 from the pages; iStock is a Shopify shop, so it is read through Shopify's product JSON,
+which prices each version). Searching shops' own search pages was tried first and dropped: of
+the shops whose `robots.txt` allows it, only iStock's search page returns results without
+running JavaScript.
 
 ## Going live
 
