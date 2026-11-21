@@ -390,7 +390,7 @@ test('results about something else are never opened', async () => {
 });
 
 test('price guides are not treated as shops', async () => {
-  const hosts = ['https://www.mobilebd.co/phone/a16', 'https://mobile.bd/phones/a16', 'https://mobileinto.com/bd/Samsung-Galaxy-A16/'];
+  const hosts = ['https://www.mobilebd.co/phone/a16', 'https://mobile.bd/phones/a16', 'https://mobileinto.com/bd/Samsung-Galaxy-A16/', 'https://www.mobilekotha.com/samsung-galaxy-a16', 'https://www.mrp.com.bd/samsung-galaxy-a16'];
   const opened = [];
   const live = createLiveSearch({
     search: async () => hosts.map(link => ({ title: 'Galaxy A16', link, description: '' })),
@@ -400,7 +400,7 @@ test('price guides are not treated as shops', async () => {
   });
   const result = await live.run('galaxy a16');
   assert.deepEqual(opened, []);
-  assert.equal(result.skipped.notShop, 3);
+  assert.equal(result.skipped.notShop, 5);
 });
 
 test('Bing searches from Bangladesh with both wordings and merges the answers', async () => {
