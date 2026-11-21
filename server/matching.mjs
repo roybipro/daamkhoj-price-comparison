@@ -62,7 +62,8 @@ function packOf(text) {
 function brandOf(name, query) {
   const skip = new Set(tokensOf(query));
   const [first] = name.trim().split(/\s+/);
-  const clean = (first ?? '').replace(/[^\p{L}\p{N}]/gu, '');
+  /* "Pran-Latina" is Pran: joining the pieces would split one brand into two. */
+  const [clean = ''] = (first ?? '').split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   if (!clean || /\d/.test(clean)) return '';
   const lower = clean.toLowerCase();
   return skip.has(lower) || GENERIC_BRAND.has(lower) ? '' : clean;
