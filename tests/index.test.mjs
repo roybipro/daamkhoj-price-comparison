@@ -1,9 +1,15 @@
 /* The price list: building it from sitemaps, and searching it. No network calls. */
 
 import assert from 'node:assert/strict';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 
+import { createApi } from '../server/api.mjs';
 import { crawlShop, readShopifyProduct } from '../server/crawler.mjs';
+import { mergeGroups } from '../server/live-search.mjs';
+import { createPriceIndex, loadIndexFile, saveIndexFile, watchIndexFile } from '../server/price-index.mjs';
 import { parseSitemap, productPages } from '../server/sitemap.mjs';
 
 const urlset = urls => `<?xml version="1.0"?><urlset>${urls.map(url => `<url><loc>${url}</loc><lastmod>2026-11-20</lastmod></url>`).join('')}</urlset>`;
@@ -123,4 +129,115 @@ test('Shopify shops are read through the product JSON, asking robots.txt about t
 
 test('an empty sitemap is an error, so a broken shop never wipes its saved prices', async () => {
   await assert.rejects(crawlShop(shop, { fetchPage: async () => ({ ok: false }), robots: allowAll, sleep: noWait }), /no product pages/);
+});
+
+const NOW = Date.parse('2026-11-21T12:00:00Z');
+const entry = (shop, name, price, extra = {}) => ({ shop, url: `https://${shop}/product/${name.toLowerCase().replace(/\W+/g, '-')}`, name, price, inStock: true, checkedAt: '2026-11-21T03:00:00.000Z', ...extra });
+const listOf = (...entries) => {
+  const shops = {};
+  for (const item of entries) (shops[item.shop] ??= { crawledAt: item.checkedAt, entries: [] }).entries.push(item);
+  return { version: 1, shops };
+};
+
+test('the price list answers with the same versions compared, and each price\'s own read time', () => {
+  const index = createPriceIndex(listOf(
+    entry('a.bd', 'Samsung Galaxy A55 5G 8/256GB', 45000),
+    entry('b.bd', 'Galaxy A55 5G (8GB/256GB)', 44000, { checkedAt: '2026-11-21T05:00:00.000Z' }),
+    entry('c.bd', 'Galaxy A55 5G 8/128GB', 39000),
+    entry('c.bd', 'Galaxy A55 Silicone Case', 900),
+    entry('d.bd', 'Galaxy A35 5G 8/256GB', 33000)
+  ), { now: () => NOW });
+  const result = index.search('galaxy a55');
+  assert.equal(result.source, 'index');
+  assert.equal(result.priced, 3);
+  assert.deepEqual(result.groups.map(group => group.label), ['8GB RAM · 128GB · 5G', '8GB RAM · 256GB · 5G']);
+  const first = result.groups[1];
+  assert.deepEqual(first.offers.map(offer => offer.price), [44000, 45000]);
+  assert.equal(first.lowest, first.offers[0].url);
+  assert.equal(first.offers[0].checkedAt, '2026-11-21T05:00:00.000Z');
+  assert.equal(result.checkedAt, '2026-11-21T05:00:00.000Z');
+  assert.ok(!JSON.stringify(result).includes('Case'));
+});
+
+test('old prices and suspiciously low ones are left out of the price list\'s answers', () => {
+  const index = createPriceIndex(listOf(
+    entry('a.bd', 'iPhone 15 128GB', 82000),
+    entry('b.bd', 'iPhone 15 128GB', 83000),
+    entry('c.bd', 'iPhone 15 128GB', 84000),
+    entry('d.bd', 'iPhone 15 128GB', 30000),
+    entry('e.bd', 'iPhone 15 128GB', 60000, { checkedAt: '2026-11-01T00:00:00.000Z' })
+  ), { now: () => NOW });
+  const result = index.search('iphone 15');
+  assert.deepEqual(result.groups.flatMap(group => group.offers.map(offer => offer.shop)), ['a.bd', 'b.bd', 'c.bd']);
+  assert.equal(result.skipped.noPrice, 1);
+});
+
+test('the price list refuses meaningless searches like the web search does', () => {
+  assert.throws(() => createPriceIndex(listOf()).search(' '), error => error.code === 'query');
+});
+
+test('merged results count a page once and keep the first copy', () => {
+  const group = (label, offers) => ({ label, comparable: true, lowest: null, offers });
+  const offer = (url, price, checkedAt) => ({ shop: 'a.bd', url, title: 'T', price, inStock: true, ...(checkedAt && { checkedAt }) });
+  const merged = mergeGroups(
+    [group('128GB', [offer('https://a.bd/1', 900)])],
+    [group('128gb', [offer('https://a.bd/1', 950, 'old'), offer('https://b.bd/2', 800, 'old')]), group('256GB', [offer('https://c.bd/3', 1200, 'old')])]
+  );
+  assert.equal(merged.length, 2);
+  assert.deepEqual(merged[0].offers.map(item => [item.url, item.price]), [['https://b.bd/2', 800], ['https://a.bd/1', 900]]);
+  assert.equal(merged[0].lowest, 'https://b.bd/2');
+});
+
+test('a saved list survives a round trip, a missing one is empty, a damaged one is an error', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'daamkhoj-'));
+  const file = path.join(dir, 'list.json');
+  assert.deepEqual(await loadIndexFile(file), { version: 1, shops: {} });
+  const data = listOf(entry('a.bd', 'Phone', 1));
+  await saveIndexFile(file, data);
+  assert.deepEqual(await loadIndexFile(file), data);
+  await writeFile(file, '{"oops"');
+  await assert.rejects(loadIndexFile(file));
+});
+
+test('the server picks up a new crawl without restarting, and keeps the last good list', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'daamkhoj-'));
+  const file = path.join(dir, 'list.json');
+  let time = NOW;
+  const search = watchIndexFile(file, { now: () => time, checkEveryMs: 1000 });
+  assert.equal((await search('iphone 15')).priced, 0);
+
+  await saveIndexFile(file, listOf(entry('a.bd', 'iPhone 15 128GB', 82000)));
+  assert.equal((await search('iphone 15')).priced, 0, 'checks the file at most once a second');
+  time += 1001;
+  assert.equal((await search('iphone 15')).priced, 1);
+
+  await writeFile(file, 'damaged');
+  time += 5000;
+  assert.equal((await search('iphone 15')).priced, 1);
+});
+
+function call(api, pathname, query = 'iphone 15') {
+  return new Promise(resolve => {
+    const res = { writeHead(status) { this.status = status; }, end(body) { resolve({ status: this.status, body: JSON.parse(body) }); } };
+    api({ method: 'GET', socket: { remoteAddress: '1.1.1.1' } }, res, new URL(`http://x${pathname}?q=${encodeURIComponent(query)}`));
+  });
+}
+
+test('the quick search needs no paid key, and the full search adds the price list to its own', async () => {
+  const listed = { query: 'iphone 15', source: 'index', priced: 1, groups: [{ label: '128GB', comparable: true, lowest: null, offers: [{ shop: 'a.bd', url: 'https://a.bd/1', title: 'iPhone 15 128GB', price: 82000, inStock: true, checkedAt: 'x' }] }] };
+  const web = { query: 'iphone 15', priced: 1, groups: [{ label: '128GB', comparable: true, lowest: null, offers: [{ shop: 'b.bd', url: 'https://b.bd/2', title: 'iPhone 15 128GB', price: 81000, inStock: true }] }] };
+
+  const quickOnly = createApi({ liveSearch: null, searchIndex: async () => listed });
+  assert.deepEqual((await call(quickOnly, '/api/search/quick')).body, listed);
+  assert.equal((await call(quickOnly, '/api/search')).status, 503);
+  assert.equal((await call(createApi({ liveSearch: null }), '/api/search/quick')).status, 503);
+  assert.equal((await call(quickOnly, '/api/search/quick', ' ')).status, 200, 'the index decides what is meaningless');
+
+  const both = await call(createApi({ liveSearch: { run: async () => web }, searchIndex: async () => listed }), '/api/search');
+  assert.equal(both.status, 200);
+  assert.deepEqual(both.body.groups[0].offers.map(offer => offer.shop), ['b.bd', 'a.bd']);
+  assert.equal(both.body.priced, 2);
+
+  const broken = await call(createApi({ liveSearch: { run: async () => web }, searchIndex: async () => { throw new Error('disk'); }, log: () => {} }), '/api/search');
+  assert.equal(broken.body.priced, 1, 'a broken price list never sinks the web search');
 });

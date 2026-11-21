@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApi, createDefaultLiveSearch, startWarming } from '../server/api.mjs';
+import { watchIndexFile } from '../server/price-index.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'dist');
@@ -15,7 +16,9 @@ try {
 }
 
 const liveSearch = createDefaultLiveSearch(process.env);
-const api = createApi({ liveSearch });
+/* The price list from `npm run crawl`; a new crawl is picked up without a restart. */
+const searchIndex = watchIndexFile(process.env.PRICE_INDEX_FILE || path.join(root, 'data', 'price-index.json'), { log: console.log });
+const api = createApi({ liveSearch, searchIndex });
 startWarming(liveSearch, process.env);
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 5173);
@@ -33,7 +36,7 @@ const TYPES = {
 /* ES modules need an http(s) origin, so this stands in for the static host locally. */
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${host}`);
-  if (url.pathname === '/api/search') return api(req, res, url);
+  if (url.pathname === '/api/search' || url.pathname === '/api/search/quick') return api(req, res, url);
 
   let pathname;
   try {

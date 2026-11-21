@@ -5,7 +5,7 @@
 
    with times as ISO strings. Searching it needs no network and no paid request. */
 
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dropSuspiciousPrices, groupOffers, validQuery } from './live-search.mjs';
 import { matchesQuery, mentionsProduct, variantOf } from './matching.mjs';
 
@@ -75,5 +75,34 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
         groups: groupOffers(shown)
       };
     }
+  };
+}
+
+/**
+ * Search over the saved list that follows new crawls without a restart. The file is checked at
+ * most once per `checkEveryMs`, and a damaged one is skipped: the last good list keeps serving.
+ */
+export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, log = () => {}, ...options } = {}) {
+  let index = createPriceIndex(null, { now, ...options });
+  let loadedVersion = null;
+  let checkedAt = -Infinity;
+
+  async function refresh() {
+    if (now() - checkedAt < checkEveryMs) return;
+    checkedAt = now();
+    const version = await stat(file).then(info => `${info.mtimeMs}:${info.size}`, () => 'none');
+    if (version === loadedVersion) return;
+    try {
+      index = createPriceIndex(await loadIndexFile(file), { now, ...options });
+      loadedVersion = version;
+      log(`price list: ${index.size} prices from ${index.shops} shops`);
+    } catch (error) {
+      log(`price list not reloaded: ${error.message}`);
+    }
+  }
+
+  return async rawQuery => {
+    await refresh();
+    return index.search(rawQuery);
   };
 }
