@@ -5,7 +5,7 @@ import { matchesQuery, mentionsProduct, queryTokens, variantOf } from './matchin
 import { readPage } from './page-price.mjs';
 
 /* Social sites, and price guides whose figures are not a shop's offer. */
-const NOT_SHOPS = /(^|\.)((youtube|facebook|tiktok|instagram|reddit|wikipedia|x|twitter|pinterest|quora|gsmarena|mobiledokan|mobilebd)\.[a-z.]+|mobile\.bd)$/i;
+const NOT_SHOPS = /(^|\.)((youtube|facebook|tiktok|instagram|reddit|wikipedia|x|twitter|pinterest|quora|gsmarena|mobiledokan|mobilebd|mobileinto)\.[a-z.]+|mobile\.bd)$/i;
 
 export class LiveSearchError extends Error {
   constructor(code, message) {
