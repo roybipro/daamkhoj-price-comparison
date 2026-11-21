@@ -368,6 +368,8 @@ test('pack sizes and spellings match however a shop writes them', () => {
   assert.ok(!matchesQuery('Pusti Soyabean Oil 50 Ltr', 'soybean oil 5 litre'));
   assert.deepEqual(variantOf('Pusti Soyabean Oil 5Ltr.', 'soybean oil').key, variantOf('Pusti Soybean Oil 5 Litres', 'soybean oil').key);
   assert.equal(variantOf('Pran Rice 500 gm', 'rice').label, 'Pran · 500g');
+  /* A sub-brand after a hyphen is still the same brand. */
+  assert.equal(variantOf('Pran-Latina Mango Juice-1ltr', 'mango juice 1 litre').key, variantOf('Pran Mango Juice 1 Litre', 'mango juice 1 litre').key);
 });
 
 test('results about something else are never opened', async () => {
