@@ -14,9 +14,13 @@ Thumbs.db
 # Local environment and secrets
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 
 # Logs
 *.log
 npm-debug.log*
+
+# Local agent config (holds API tokens)
+.codex/

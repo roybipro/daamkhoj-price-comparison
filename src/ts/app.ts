@@ -1,5 +1,6 @@
 import { SNAPSHOT, TRUST_WEIGHTS } from './data/meta.js';
 import { buildCatalog, byBestValue } from './core/catalog.js';
+import { fetchLive } from './core/live.js';
 import { createSearch } from './core/search.js';
 import { decodeState, encodeState } from './core/urlstate.js';
 import { toggleTheme } from './core/theme.js';
@@ -41,7 +42,8 @@ const state: State = {
   suggest: [],
   suggestIndex: -1,
   linkCopied: false,
-  trend: null
+  trend: null,
+  live: { status: 'idle' }
 };
 
 function must<T extends Element>(selector: string): T {
@@ -137,6 +139,34 @@ function syncUrl(): void {
   }
 }
 
+/* Live search costs money per run, so it starts only when someone submits a search, never
+   on a keystroke. A newer search cancels the one in flight. */
+let liveRequest: AbortController | undefined;
+
+function clearLive(): void {
+  liveRequest?.abort();
+  state.live = { status: 'idle' };
+}
+
+async function startLive(): Promise<void> {
+  const query = state.q.trim();
+  liveRequest?.abort();
+  if (!query) {
+    state.live = { status: 'idle' };
+    render();
+    return;
+  }
+  const request = new AbortController();
+  liveRequest = request;
+  state.view = 'results';
+  state.live = { status: 'loading', query };
+  render();
+  const next = await fetchLive(query, request.signal);
+  if (request.signal.aborted) return;
+  state.live = next;
+  render();
+}
+
 /* Rendering replaces the markup, so keyboard focus has to be carried across by hand. */
 function focusedControl(): string | null {
   const active = document.activeElement;
@@ -166,6 +196,7 @@ let typing: ReturnType<typeof setTimeout> | undefined;
 function onQueryChange(value: string): void {
   state.q = value;
   state.view = 'results';
+  clearLive();
   state.suggestIndex = -1;
   clearTimeout(typing);
   typing = setTimeout(render, 90);
@@ -177,7 +208,7 @@ function chooseSuggestion(item: State['suggest'][number]): void {
   dom.input.value = state.q;
   state.suggestIndex = -1;
   dom.input.blur();
-  render();
+  void startLive();
 }
 
 function toggleCompare(id: string): void {
@@ -216,7 +247,8 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
     render();
   },
   all: () => { state.showAll = true; render(); },
-  query: trigger => { state.q = trigger.dataset.q ?? ''; state.view = 'results'; dom.input.value = state.q; render(); },
+  query: trigger => { state.q = trigger.dataset.q ?? ''; state.view = 'results'; dom.input.value = state.q; void startLive(); },
+  retryLive: () => { void startLive(); },
   shop: trigger => { state.storeId = trigger.dataset.id ?? ''; state.view = 'results'; state.showAll = true; render(); window.scrollTo({ top: 0 }); },
   cod: () => { state.codOnly = !state.codOnly; render(); },
   copyLink: () => {
@@ -229,7 +261,7 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
     }, () => { state.linkCopied = false; });
   },
   reset: () => { state.codOnly = false; state.minTrust = 0; state.storeId = ''; render(); },
-  clearQuery: () => { state.q = ''; dom.input.value = ''; render(); dom.input.focus(); }
+  clearQuery: () => { state.q = ''; dom.input.value = ''; clearLive(); render(); dom.input.focus(); }
 };
 
 dom.input.addEventListener('input', event => onQueryChange((event.target as HTMLInputElement).value));
@@ -251,7 +283,7 @@ dom.input.addEventListener('keydown', event => {
     event.preventDefault();
     const chosen = state.suggest[state.suggestIndex];
     if (state.suggestIndex >= 0 && chosen) chooseSuggestion(chosen);
-    else { dom.input.blur(); render(); }
+    else { dom.input.blur(); void startLive(); }
   } else if (event.key === 'Escape') {
     state.suggestIndex = -1;
     renderSuggestions(context());
@@ -261,9 +293,12 @@ dom.input.addEventListener('keydown', event => {
 dom.form.addEventListener('submit', event => {
   event.preventDefault();
   const chosen = state.suggest[state.suggestIndex];
-  if (state.suggestIndex >= 0 && chosen) chooseSuggestion(chosen);
+  if (state.suggestIndex >= 0 && chosen) {
+    chooseSuggestion(chosen);
+    return;
+  }
   dom.input.blur();
-  render();
+  void startLive();
 });
 
 /* Holding focus through the press: the blur handler clears the list after 120 ms, and a
@@ -299,4 +334,6 @@ dom.tabs.addEventListener('click', event => {
   if (tab) setView(tab.dataset.view);
 });
 
-render();
+/* A shared search link runs the same live search as typing it would. */
+if (state.q && state.view === 'results') void startLive();
+else render();

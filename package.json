@@ -10,13 +10,14 @@
     "preview": "node tools/build.mjs && node tools/serve.mjs",
     "typecheck": "node tools/build.mjs --no-emit",
     "check": "node tools/build.mjs && node tools/check.mjs",
-    "test": "node tools/build.mjs && node --test tests/core.test.mjs"
+    "start": "node tools/serve.mjs",
+    "test": "node tools/build.mjs && node --test tests/core.test.mjs tests/live.test.mjs"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.12"
   },
   "license": "UNLICENSED"
 }

@@ -129,6 +129,31 @@ export interface Group {
   best: Offer | null;
 }
 
+export interface LiveOffer { shop: string; url: string; title: string; price: number; inStock: boolean | null }
+export interface LiveGroup {
+  label: string;
+  /** False when the pages don't say which version they sell, so no comparison is drawn. */
+  comparable: boolean;
+  /** The url of the cheapest buyable offer, when there is a real choice between them. */
+  lowest: string | null;
+  offers: LiveOffer[];
+}
+export interface LiveResult {
+  query: string;
+  checkedAt: string;
+  cached: boolean;
+  found: number;
+  priced: number;
+  skipped: { notShop: number; blocked: number; noPrice: number; otherProduct: number; failed: number };
+  groups: LiveGroup[];
+}
+export type LiveState =
+  | { status: 'idle' }
+  | { status: 'loading'; query: string }
+  | { status: 'unavailable'; query: string }
+  | { status: 'error'; query: string; message: string }
+  | { status: 'done'; query: string; result: LiveResult };
+
 export type ViewName = 'results' | 'stores' | 'compare' | 'how';
 export type SortKey = 'value' | 'price' | 'trust' | 'eta';
 export interface SuggestItem { kind: 'product' | 'store'; id: string; label: string; sub: string }
@@ -155,6 +180,7 @@ export interface State {
   linkCopied: boolean;
   /** Only one product's trend chart is open at a time; a wall of charts reads as noise. */
   trend: string | null;
+  live: LiveState;
 }
 
 /** Everything a view needs to render, passed in rather than reached for globally. */

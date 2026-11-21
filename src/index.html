@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DaamKhoj demo — Compare prices and trust across Bangladesh's online shops</title>
-<meta name="description" content="A demo of price and trust comparison for Bangladeshi online shops. Every price, rating and trust score shown is sample data.">
+<meta name="description" content="A demo of price and trust comparison for Bangladeshi online shops. Live results are read from shop pages; everything else is sample data.">
 <!-- Sample prices attached to real shop names must not reach search results. Remove with live data. -->
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#080d0b">
@@ -21,7 +21,7 @@
   })();
 </script>
 <meta property="og:title" content="DaamKhoj demo — compare before you buy in Bangladesh">
-<meta property="og:description" content="A demo using sample data: one product's prices side by side, with a trust score you can argue with.">
+<meta property="og:description" content="A demo: compare one product's prices side by side. Live results are read from shop pages; everything else is sample data.">
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -67,7 +67,7 @@
 </header>
 
 <div class="sample-banner" role="note">
-  <p class="wrap"><b>Demo with sample data.</b> The shops are real businesses, but every price, rating, trust score and marketplace seller here is made up for this demo and says nothing about how those shops really operate. Check the shop's own site before you buy.</p>
+  <p class="wrap"><b>Sample data, except live results.</b> Prices marked Live are read from shops' own pages, and can still be out of date or wrong. Everything else here, including every trust score, is made up for this demo and says nothing about how those shops really operate. Check the shop's own site before you buy.</p>
 </div>
 
 <main class="wrap">
@@ -75,7 +75,7 @@
     <form class="search-bar" id="sform" role="search">
       <div class="field">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
-        <input id="q" type="search" autocomplete="off" placeholder="Search a product — mobile, rice, earbuds, laptop…"
+        <input id="q" type="search" autocomplete="off" placeholder="Search a product — iPhone 15, HP 250 G9, Miniket rice 5kg…"
                role="combobox" aria-expanded="false" aria-controls="suggest-wrap" aria-autocomplete="list"
                aria-label="Search for a product or shop">
         <button type="button" class="clear" data-act="clearQuery" aria-label="Clear search">✕</button>
@@ -85,14 +85,14 @@
     </form>
     <div class="chips">
       <span class="lbl">Popular searches</span>
-      <button class="chip" data-act="query" data-q="mobile">mobile</button>
-      <button class="chip" data-act="query" data-q="laptop">laptop</button>
-      <button class="chip" data-act="query" data-q="earbuds">earbuds</button>
-      <button class="chip" data-act="query" data-q="rice">rice</button>
-      <button class="chip" data-act="query" data-q="soybean oil">soybean oil</button>
-      <button class="chip" data-act="query" data-q="router">router</button>
-      <button class="chip" data-act="query" data-q="iPhone">iPhone</button>
-      <button class="chip" data-act="query" data-q="power bank">power bank</button>
+      <button class="chip" data-act="query" data-q="iPhone 15">iPhone 15</button>
+      <button class="chip" data-act="query" data-q="Galaxy A16">Galaxy A16</button>
+      <button class="chip" data-act="query" data-q="HP 250 G9">HP 250 G9</button>
+      <button class="chip" data-act="query" data-q="Miniket rice 5kg">Miniket rice 5kg</button>
+      <button class="chip" data-act="query" data-q="Soybean oil 5 litre">Soybean oil 5 litre</button>
+      <button class="chip" data-act="query" data-q="TP-Link Archer C6">TP-Link Archer C6</button>
+      <button class="chip" data-act="query" data-q="Casio F91W">Casio F91W</button>
+      <button class="chip" data-act="query" data-q="Romoss power bank 20000">Romoss power bank 20000</button>
     </div>
   </div>
 
@@ -104,7 +104,7 @@
 
 <footer>
   <div class="wrap in">
-    <p class="fine"><b>What DaamKhoj is not:</b> we are not a shop and nothing is bought here. We line up the prices and terms each store already publishes. <b>Every price, rating and policy in this build is sample data for the demo</b> — check the shop's own site for the live price, warranty and return terms before you pay.</p>
+    <p class="fine"><b>What DaamKhoj is not:</b> we are not a shop and nothing is bought here. We line up the prices and terms each store already publishes. <b>Every price, rating and policy outside results marked Live is sample data for the demo</b> — check the shop's own site for the live price, warranty and return terms before you pay.</p>
     <p class="fine"><b>The trust score</b> comes from seven signals: business history, buyer reviews, payment safety, returns, authenticity, delivery and support. The full method is in the <button class="chip" data-act="view" data-view="how">How it works</button> tab.</p>
   </div>
 </footer>
