@@ -36,7 +36,7 @@ function liveRow(offer: LiveOffer, group: LiveGroup, checkedAt: string): string 
       ${isLowest ? '<span class="save num">Lowest for this version</span>' : ''}
     </div>
     <div class="trust"><div class="meter"><div class="cap"><span class="live-trust">Trust not rated</span></div></div></div>
-    <div class="meta">${stockTag(offer)}<span class="tag">Checked ${escapeHtml(clock(checkedAt))}</span></div>
+    <div class="meta">${stockTag(offer)}<span class="tag">Checked ${escapeHtml(clock(offer.checkedAt ?? checkedAt))}</span></div>
     <div class="acts">${href
       ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer nofollow"
           title="${escapeHtml(`Open ${offer.title} on ${offer.shop}`)}">Open shop page ↗</a>`
@@ -88,7 +88,17 @@ export function liveView(live: LiveState): string {
   if (live.status !== 'done') return '';
 
   const { result } = live;
-  const summary = `The web search returned ${pluralCount(result.found, 'result')}, and ${pluralCount(result.priced, 'price')} could be read from shop pages.${leftOut(result)}`;
+  const fromList = result.source === 'index';
+  const summary = fromList
+    ? `${pluralCount(result.priced, 'price')} from our price list of shops' own pages.${leftOut(result)}`
+    : `The web search returned ${pluralCount(result.found, 'result')}, and ${pluralCount(result.priced, 'price')} could be read from shop pages${
+      result.indexed ? `, including ${result.indexed} from our price list` : ''}.${leftOut(result)}`;
+  const status = live.pending
+    ? '<div class="note" role="status">Checking more shops on the web. This can take a minute, and their prices will be added here.</div>'
+    : live.note ? `<div class="note" role="status">${escapeHtml(live.note)}</div>` : '';
+  const when = fromList
+    ? 'Read from each shop\'s own page; each price shows when.'
+    : `Read from each shop's own page, ${escapeHtml(clock(result.checkedAt))}.`;
 
   if (!result.groups.length) {
     return `<div class="empty"><h3>No clear prices found for “${escapeHtml(result.query)}”</h3>
@@ -96,7 +106,8 @@ export function liveView(live: LiveState): string {
   }
 
   return `<div class="lead"><h2>Live prices for “${escapeHtml(result.query)}”</h2>
-      <p>Read from each shop's own page, ${escapeHtml(clock(result.checkedAt))}. Only the same version is compared. Prices can change, so confirm on the shop's site before you pay.</p></div>
+      <p>${when} Only the same version is compared. Prices can change, so confirm on the shop's site before you pay.</p></div>
+    ${status}
     <div class="note">${escapeHtml(summary)}</div>
     ${result.groups.map(group => liveGroup(group, result.checkedAt)).join('')}`;
 }

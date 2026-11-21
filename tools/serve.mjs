@@ -1,9 +1,11 @@
+import { spawn } from 'node:child_process';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApi, createDefaultLiveSearch, startWarming } from '../server/api.mjs';
+import { watchIndexFile } from '../server/price-index.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'dist');
@@ -15,7 +17,35 @@ try {
 }
 
 const liveSearch = createDefaultLiveSearch(process.env);
-const api = createApi({ liveSearch });
+/* The price list from `npm run crawl`; a new crawl is picked up without a restart. */
+const searchIndex = watchIndexFile(process.env.PRICE_INDEX_FILE || path.join(root, 'data', 'price-index.json'), { log: console.log });
+const api = createApi({ liveSearch, searchIndex });
+
+/* PRICE_INDEX_REFRESH_HOURS runs the crawl from here, in its own process so a long crawl never
+   slows the site: on start if the list is missing or older than that, then on that schedule.
+   Off unless set, because every crawl reads thousands of shop pages. */
+const refreshHours = Number(process.env.PRICE_INDEX_REFRESH_HOURS);
+if (refreshHours > 0) {
+  const indexFile = process.env.PRICE_INDEX_FILE || path.join(root, 'data', 'price-index.json');
+  let child = null;
+  const crawl = () => {
+    if (child) return;
+    console.log('price list: refresh started');
+    child = spawn(process.execPath, [path.join(root, 'tools', 'crawl.mjs')], { stdio: 'inherit', env: process.env })
+      .on('exit', code => { child = null; console.log(`price list: refresh finished (exit ${code})`); });
+  };
+  /* A crawl belongs to this server: stopping the server stops it too. Saved progress is kept. */
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.on(signal, () => {
+      child?.kill();
+      process.exit(0);
+    });
+  }
+  const everyMs = refreshHours * 60 * 60 * 1000;
+  const age = await stat(indexFile).then(info => Date.now() - info.mtimeMs, () => Infinity);
+  if (age > everyMs) crawl();
+  setInterval(crawl, everyMs).unref();
+}
 startWarming(liveSearch, process.env);
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 5173);
@@ -33,7 +63,7 @@ const TYPES = {
 /* ES modules need an http(s) origin, so this stands in for the static host locally. */
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${host}`);
-  if (url.pathname === '/api/search') return api(req, res, url);
+  if (url.pathname === '/api/search' || url.pathname === '/api/search/quick') return api(req, res, url);
 
   let pathname;
   try {

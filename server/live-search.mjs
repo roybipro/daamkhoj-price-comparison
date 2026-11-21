@@ -14,6 +14,15 @@ export class LiveSearchError extends Error {
   }
 }
 
+export const cleanQuery = rawQuery => String(rawQuery ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+
+/** The query to search for, or a LiveSearchError when there is nothing to search for. */
+export function validQuery(rawQuery) {
+  const query = cleanQuery(rawQuery);
+  if (query.length < 2 || !queryTokens(query).length) throw new LiveSearchError('query', 'Search for a product name');
+  return query;
+}
+
 /* A second line behind the engine's own filter: these are refused before any request to them. */
 const ADULT = /(porn|xnxx|xvideos|xhamster|eporner|redtube|tiava|bokep|onlyfans|sex)/i;
 
@@ -34,7 +43,7 @@ async function mapLimited(items, limit, work) {
 
 /* A real product can sell well below its usual price, but under half is far more likely to be a
    deposit, a part or a mistake, and it would be named the lowest price. */
-function dropSuspiciousPrices(offers) {
+export function dropSuspiciousPrices(offers) {
   if (offers.length < 3) return { kept: offers, dropped: 0 };
   const sorted = offers.map(offer => offer.price).sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)];
@@ -42,22 +51,53 @@ function dropSuspiciousPrices(offers) {
   return { kept, dropped: offers.length - kept.length };
 }
 
-/** Same version together; the lowest price is only named where there is a real choice. */
+/* Sorted cheapest first; the lowest price is only named where there is a real choice. */
+function finishGroups(groups) {
+  for (const group of groups) {
+    group.offers.sort((a, b) => a.price - b.price);
+    /* One shop selling a version in several colours or pages is still one shop: its cheapest
+       price you can buy stands for it, or its cheapest at all when none is in stock. */
+    const pick = new Map();
+    for (const offer of group.offers) {
+      const held = pick.get(offer.shop);
+      if (!held || (held.inStock === false && offer.inStock !== false)) pick.set(offer.shop, offer);
+    }
+    group.offers = group.offers.filter(offer => pick.get(offer.shop) === offer);
+    const buyable = group.offers.filter(offer => offer.inStock !== false);
+    group.lowest = group.comparable && buyable.length > 1 ? buyable[0].url : null;
+  }
+  const lead = group => group.offers[0].price;
+  return groups.sort((a, b) => Number(b.comparable) - Number(a.comparable) || lead(a) - lead(b));
+}
+
+const shown = ({ shop, url, title, price, inStock, checkedAt }) =>
+  (checkedAt ? { shop, url, title, price, inStock, checkedAt } : { shop, url, title, price, inStock });
+
+/** Same version together. */
 export function groupOffers(offers) {
   const groups = new Map();
   for (const offer of offers) {
     const key = offer.variant.clear ? offer.variant.key : '';
     const group = groups.get(key) ?? { label: offer.variant.label, comparable: Boolean(key), offers: [] };
-    group.offers.push({ shop: offer.shop, url: offer.url, title: offer.title, price: offer.price, inStock: offer.inStock });
+    group.offers.push(shown(offer));
     groups.set(key, group);
   }
-  for (const group of groups.values()) {
-    group.offers.sort((a, b) => a.price - b.price);
-    const buyable = group.offers.filter(offer => offer.inStock !== false);
-    group.lowest = group.comparable && buyable.length > 1 ? buyable[0].url : null;
+  return finishGroups([...groups.values()]);
+}
+
+/** Joins already grouped results, such as the price list's and a web search's. The same page in
+    both counts once, and the first list's copy wins, so put the freshest first. */
+export function mergeGroups(...lists) {
+  const groups = new Map();
+  for (const group of lists.flat()) {
+    const key = `${group.comparable}|${group.label.toLowerCase()}`;
+    const into = groups.get(key) ?? { label: group.label, comparable: group.comparable, offers: [] };
+    for (const offer of group.offers) {
+      if (!into.offers.some(other => other.url === offer.url)) into.offers.push({ ...offer });
+    }
+    groups.set(key, into);
   }
-  const lead = group => group.offers[0].price;
-  return [...groups.values()].sort((a, b) => Number(b.comparable) - Number(a.comparable) || lead(a) - lead(b));
+  return finishGroups([...groups.values()]);
 }
 
 export function createLiveSearch(deps) {
@@ -133,17 +173,16 @@ export function createLiveSearch(deps) {
     const { kept: offers, dropped } = dropSuspiciousPrices(read);
     skipped.noPrice += dropped;
 
+    const groups = groupOffers(offers);
     return {
       query,
       checkedAt: new Date(now()).toISOString(),
       found: results.length,
-      priced: offers.length,
+      priced: groups.reduce((sum, group) => sum + group.offers.length, 0),
       skipped,
-      groups: groupOffers(offers)
+      groups
     };
   }
-
-  const clean = rawQuery => String(rawQuery ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
 
   function save(key, value) {
     cache.delete(key);
@@ -156,7 +195,7 @@ export function createLiveSearch(deps) {
         One at a time, and one failure doesn't stop the rest. */
     async warm(queries, log = () => {}) {
       for (const raw of queries) {
-        const query = clean(raw);
+        const query = cleanQuery(raw);
         try {
           save(query.toLowerCase(), await fresh(query));
           log(`refreshed "${query}"`);
@@ -167,8 +206,7 @@ export function createLiveSearch(deps) {
     },
 
     async run(rawQuery) {
-      const query = clean(rawQuery);
-      if (query.length < 2 || !queryTokens(query).length) throw new LiveSearchError('query', 'Search for a product name');
+      const query = validQuery(rawQuery);
 
       const key = query.toLowerCase();
       const saved = cache.get(key);

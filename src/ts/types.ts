@@ -129,7 +129,11 @@ export interface Group {
   best: Offer | null;
 }
 
-export interface LiveOffer { shop: string; url: string; title: string; price: number; inStock: boolean | null }
+export interface LiveOffer {
+  shop: string; url: string; title: string; price: number; inStock: boolean | null;
+  /** When this price was read, for prices from the price list rather than this search. */
+  checkedAt?: string;
+}
 export interface LiveGroup {
   label: string;
   /** False when the pages don't say which version they sell, so no comparison is drawn. */
@@ -140,6 +144,10 @@ export interface LiveGroup {
 }
 export interface LiveResult {
   query: string;
+  /** 'index' when the answer came from the saved price list alone. */
+  source?: 'index';
+  /** How many of the prices came from the price list, in a web search's answer. */
+  indexed?: number;
   checkedAt: string;
   cached: boolean;
   found: number;
@@ -152,7 +160,8 @@ export type LiveState =
   | { status: 'loading'; query: string }
   | { status: 'unavailable'; query: string }
   | { status: 'error'; query: string; message: string }
-  | { status: 'done'; query: string; result: LiveResult };
+  /** `pending` while the web search is still running behind a price-list answer; `note` when it failed. */
+  | { status: 'done'; query: string; result: LiveResult; pending?: boolean; note?: string };
 
 export type ViewName = 'results' | 'stores' | 'compare' | 'how';
 export type SortKey = 'value' | 'price' | 'trust' | 'eta';
