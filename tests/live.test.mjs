@@ -143,7 +143,7 @@ test('a huge page is cut off at the size limit', async () => {
 function fakeLive(pages, overrides = {}) {
   let searches = 0;
   const live = createLiveSearch({
-    search: async () => { searches++; return Object.keys(pages).map(link => ({ title: link, link, description: '' })); },
+    search: async query => { searches++; return Object.keys(pages).map(link => ({ title: query, link, description: '' })); },
     resolveLink: async link => link,
     fetchPage: async url => pages[url],
     robots: { allows: async url => !url.includes('blocked') },
@@ -309,4 +309,173 @@ test('a client searching too fast is slowed down', async () => {
   const api = createApi({ liveSearch: { run: async () => ({}) }, allowClient: createRateLimiter({ limit: 1 }) });
   assert.equal((await callApi(api)).status, 200);
   assert.equal((await callApi(api)).status, 429);
+});
+
+const ldBlock = data => `<script type="application/ld+json">${JSON.stringify(data)}</script>`;
+const nextFlight = data => {
+  const payload = `1d:[["$","$L35",null,{"jsonLd":${JSON.stringify(data)}}]]`;
+  return `<script>self.__next_f.push([1,${JSON.stringify(payload)}])</script>`;
+};
+
+test('a product described twice with one price is still one clear price', () => {
+  const page = readPage(`<html>${ldBlock({ '@graph': [{
+    '@type': 'Product', name: 'Pran Miniket Rice 5kg',
+    Offers: { '@type': 'Offer', price: '470', priceCurrency: 'BDT', availability: 'https://schema.org/InStock' }
+  }] })}${ldBlock({ '@graph': [{
+    '@type': 'Product', name: 'Pran Miniket Rice 5kg',
+    offers: [{ '@type': 'Offer', availability: 'https://schema.org/InStock',
+      priceSpecification: [{ '@type': 'UnitPriceSpecification', price: '470.00', priceCurrency: 'BDT' }] }]
+  }] })}</html>`);
+  assert.equal(page.price, 470);
+  assert.equal(page.inStock, true);
+});
+
+test('the same product with two prices, or two products, stays unclear', () => {
+  const offer = price => ({ '@type': 'Offer', price, priceCurrency: 'BDT' });
+  const samePair = readPage(`${ldBlock({ '@type': 'Product', name: 'Rice', offers: offer(470) })}${ldBlock({ '@type': 'Product', name: 'Rice', offers: offer(500) })}`);
+  assert.equal(samePair.reason, 'ambiguous');
+  const related = readPage(`${ldBlock({ '@type': 'Product', name: 'Rice', offers: offer(470) })}${ldBlock({ '@type': 'Product', name: 'Oil', offers: offer(470) })}`);
+  assert.equal(related.reason, 'ambiguous');
+  const sale = readPage(ldBlock({ '@type': 'Product', name: 'Rice', offers: { priceCurrency: 'BDT',
+    priceSpecification: [{ price: 470, priceCurrency: 'BDT' }, { price: 500, priceCurrency: 'BDT' }] } }));
+  assert.equal(sale.reason, 'ambiguous');
+});
+
+test('reads structured data a Next.js page embeds in its script payload', () => {
+  const page = readPage(`<title>Rice</title>${nextFlight([
+    { '@context': 'https://schema.org', '@type': 'Product', name: 'Shop Pran Miniket Rice 5kg at Shwapno.com',
+      offers: { '@type': 'Offer', priceCurrency: 'BDT', price: 470, availability: 'https://schema.org/InStock' } },
+    { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [] }
+  ])}`);
+  assert.equal(page.price, 470);
+  assert.equal(page.name, 'Pran Miniket Rice 5kg');
+});
+
+test('broken or several embedded products give no price', () => {
+  assert.equal(readPage('<script>self.__next_f.push([1,"{\\"@context\\":\\"https://schema.org\\",\\"@type\\":\\"Product\\",\\"offers\\":{"])</script>').price, null);
+  const two = readPage(nextFlight([
+    { '@context': 'https://schema.org', '@type': 'Product', name: 'Rice', offers: { priceCurrency: 'BDT', price: 470 } },
+    { '@context': 'https://schema.org', '@type': 'Product', name: 'Oil', offers: { priceCurrency: 'BDT', price: 900 } }
+  ]));
+  assert.equal(two.reason, 'ambiguous');
+});
+
+test('pack sizes and spellings match however a shop writes them', () => {
+  for (const name of ['Pusti Soyabean Oil 5Ltr.', 'Teer Soyabean Oil 5 ltr', 'Fresh Soybean Oil 5L', 'Paragon Soyabean Oil 5 Litres', 'Rupchanda Soybean Oil 5 Liter']) {
+    assert.ok(matchesQuery(name, 'soybean oil 5 litre'), name);
+  }
+  assert.ok(!matchesQuery('Pusti Soyabean Oil 2 Ltr', 'soybean oil 5 litre'));
+  assert.ok(!matchesQuery('Pusti Soyabean Oil 50 Ltr', 'soybean oil 5 litre'));
+  assert.deepEqual(variantOf('Pusti Soyabean Oil 5Ltr.', 'soybean oil').key, variantOf('Pusti Soybean Oil 5 Litres', 'soybean oil').key);
+  assert.equal(variantOf('Pran Rice 500 gm', 'rice').label, 'Pran · 500g');
+});
+
+test('results about something else are never opened', async () => {
+  const opened = [];
+  const live = createLiveSearch({
+    search: async () => [
+      { title: 'Spicer MN Homes For Sale - Zillow', link: 'https://www.zillow.com/spicer-mn/', description: 'Real estate' },
+      { title: 'Teer Fortified Soyabean Oil - Online Grocery Shop', link: 'https://shop.example/teer-soyabean-oil-5-ltr', description: '' }
+    ],
+    resolveLink: async link => link,
+    robots: { allows: async () => true },
+    fetchPage: async url => { opened.push(url); return { ok: true, url, text: product('Teer Soyabean Oil 5 Ltr', 900) }; }
+  });
+  const result = await live.run('soybean oil 5 litre');
+  assert.deepEqual(opened, ['https://shop.example/teer-soyabean-oil-5-ltr']);
+  assert.equal(result.priced, 1);
+  assert.equal(result.skipped.otherProduct, 1);
+});
+
+test('price guides are not treated as shops', async () => {
+  const hosts = ['https://www.mobilebd.co/phone/a16', 'https://mobile.bd/phones/a16'];
+  const opened = [];
+  const live = createLiveSearch({
+    search: async () => hosts.map(link => ({ title: 'Galaxy A16', link, description: '' })),
+    resolveLink: async link => link,
+    robots: { allows: async () => true },
+    fetchPage: async url => { opened.push(url); return { ok: false }; }
+  });
+  const result = await live.run('galaxy a16');
+  assert.deepEqual(opened, []);
+  assert.equal(result.skipped.notShop, 2);
+});
+
+test('Bing searches from Bangladesh with both wordings and merges the answers', async () => {
+  const bodies = [];
+  const answer = { 'rice price in bangladesh': ['https://a.bd', 'https://b.bd'], 'rice bangladesh': ['https://a.bd', 'https://c.bd'] };
+  const fetchImpl = async (_, init) => {
+    const body = JSON.parse(init.body);
+    bodies.push(body);
+    const links = answer[new URL(body.url).searchParams.get('q')];
+    return new Response(JSON.stringify({ organic: links.map(link => ({ title: 'T', link, description: '' })) }));
+  };
+  const search = createBrightDataSearch({ apiKey: 'k', zone: 'z', fetchImpl });
+  const results = await search('rice');
+  assert.deepEqual(results.map(result => result.link), ['https://a.bd', 'https://b.bd', 'https://c.bd']);
+  assert.ok(bodies.every(body => body.country === 'bd'));
+  assert.equal(search.requests, 2);
+});
+
+test('one failing wording still gives results; all failing is an error', async () => {
+  let calls = 0;
+  const flaky = async () => {
+    calls++;
+    return calls === 1 ? new Response('no', { status: 500 }) : new Response('{"organic":[{"title":"T","link":"https://a.bd"}]}');
+  };
+  assert.equal((await createBrightDataSearch({ apiKey: 'k', zone: 'z', fetchImpl: flaky })('rice')).length, 1);
+  const down = createBrightDataSearch({ apiKey: 'k', zone: 'z', fetchImpl: async () => new Response('no', { status: 500 }) });
+  await assert.rejects(down('rice'));
+});
+
+test('the daily limit counts every paid request a search makes', async () => {
+  const search = async () => [];
+  search.requests = 2;
+  const live = createLiveSearch({ search, resolveLink: async link => link, fetchPage: async () => ({ ok: false }), robots: { allows: async () => true }, dailyLimit: 3 });
+  await live.run('iphone 15');
+  await assert.rejects(live.run('galaxy a16'), error => error.code === 'budget');
+});
+
+test('a price range is not one clear price', () => {
+  const page = readPage(ldBlock({ '@type': 'Product', name: 'iPhone 15', offers: [{ '@type': 'AggregateOffer', lowPrice: '10000', highPrice: '100999', offerCount: 45,
+    priceSpecification: [{ price: '10000', priceCurrency: 'BDT' }] }] }));
+  assert.equal(page.reason, 'ambiguous');
+  const single = readPage(ldBlock({ '@type': 'Product', name: 'iPhone 15', offers: { '@type': 'AggregateOffer', lowPrice: '500', highPrice: '500',
+    offers: [{ '@type': 'Offer', price: '500', priceCurrency: 'BDT' }] } }));
+  assert.equal(single.price, 500);
+});
+
+test('a price under half the typical one never reaches the customer', async () => {
+  const { live } = fakeLive(pagesFor({
+    'https://a.bd/p': product('iPhone 15 128GB', 74000),
+    'https://b.bd/p': product('iPhone 15 128GB', 76000),
+    'https://c.bd/p': product('iPhone 15 128GB', 78000),
+    'https://d.bd/p': product('iPhone 15 128GB', 10000)
+  }));
+  const result = await live.run('iphone 15');
+  assert.equal(result.priced, 3);
+  assert.equal(result.skipped.noPrice, 1);
+  assert.equal(result.groups[0].lowest, 'https://a.bd/p');
+});
+
+test('exact matches are opened first when there are too many results', async () => {
+  const opened = [];
+  const live = createLiveSearch({
+    search: async () => [
+      { title: 'Galaxy', link: 'https://nasa.example/galaxy', description: '' },
+      { title: 'Galaxy A16', link: 'https://shop.example/a16', description: '' }
+    ],
+    resolveLink: async link => link,
+    robots: { allows: async () => true },
+    fetchPage: async url => { opened.push(url); return { ok: false }; },
+    maxPages: 1
+  });
+  await live.run('galaxy a16');
+  assert.deepEqual(opened, ['https://shop.example/a16']);
+});
+
+test('5G on a phone is a network, not a pack size, and splits versions', () => {
+  assert.equal(variantOf('Samsung Galaxy A16 5G', 'galaxy a16').clear, false);
+  assert.notEqual(variantOf('Samsung Galaxy A16 5G 128GB', 'galaxy a16').key, variantOf('Samsung Galaxy A16 128GB', 'galaxy a16').key);
+  assert.notEqual(variantOf('Samsung Galaxy A16 5G 8GB 256GB', 'galaxy a16').key, variantOf('Samsung Galaxy A16 5G 6GB 128GB', 'galaxy a16').key);
 });

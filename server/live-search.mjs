@@ -1,11 +1,11 @@
 /* The two-step search: find candidate pages with a search provider, then read each page's own
    price. Only prices read from a page, for the product asked about, ever reach a customer. */
 
-import { matchesQuery, queryTokens, variantOf } from './matching.mjs';
+import { matchesQuery, mentionsProduct, queryTokens, variantOf } from './matching.mjs';
 import { readPage } from './page-price.mjs';
 
 /* Social sites, and price guides whose figures are not a shop's offer. */
-const NOT_SHOPS = /(^|\.)(youtube|facebook|tiktok|instagram|reddit|wikipedia|x|twitter|pinterest|quora|gsmarena|mobiledokan)\.[a-z.]+$/i;
+const NOT_SHOPS = /(^|\.)((youtube|facebook|tiktok|instagram|reddit|wikipedia|x|twitter|pinterest|quora|gsmarena|mobiledokan|mobilebd)\.[a-z.]+|mobile\.bd)$/i;
 
 export class LiveSearchError extends Error {
   constructor(code, message) {
@@ -32,6 +32,16 @@ async function mapLimited(items, limit, work) {
   return results;
 }
 
+/* A real product can sell well below its usual price, but under half is far more likely to be a
+   deposit, a part or a mistake, and it would be named the lowest price. */
+function dropSuspiciousPrices(offers) {
+  if (offers.length < 3) return { kept: offers, dropped: 0 };
+  const sorted = offers.map(offer => offer.price).sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const kept = offers.filter(offer => offer.price >= median / 2);
+  return { kept, dropped: offers.length - kept.length };
+}
+
 /** Same version together; the lowest price is only named where there is a real choice. */
 export function groupOffers(offers) {
   const groups = new Map();
@@ -53,7 +63,7 @@ export function groupOffers(offers) {
 export function createLiveSearch(deps) {
   const {
     search, resolveLink, fetchPage, robots, now = Date.now,
-    maxPages = 10, concurrency = 5, ttlMs = 3 * 60 * 60 * 1000, maxEntries = 500, dailyLimit = 300
+    maxPages = 15, concurrency = 5, ttlMs = 3 * 60 * 60 * 1000, maxEntries = 500, dailyLimit = 300
   } = deps;
 
   const cache = new Map();
@@ -96,22 +106,32 @@ export function createLiveSearch(deps) {
   async function fresh(query) {
     const today = utcDay(now());
     if (budget.day !== today) budget = { day: today, used: 0 };
-    if (budget.used >= dailyLimit) throw new LiveSearchError('budget', 'Daily live search limit reached');
-    budget.used++;
+    const cost = search.requests ?? 1;
+    if (budget.used + cost > dailyLimit) throw new LiveSearchError('budget', 'Daily live search limit reached');
+    budget.used += cost;
 
     const results = await search(query);
-    const inspected = await mapLimited(results.slice(0, maxPages), concurrency, result => inspect(result, query));
+    /* Off-topic results are never opened and don't use up a slot. Exact matches go first. */
+    const describe = result => `${result.title} ${result.description} ${result.link}`;
+    const onTopic = results.filter(result => mentionsProduct(describe(result), query));
+    const ranked = [
+      ...onTopic.filter(result => matchesQuery(describe(result), query)),
+      ...onTopic.filter(result => !matchesQuery(describe(result), query))
+    ];
+    const inspected = await mapLimited(ranked.slice(0, maxPages), concurrency, result => inspect(result, query));
 
     const seen = new Set();
-    const offers = [];
-    const skipped = { notShop: 0, blocked: 0, noPrice: 0, otherProduct: 0, failed: 0 };
+    const read = [];
+    const skipped = { notShop: 0, blocked: 0, noPrice: 0, otherProduct: results.length - onTopic.length, failed: 0 };
     for (const item of inspected) {
       if (item.skip) skipped[item.skip]++;
       else if (!seen.has(item.offer.url)) {
         seen.add(item.offer.url);
-        offers.push(item.offer);
+        read.push(item.offer);
       }
     }
+    const { kept: offers, dropped } = dropSuspiciousPrices(read);
+    skipped.noPrice += dropped;
 
     return {
       query,

@@ -167,9 +167,10 @@ an invented score.
 A new search takes about a minute, nearly all of it waiting for the search provider (37 to 86
 seconds in testing, against 3 to 18 for reading pages). So most customers shouldn't trigger one:
 results are saved for 3 hours (`LIVE_SEARCH_CACHE_MINUTES`), and `LIVE_SEARCH_WARM` keeps a list
-of popular searches refreshed in the background. Each new search is also a paid request, so
-identical searches share one, each client gets 20 searches a minute, and a daily limit
-(`LIVE_SEARCH_DAILY_LIMIT`, default 300) pauses paid searches, including background ones. These
+of popular searches refreshed in the background. Each new search costs 2 paid requests on Bing, because Bing is unreliable on any one wording,
+so both run and merge. Identical searches share them, each client gets 20 searches a minute,
+and a daily limit (`LIVE_SEARCH_DAILY_LIMIT`, default 300 requests) pauses paid searches,
+including background ones. These
 counters and saved results are in memory, so they reset on restart and aren't shared between
 server instances. Bing runs with `safesearch=strict`, and adult domains are refused before any
 request, because an unfiltered grocery search returned adult sites in testing.

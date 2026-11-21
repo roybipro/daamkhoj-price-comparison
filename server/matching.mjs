@@ -13,16 +13,28 @@ const OTHER_PRODUCT = new Set([
 
 const GENERIC_BRAND = new Set(['premium', 'fresh', 'pure', 'local', 'organic', 'special', 'best', 'buy', 'new', 'original', 'quality', 'super', 'loose']);
 
+const PACK_UNIT = { kg: 'kg', kgs: 'kg', g: 'g', gm: 'g', gms: 'g', gram: 'g', grams: 'g', l: 'l', ltr: 'l', ltrs: 'l', litre: 'l', litres: 'l', liter: 'l', liters: 'l', ml: 'ml' };
+
+/* Shops write one size and one word many ways, so all of them reduce to a single spelling. */
 const joinUnits = text => text
   .toLowerCase()
   .replace(/pre[\s-]owned/g, 'preowned')
   .replace(/second[\s-]hand/g, 'secondhand')
-  .replace(/(\d)\s+(kg|gm|g|ltr|litre|liter|l|ml|gb|tb)\b/g, '$1$2');
+  .replace(/\bsoya\s?bean\b/g, 'soybean')
+  .replace(/(\d)\s*(kgs?|gms?|grams?|g|ltrs?|litres?|liters?|l|ml)\b/g, (_, digit, unit) => `${digit}${PACK_UNIT[unit]}`)
+  .replace(/(\d)\s+(gb|tb)\b/g, '$1$2');
 
 const tokensOf = text => joinUnits(text).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 
 export function queryTokens(query) {
   return tokensOf(query).filter(token => !NOISE.has(token));
+}
+
+/** A cheap check on a search result, so pages about something else are never opened. Sizes and
+    model numbers are left to the page itself, as results often leave them out. */
+export function mentionsProduct(text, query) {
+  const tokens = new Set(tokensOf(text));
+  return queryTokens(query).filter(token => !/\d/.test(token)).every(token => tokens.has(token));
 }
 
 export function matchesQuery(name, query) {
@@ -39,11 +51,12 @@ export function matchesQuery(name, query) {
   return ![...tokens].some(token => OTHER_PRODUCT.has(token) && !asked.has(token));
 }
 
-const UNIT = { kg: 'kg', gm: 'g', g: 'g', ltr: 'L', litre: 'L', liter: 'L', l: 'L', ml: 'ml' };
+const UNIT_LABEL = { kg: 'kg', g: 'g', l: 'L', ml: 'ml' };
 
 function packOf(text) {
-  const match = joinUnits(text).match(/(?:^|[^\p{L}\p{N}.])(\d+(?:\.\d+)?)(kg|gm|g|ltr|litre|liter|l|ml)(?![\p{L}\p{N}])/u);
-  return match ? `${match[1]}${UNIT[match[2]]}` : '';
+  /* "5G" on a phone is its network, not five grams. */
+  const match = joinUnits(text).match(/(?:^|[^\p{L}\p{N}.])(?![2-6]g(?![\p{L}\p{N}]))(\d+(?:\.\d+)?)(kg|g|l|ml)(?![\p{L}\p{N}])/u);
+  return match ? `${match[1]}${UNIT_LABEL[match[2]]}` : '';
 }
 
 function brandOf(name, query) {
@@ -102,5 +115,7 @@ export function variantOf(name, query) {
   ].filter(Boolean);
 
   if (!parts.length) return { key: '', label: 'Version not clear', clear: false };
+  /* 5G splits versions, but alone it doesn't identify one: the memory could still differ. */
+  if (/\b5g\b/i.test(name)) parts.push('5G');
   return { key: parts.join('|').toLowerCase(), label: parts.join(' · '), clear: true };
 }

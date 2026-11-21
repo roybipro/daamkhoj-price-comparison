@@ -32,6 +32,61 @@ function stockOf(availability) {
   return null;
 }
 
+/** Where the object starting at `start` closes, or -1 if it never does. */
+function closingBrace(text, start) {
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < text.length; i++) {
+    const char = text[i];
+    if (inString) {
+      if (char === '\\') i++;
+      else if (char === '"') inString = false;
+    } else if (char === '"') inString = true;
+    else if (char === '{') depth++;
+    else if (char === '}' && --depth === 0) return i;
+  }
+  return -1;
+}
+
+/* Next.js pages can carry their structured data inside a script payload instead of a tag. */
+function embeddedBlocks(html) {
+  let payload = '';
+  for (const match of html.matchAll(/self\.__next_f\.push\(\[1,("[^"\\]*(?:\\.[^"\\]*)*")\]\)/g)) {
+    try {
+      payload += JSON.parse(match[1]);
+    } catch {
+      /* A malformed chunk says nothing either way. */
+    }
+  }
+  const blocks = [];
+  const starts = payload.matchAll(/\{"(?:@context":"https?:\/\/schema\.org\/?"|@type":"Product")/g);
+  for (const { index } of [...starts].slice(0, 50)) {
+    const end = closingBrace(payload, index);
+    if (end === -1) continue;
+    try {
+      blocks.push(JSON.parse(payload.slice(index, end + 1)));
+    } catch {
+      /* As above. */
+    }
+  }
+  return blocks;
+}
+
+function offersOf(product) {
+  return [].concat(product.offers ?? product.Offers ?? [])
+    .filter(offer => offer && typeof offer === 'object')
+    .flatMap(offer => (Array.isArray(offer.offers) ? offer.offers : [offer]));
+}
+
+function quotesOf(offer) {
+  if (offer.price !== undefined) return [{ price: offer.price, currency: offer.priceCurrency }];
+  return [].concat(offer.priceSpecification ?? [])
+    .filter(spec => spec?.price !== undefined)
+    .map(spec => ({ price: spec.price, currency: spec.priceCurrency ?? offer.priceCurrency }));
+}
+
+const sameName = name => decodeEntities(name ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+
 function readJsonLd(html) {
   const products = [];
   for (const match of html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
@@ -41,24 +96,30 @@ function readJsonLd(html) {
       /* A malformed block says nothing either way. */
     }
   }
+  findProducts(embeddedBlocks(html), products);
   if (!products.length) return null;
-  /* Several products usually means a listing or "related items"; which price is ours? */
-  if (products.length > 1) return { ambiguous: true };
+  /* Different products usually means a listing or "related items"; which price is ours? The
+     same product described twice, as some shop plugins do, is fine if the details agree. */
+  if (new Set(products.map(product => sameName(product.name))).size > 1) return { ambiguous: true };
 
-  const [product] = products;
-  const offers = [].concat(product.offers ?? []).flatMap(offer =>
-    (Array.isArray(offer.offers) ? offer.offers : [offer]));
-  const prices = new Set(offers.filter(offer => offer.price !== undefined).map(offer => toNumber(offer.price)));
-  if (prices.size > 1) return { ambiguous: true };
+  /* A range means several versions or a deposit, so its low end is not this product's price. */
+  const isRange = offer => offer.lowPrice !== undefined && toNumber(offer.lowPrice) !== toNumber(offer.highPrice ?? offer.lowPrice);
+  if (products.some(product => [].concat(product.offers ?? product.Offers ?? []).some(offer => offer && isRange(offer)))) return { ambiguous: true };
+
+  const offers = products.flatMap(offersOf);
+  const quotes = offers.flatMap(quotesOf);
+  const prices = new Set(quotes.map(quote => toNumber(quote.price)));
+  const currencies = new Set(quotes.map(quote => String(quote.currency ?? '').toUpperCase()));
+  if (prices.size > 1 || currencies.size > 1) return { ambiguous: true };
   if (!prices.size) return null;
 
-  const offer = offers.find(item => item.price !== undefined);
+  const stock = new Set(offers.map(offer => stockOf(offer.availability)).filter(value => value !== null));
   return {
     source: 'json-ld',
     price: [...prices][0],
-    currency: String(offer.priceCurrency ?? '').toUpperCase(),
-    name: decodeEntities(product.name ?? ''),
-    inStock: stockOf(offer.availability)
+    currency: [...currencies][0],
+    name: decodeEntities(products[0].name ?? ''),
+    inStock: stock.size === 1 ? [...stock][0] : null
   };
 }
 
@@ -92,5 +153,7 @@ export function readPage(html) {
   /* A price with no stated currency might not be taka, so it does not count. */
   if (found.currency !== 'BDT') return { title, price: null, reason: 'not-taka' };
 
-  return { title, name: found.name.replace(/\s+/g, ' ').trim(), price: found.price, inStock: found.inStock, source: found.source };
+  /* Some shops write their own marketing around the name: "Shop X at Shop.com". */
+  const name = found.name.replace(/\s+/g, ' ').trim().replace(/^shop\s+/i, '').replace(/\s+at\s+\S+\.[a-z]+$/i, '');
+  return { title, name, price: found.price, inStock: found.inStock, source: found.source };
 }
