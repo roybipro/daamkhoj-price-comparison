@@ -178,7 +178,7 @@ test('the price list refuses meaningless searches like the web search does', () 
 
 test('merged results count a page once and keep the first copy', () => {
   const group = (label, offers) => ({ label, comparable: true, lowest: null, offers });
-  const offer = (url, price, checkedAt) => ({ shop: 'a.bd', url, title: 'T', price, inStock: true, ...(checkedAt && { checkedAt }) });
+  const offer = (url, price, checkedAt) => ({ shop: new URL(url).hostname, url, title: 'T', price, inStock: true, ...(checkedAt && { checkedAt }) });
   const merged = mergeGroups(
     [group('128GB', [offer('https://a.bd/1', 900)])],
     [group('128gb', [offer('https://a.bd/1', 950, 'old'), offer('https://b.bd/2', 800, 'old')]), group('256GB', [offer('https://c.bd/3', 1200, 'old')])]
@@ -240,4 +240,18 @@ test('the quick search needs no paid key, and the full search adds the price lis
 
   const broken = await call(createApi({ liveSearch: { run: async () => web }, searchIndex: async () => { throw new Error('disk'); }, log: () => {} }), '/api/search');
   assert.equal(broken.body.priced, 1, 'a broken price list never sinks the web search');
+});
+
+test('a shop counts once per version: its cheapest price in stock, or its cheapest if none are', () => {
+  const index = createPriceIndex(listOf(
+    entry('s.bd', 'iPhone 14 Blue 128GB USA', 65000, { inStock: false, url: 'https://s.bd/p?variant=1' }),
+    entry('s.bd', 'iPhone 14 Red 128GB Global', 68000, { url: 'https://s.bd/p?variant=2' }),
+    entry('s.bd', 'iPhone 14 Black 128GB Global', 69000, { url: 'https://s.bd/p?variant=3' }),
+    entry('t.bd', 'iPhone 14 128GB', 70000),
+    entry('s.bd', 'iPhone 14 Blue 512GB USA', 110000, { inStock: false, url: 'https://s.bd/p?variant=4' }),
+    entry('s.bd', 'iPhone 14 Red 512GB USA', 111000, { inStock: false, url: 'https://s.bd/p?variant=5' })
+  ), { now: () => NOW });
+  const [small, large] = index.search('iphone 14').groups;
+  assert.deepEqual(small.offers.map(offer => [offer.shop, offer.price]), [['s.bd', 68000], ['t.bd', 70000]]);
+  assert.deepEqual(large.offers.map(offer => offer.price), [110000]);
 });

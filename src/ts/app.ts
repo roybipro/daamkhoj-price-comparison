@@ -4,7 +4,7 @@ import { fetchLive } from './core/live.js';
 import { createSearch } from './core/search.js';
 import { decodeState, encodeState } from './core/urlstate.js';
 import { toggleTheme } from './core/theme.js';
-import type { Group, Offer, RenderContext, SortKey, State, ViewName } from './types.js';
+import type { Group, LiveState, Offer, RenderContext, SortKey, State, ViewName } from './types.js';
 import { compareView, howView, resultsView, storesView, suggestionsView, toolbarView, trayView } from './ui/views.js';
 
 const catalog = buildCatalog();
@@ -161,9 +161,32 @@ async function startLive(): Promise<void> {
   state.view = 'results';
   state.live = { status: 'loading', query };
   render();
-  const next = await fetchLive(query, request.signal);
+
+  /* The price list answers at once and the web search within a minute or so, so both start
+     together: the list's prices show first, and the web's answer, which includes them, replaces
+     them when it arrives. If the web search can't run, the list's prices stay. */
+  const hasPrices = (answer: LiveState): answer is Extract<LiveState, { status: 'done' }> =>
+    answer.status === 'done' && answer.result.groups.length > 0;
+  const quick = fetchLive(query, request.signal, 'quick');
+  let webArrived = false;
+  void quick.then(answer => {
+    if (request.signal.aborted || webArrived || !hasPrices(answer)) return;
+    state.live = { ...answer, pending: true };
+    render();
+  });
+
+  const web = await fetchLive(query, request.signal, 'web');
+  webArrived = true;
   if (request.signal.aborted) return;
-  state.live = next;
+  if (web.status === 'done') {
+    state.live = web;
+  } else {
+    const listed = await quick;
+    if (request.signal.aborted) return;
+    state.live = hasPrices(listed)
+      ? { ...listed, ...(web.status === 'error' && { note: `Other shops could not be checked: ${web.message}` }) }
+      : web;
+  }
   render();
 }
 

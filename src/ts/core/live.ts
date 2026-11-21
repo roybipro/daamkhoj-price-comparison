@@ -5,11 +5,15 @@ import type { LiveResult, LiveState } from '../types.js';
 
 /* The server's worst case: 100 seconds searching, then up to 90 reading pages. */
 const TIMEOUT_MS = 200_000;
+/* The price list answers in milliseconds; anything slow means the server is struggling. */
+const QUICK_TIMEOUT_MS = 10_000;
 
-export async function fetchLive(query: string, cancel: AbortSignal): Promise<LiveState> {
+/** `quick` asks the saved price list, which is instant; `web` runs the full search as well. */
+export async function fetchLive(query: string, cancel: AbortSignal, kind: 'quick' | 'web' = 'web'): Promise<LiveState> {
+  const path = kind === 'quick' ? 'api/search/quick' : 'api/search';
   try {
-    const response = await fetch(`api/search?q=${encodeURIComponent(query)}`, {
-      signal: AbortSignal.any([cancel, AbortSignal.timeout(TIMEOUT_MS)]),
+    const response = await fetch(`${path}?q=${encodeURIComponent(query)}`, {
+      signal: AbortSignal.any([cancel, AbortSignal.timeout(kind === 'quick' ? QUICK_TIMEOUT_MS : TIMEOUT_MS)]),
       headers: { accept: 'application/json' }
     });
     if (response.status === 404 || response.status === 503) return { status: 'unavailable', query };

@@ -62,7 +62,9 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
       }));
       const { kept, dropped } = dropSuspiciousPrices(offers);
       const shown = kept.sort((a, b) => a.price - b.price).slice(0, maxOffers);
-      const newest = shown.reduce((latest, offer) => (offer.checkedAt > latest ? offer.checkedAt : latest), '');
+      const groups = groupOffers(shown);
+      const listed = groups.flatMap(group => group.offers);
+      const newest = listed.reduce((latest, offer) => (offer.checkedAt > latest ? offer.checkedAt : latest), '');
 
       return {
         query,
@@ -70,9 +72,9 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
         checkedAt: newest || new Date(now()).toISOString(),
         cached: true,
         found: matched.length,
-        priced: shown.length,
+        priced: listed.length,
         skipped: { notShop: 0, blocked: 0, noPrice: dropped, otherProduct: 0, failed: 0 },
-        groups: groupOffers(shown)
+        groups
       };
     }
   };

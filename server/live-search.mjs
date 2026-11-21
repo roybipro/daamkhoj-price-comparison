@@ -55,6 +55,14 @@ export function dropSuspiciousPrices(offers) {
 function finishGroups(groups) {
   for (const group of groups) {
     group.offers.sort((a, b) => a.price - b.price);
+    /* One shop selling a version in several colours or pages is still one shop: its cheapest
+       price you can buy stands for it, or its cheapest at all when none is in stock. */
+    const pick = new Map();
+    for (const offer of group.offers) {
+      const held = pick.get(offer.shop);
+      if (!held || (held.inStock === false && offer.inStock !== false)) pick.set(offer.shop, offer);
+    }
+    group.offers = group.offers.filter(offer => pick.get(offer.shop) === offer);
     const buyable = group.offers.filter(offer => offer.inStock !== false);
     group.lowest = group.comparable && buyable.length > 1 ? buyable[0].url : null;
   }
@@ -165,13 +173,14 @@ export function createLiveSearch(deps) {
     const { kept: offers, dropped } = dropSuspiciousPrices(read);
     skipped.noPrice += dropped;
 
+    const groups = groupOffers(offers);
     return {
       query,
       checkedAt: new Date(now()).toISOString(),
       found: results.length,
-      priced: offers.length,
+      priced: groups.reduce((sum, group) => sum + group.offers.length, 0),
       skipped,
-      groups: groupOffers(offers)
+      groups
     };
   }
 
