@@ -133,6 +133,20 @@ test('private addresses are refused, including through a redirect', async () => 
   await assert.rejects(fetchPublic('https://shop.example/', { fetchImpl, resolve }), /private host/);
 });
 
+test('a private IPv4 address hidden inside an IPv6 one is still refused', async () => {
+  /* The URL parser rewrites [::ffff:127.0.0.1] as [::ffff:7f00:1], which once slipped through. */
+  for (const address of ['::ffff:7f00:1', '::ffff:a9fe:a9fe', '::127.0.0.1', '64:ff9b::a00:1', '2002:c0a8:101::', 'fe80::1%en0', '2001:db8::1', '::']) {
+    assert.ok(isPrivateAddress(address), address);
+  }
+  for (const address of ['::ffff:808:808', '2606:4700::1111', '2404:6800:4003::200e']) {
+    assert.ok(!isPrivateAddress(address), address);
+  }
+  const resolve = async () => [{ address: '93.184.216.34' }];
+  for (const url of ['http://[::ffff:127.0.0.1]/', 'http://[::ffff:169.254.169.254]/latest/meta-data', 'http://[64:ff9b::7f00:1]/']) {
+    await assert.rejects(assertPublicUrl(url, resolve), /private host/, url);
+  }
+});
+
 test('a huge page is cut off at the size limit', async () => {
   const resolve = async () => [{ address: '93.184.216.34' }];
   const fetchImpl = async () => new Response('x'.repeat(5000), { headers: { 'content-type': 'text/html' } });
