@@ -1,7 +1,7 @@
 {
   "name": "daamkhoj-price-comparison",
   "version": "1.0.0",
-  "description": "Price and trust comparison across Bangladeshi online shops \u2014 search a product, see every retailer's price side by side with a transparent trust score.",
+  "description": "Price and trust comparison across Bangladeshi online shops — search a product, see every retailer's price side by side with a transparent trust score.",
   "type": "module",
   "private": true,
   "scripts": {
@@ -17,10 +17,10 @@
     "fetch-logos": "node tools/fetch-logos.mjs"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   },
   "engines": {
-    "node": ">=20.12"
+    "node": ">=22"
   },
   "license": "UNLICENSED"
 }
