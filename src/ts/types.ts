@@ -142,7 +142,24 @@ export interface LiveOffer {
   shop: string; url: string; title: string; price: number; inStock: boolean | null;
   /** When this price was read, for prices from the price list rather than this search. */
   checkedAt?: string;
+  /** The product photo the shop's page publishes. */
+  image?: string;
 }
+
+/** One product on a home-page shelf: where its price starts, and how many shops sell it. */
+export interface BrowseCard {
+  name: string;
+  from: number;
+  shop: string;
+  shops: number;
+  versions: number;
+  image?: string;
+  checkedAt: string;
+}
+export interface BrowseShelf { id: string; label: string; cards: BrowseCard[] }
+export interface BrowseData { shelves: BrowseShelf[]; shops: { shop: string; prices: number }[]; prices: number }
+/* A static host has no price list, so "unavailable" is normal: the home page then shows the demo. */
+export type BrowseState = { status: 'loading' } | { status: 'ready'; data: BrowseData } | { status: 'unavailable' };
 export interface LiveGroup {
   label: string;
   /** False when the pages don't say which version they sell, so no comparison is drawn. */
@@ -199,6 +216,9 @@ export interface State {
   /** Only one product's trend chart is open at a time; a wall of charts reads as noise. */
   trend: string | null;
   live: LiveState;
+  browse: BrowseState;
+  /** The home page's chosen category, or '' for all of them. */
+  shelf: string;
 }
 
 /** Everything a view needs to render, passed in rather than reached for globally. */

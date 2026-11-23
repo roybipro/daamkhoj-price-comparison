@@ -63,7 +63,7 @@ const TYPES = {
 /* ES modules need an http(s) origin, so this stands in for the static host locally. */
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${host}`);
-  if (url.pathname === '/api/search' || url.pathname === '/api/search/quick') return api(req, res, url);
+  if (url.pathname === '/api/search' || url.pathname === '/api/search/quick' || url.pathname === '/api/browse') return api(req, res, url);
 
   let pathname;
   try {

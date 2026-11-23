@@ -1,4 +1,5 @@
-/* GET /api/search/quick?q=… answers from the saved price list at once, with no paid request.
+/* GET /api/browse gives the home page's shelves of popular products, from the saved price list.
+   GET /api/search/quick?q=… answers from the saved price list at once, with no paid request.
    GET /api/search?q=… runs the paid web search and adds the price list's answer to it.
    Credentials come from the environment and stay on the server; nothing here returns or logs them. */
 
@@ -90,8 +91,21 @@ export function createApi({
     }
   }
 
+  async function browse(req, res) {
+    if (!searchIndex?.browse) return send(res, 503, { error: 'The price list is not set up on this server' });
+    if (!allowQuick(req.socket.remoteAddress ?? 'unknown')) {
+      return send(res, STATUS.rate, { error: 'Too many requests. Please wait a minute and try again.' });
+    }
+    try {
+      return send(res, 200, await searchIndex.browse());
+    } catch (error) {
+      return failed(res, error, 'browse');
+    }
+  }
+
   return async function handle(req, res, url) {
     if (req.method !== 'GET') return send(res, 405, { error: 'Use GET' });
+    if (url.pathname === '/api/browse') return browse(req, res);
     if (url.pathname.endsWith('/quick')) return quick(req, res, url);
     if (!liveSearch) return send(res, 503, { error: 'Live search is not set up on this server' });
     if (!allowClient(req.socket.remoteAddress ?? 'unknown')) {

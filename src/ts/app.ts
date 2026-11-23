@@ -1,6 +1,6 @@
 import { SNAPSHOT, TRUST_WEIGHTS } from './data/meta.js';
 import { buildCatalog, byBestValue } from './core/catalog.js';
-import { fetchLive } from './core/live.js';
+import { fetchBrowse, fetchLive } from './core/live.js';
 import { createSearch } from './core/search.js';
 import { decodeState, encodeState } from './core/urlstate.js';
 import { toggleTheme } from './core/theme.js';
@@ -43,7 +43,9 @@ const state: State = {
   suggestIndex: -1,
   linkCopied: false,
   trend: null,
-  live: { status: 'idle' }
+  live: { status: 'idle' },
+  browse: { status: 'loading' },
+  shelf: ''
 };
 
 function must<T extends Element>(selector: string): T {
@@ -275,7 +277,9 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
     render();
   },
   all: () => { state.showAll = true; render(); },
-  query: trigger => { state.q = trigger.dataset.q ?? ''; state.view = 'results'; dom.input.value = state.q; void startLive(); },
+  query: trigger => { state.q = trigger.dataset.q ?? ''; state.view = 'results'; dom.input.value = state.q; void startLive(); window.scrollTo({ top: 0 }); },
+  shelf: trigger => { state.shelf = trigger.dataset.id ?? ''; render(); },
+  focusSearch: () => { window.scrollTo({ top: 0 }); dom.input.focus(); },
   retryLive: () => { void startLive(); },
   shop: trigger => { state.storeId = trigger.dataset.id ?? ''; state.view = 'results'; state.showAll = true; render(); window.scrollTo({ top: 0 }); },
   cod: () => { state.codOnly = !state.codOnly; render(); },
@@ -363,6 +367,9 @@ dom.tabs.addEventListener('click', event => {
   const tab = event.target instanceof Element ? event.target.closest<HTMLElement>('button[data-view]') : null;
   if (tab) setView(tab.dataset.view);
 });
+
+/* The shelves come from the price list; on a host without one the demo home stays. */
+void fetchBrowse().then(browse => { state.browse = browse; render(); });
 
 /* A shared search link runs the same live search as typing it would. */
 if (state.q && state.view === 'results') void startLive();

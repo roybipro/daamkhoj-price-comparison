@@ -1,7 +1,7 @@
 /* Browser side of live search: one request, reduced to a state the UI can render. A static
    host has no /api/search, so "unavailable" is a normal answer and the demo keeps working. */
 
-import type { LiveResult, LiveState } from '../types.js';
+import type { BrowseData, BrowseState, LiveResult, LiveState } from '../types.js';
 
 /* The server's worst case: 100 seconds searching, then up to 90 reading pages. */
 const TIMEOUT_MS = 200_000;
@@ -38,5 +38,17 @@ export function safeHttpUrl(raw: string): string | null {
     return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
   } catch {
     return null;
+  }
+}
+
+/** The home page's shelves from the price list. Anything but a clear answer means "show the demo". */
+export async function fetchBrowse(): Promise<BrowseState> {
+  try {
+    const response = await fetch('api/browse', { signal: AbortSignal.timeout(QUICK_TIMEOUT_MS), headers: { accept: 'application/json' } });
+    if (!response.ok) return { status: 'unavailable' };
+    const data = await response.json() as Partial<BrowseData>;
+    return Array.isArray(data.shelves) && data.shelves.length ? { status: 'ready', data: data as BrowseData } : { status: 'unavailable' };
+  } catch {
+    return { status: 'unavailable' };
   }
 }

@@ -51,8 +51,10 @@ function liveGroup(group: LiveGroup, checkedAt: string, query: string): string {
     ? `${pluralCount(group.offers.length, 'shop')} selling this version of “${query}”`
     : 'Not compared, because these pages do not say which version they sell';
   const choice = group.comparable && group.offers.length > 1;
+  const pictured = group.offers.map(offer => offer.image && safeHttpUrl(offer.image)).find(Boolean);
   return `<section class="group${group.comparable ? '' : ' unclear'}">
     <div class="group-head">
+      ${pictured ? `<span class="gh-img"><img src="${escapeHtml(pictured)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.remove()"></span>` : ''}
       <div class="gh-main">
         <div class="gh-kicker"><span class="pill live">Live</span></div>
         <h3>${escapeHtml(group.label)}<span class="sub">${escapeHtml(note)}</span></h3>

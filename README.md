@@ -19,6 +19,7 @@ npm test          # build, then the regression tests in tests/
 npm run build     # emit dist/ (the deployable artifact)
 npm run typecheck # tsc --noEmit only
 npm run crawl     # build the price list behind instant search (hours; see below)
+npm run backfill-images  # photos for the home page's shelves (minutes)
 ```
 
 TypeScript is compiled, not transpiled at runtime: `src/ts/**/*.ts` → `dist/js/**/*.js` as
@@ -206,6 +207,16 @@ pause, so a full run of about 18,000 pages takes several hours; progress is save
 npm run crawl                                   # every shop in server/index-shops.mjs
 npm run crawl -- --shop=dazzle.com.bd --limit=50  # one shop, a sample
 ```
+
+**The home page browses the list.** `GET /api/browse` returns shelves of popular products by
+category (`server/browse.mjs` names them), each answered from the list: the lowest price of any
+version, how many shops sell it, the shop with that price, and a photo. A product only shows when
+at least two shops sell it. Opening a card runs that search, which compares versions properly. On a
+host with no price list the home page falls back to the sample demo.
+
+**Photos** come from each product page's structured data, else its sharing image, else Shopify's
+product JSON, and the crawl saves them with each price. `npm run backfill-images` fetches photos
+for the products on the shelves without waiting for the nightly crawls to reach them.
 
 Submitting a search calls `GET /api/search/quick?q=…` and `GET /api/search?q=…` together. The
 quick one answers from the list in milliseconds, with no paid request and no Bright Data key
