@@ -188,15 +188,15 @@ async function startLive(webSearch = false): Promise<void> {
   state.product = '';
   state.resultLimit = 40;
   state.view = 'results';
-  if (webSearch || state.live.status !== 'done') {
-    state.live = { status: 'loading', query };
-    render();
-  }
 
   /* The price list answers in milliseconds, so it goes first: if it corrected the spelling
      ("onplus" → "oneplus"), the paid web search runs with the corrected words too. */
   const hasPrices = (answer: LiveState): answer is Extract<LiveState, { status: 'done' }> =>
     answer.status === 'done' && answer.result.groups.length > 0;
+  if (webSearch && !hasPrices(state.live)) {
+    state.live = { status: 'loading', query };
+    render();
+  }
   const listed = await fetchLive(query, request.signal, 'quick', { partial: !webSearch });
   if (request.signal.aborted) return;
 
