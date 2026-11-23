@@ -20,7 +20,7 @@ npm run build     # emit dist/ (the deployable artifact)
 npm run typecheck # tsc --noEmit only
 npm run crawl     # build the price list behind instant search (hours; see below)
 npm run backfill-images  # photos for the home page's shelves (minutes)
-npm run fetch-logos      # each listed shop's own logo, into src/assets/shops/
+npm run fetch-logos      # logos for listed shops that have none (-- --shop=x.com.bd to refetch one)
 ```
 
 TypeScript is compiled, not transpiled at runtime: `src/ts/**/*.ts` → `dist/js/**/*.js` as
