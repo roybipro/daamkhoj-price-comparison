@@ -30,10 +30,17 @@ jobs:
     env:
       RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 26
+
+      # For the report at the end: when this crawl started, and how many current prices the list had.
+      - name: Note the list before the crawl
+        id: before
+        run: |
+          echo "started=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          echo "prices=$(node tools/crawl-report.mjs --count)" >> "$GITHUB_OUTPUT"
 
       # One shop failing still saves the rest, so a failed exit doesn't stop the commit.
       # The job is killed at 330 minutes, and a killed job commits nothing. So the crawl starts
@@ -84,3 +91,12 @@ jobs:
       - name: Ask Render to deploy
         if: steps.commit.outputs.pushed == 'yes' && env.RENDER_DEPLOY_HOOK != ''
         run: curl --fail --silent --show-error -X POST "$RENDER_DEPLOY_HOOK" > /dev/null && echo 'Render deploy started.'
+
+      # A table of every shop on the run's summary page. The job fails, and GitHub emails the
+      # owner, if the list lost 30% of its current prices or a third of the shops went unrefreshed.
+      - name: Report
+        if: always()
+        env:
+          STARTED: ${{ steps.before.outputs.started }}
+          BEFORE: ${{ steps.before.outputs.prices }}
+        run: node tools/crawl-report.mjs --since="$STARTED" --before="$BEFORE" >> "$GITHUB_STEP_SUMMARY"

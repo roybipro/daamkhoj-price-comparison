@@ -84,14 +84,38 @@ export function displayName(key, names) {
   return productKey(name) === key ? name : recased.join(' ');
 }
 
+/* The shelves read every listing and run a search per product: on a small server that is
+   seconds of work. So the two steps are written as jobs that pause after each piece. runNow does
+   a job at once (tests, tools); runInSlices does it a few milliseconds at a time, letting other
+   requests in between, so a rebuild never freezes the site. */
+export function runNow(job) {
+  for (;;) {
+    const step = job.next();
+    if (step.done) return step.value;
+  }
+}
+
+export async function runInSlices(job, sliceMs = 15) {
+  let started = performance.now();
+  for (;;) {
+    const step = job.next();
+    if (step.done) return step.value;
+    if (performance.now() - started >= sliceMs) {
+      await new Promise(resolve => setImmediate(resolve));
+      started = performance.now();
+    }
+  }
+}
+
 /**
  * Candidate products from the listings: keys at least two shops share, with two or more words,
  * most widely sold first. Each becomes a search; buildBrowse keeps it only if that search, the
  * card's own page, also finds two shops.
  */
-export function discoverCategories(entries, rules = CATEGORY_RULES) {
+export function* discoverCategoriesSteps(entries, rules = CATEGORY_RULES) {
   const groups = new Map();
   for (const entry of entries) {
+    yield;
     const key = productKey(entry.name);
     if (key.split(' ').length < 2 || key.length < 5) continue;
     const group = groups.get(key) ?? { shops: new Set(), names: [], count: 0 };
@@ -103,13 +127,16 @@ export function discoverCategories(entries, rules = CATEGORY_RULES) {
   const shared = [...groups].filter(([, group]) => group.shops.size >= 2)
     .sort((a, b) => b[1].shops.size - a[1].shops.size || b[1].count - a[1].count);
 
-  return rules.map(rule => ({
-    id: rule.id,
-    label: rule.label,
-    products: shared.filter(([key]) => rules.find(other => other.test.test(key)) === rule)
-      .map(([key, group]) => displayName(key, group.names))
-  })).filter(category => category.products.length);
+  const categories = rules.map(rule => ({ id: rule.id, label: rule.label, products: [] }));
+  for (const [key, group] of shared) {
+    yield;
+    const at = rules.findIndex(rule => rule.test.test(key));
+    if (at >= 0) categories[at].products.push(displayName(key, group.names));
+  }
+  return categories.filter(category => category.products.length);
 }
+
+export const discoverCategories = (entries, rules = CATEGORY_RULES) => runNow(discoverCategoriesSteps(entries, rules));
 
 /** Every product the shelves would show, for tools that need the same list. */
 export const browseQueries = categories => categories.flatMap(category => category.products);
@@ -119,12 +146,14 @@ export const browseQueries = categories => categories.flatMap(category => catego
  * that price, and a photo. The product's own page compares versions; a card only says where to
  * start, which is why its price reads "from".
  */
-export function buildBrowse(search, shopCounts, categories) {
+export function* buildBrowseSteps(search, shopCounts, categories) {
   /* Two names can find the same listings ("iPhone 14" and "Apple iPhone 14"): one card each. */
   const seen = new Set();
-  const shelves = categories.map(category => {
+  const shelves = [];
+  for (const category of categories) {
     const cards = [];
     for (const name of category.products) {
+      yield;
       let answer;
       try {
         answer = search(name);
@@ -152,8 +181,8 @@ export function buildBrowse(search, shopCounts, categories) {
       });
     }
     cards.sort((a, b) => b.shops - a.shops);
-    return { id: category.id, label: category.label, cards };
-  }).filter(shelf => shelf.cards.length);
+    if (cards.length) shelves.push({ id: category.id, label: category.label, cards });
+  }
 
   return {
     shelves,
@@ -161,3 +190,5 @@ export function buildBrowse(search, shopCounts, categories) {
     prices: Object.values(shopCounts).reduce((sum, count) => sum + count, 0)
   };
 }
+
+export const buildBrowse = (search, shopCounts, categories) => runNow(buildBrowseSteps(search, shopCounts, categories));

@@ -403,6 +403,47 @@ test('shelves are rebuilt as prices age, so a card never offers a price its sear
   assert.equal(cards().length, 0);
 });
 
+test('a server never waits on a shelf rebuild: old shelves are served while new ones build in slices', async () => {
+  const { runInSlices } = await import('../server/browse.mjs');
+  /* A sliced job lets other work run before it ends. */
+  let other = false;
+  setImmediate(() => { other = true; });
+  const finished = await runInSlices((function* () {
+    const until = performance.now() + 40;
+    while (performance.now() < until) yield;
+    return other;
+  })(), 5);
+  assert.equal(finished, true, 'other work ran while the job was still going');
+
+  let time = NOW;
+  const index = createPriceIndex(listOf(
+    entry('a.bd', 'Galaxy A16 5G 8/256GB', 30000),
+    entry('b.bd', 'Galaxy A16 5G 8/256GB', 29000)
+  ), { now: () => time });
+  /* No shelves yet: the first ask waits for them. */
+  const first = await index.browseSoon();
+  assert.equal(first.shelves.length, 1);
+  /* An hour later a rebuild is due: the ask is answered from the old shelves at once. */
+  time += 61 * 60 * 1000;
+  assert.equal(await index.browseSoon(), first);
+  const rebuilt = await index.rebuildShelves();
+  assert.notEqual(rebuilt, first);
+  assert.equal(await index.browseSoon(), rebuilt);
+
+  /* A new list shows the last one's shelves until its own are built. */
+  const next = createPriceIndex(listOf(entry('a.bd', 'iPhone 15 128GB', 82000)), { now: () => time });
+  next.adoptShelves(index);
+  assert.equal(await next.browseSoon(), rebuilt);
+});
+
+test('prices too old to show are not kept in memory', () => {
+  const index = createPriceIndex(listOf(
+    entry('a.bd', 'iPhone 15 128GB', 82000),
+    entry('b.bd', 'iPhone 15 128GB', 83000, { checkedAt: '2026-11-01T00:00:00.000Z' })
+  ), { now: () => NOW });
+  assert.equal(index.size, 1);
+});
+
 test('a misspelt search is corrected from the list\'s own words, and says so; a good one never is', () => {
   const index = createPriceIndex({ version: 1, shops: {
     'a.bd': { entries: [entry('a.bd', 'OnePlus Buds 3 TWS Earbuds', 6500), entry('a.bd', 'Samsung Galaxy A16 5G 8/256GB', 30000)] },
