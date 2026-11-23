@@ -9,7 +9,7 @@ import { matchesQuery, variantOf } from '../server/matching.mjs';
 import { readPage } from '../server/page-price.mjs';
 import { createBrightDataSearch } from '../server/providers/bright-data.mjs';
 import { createRobots, isAllowed, parseRobots } from '../server/robots.mjs';
-import { assertPublicUrl, fetchPublic, isPrivateAddress } from '../server/safe-fetch.mjs';
+import { assertPublicUrl, fetchPublic, isPrivateAddress, resolveResultLink } from '../server/safe-fetch.mjs';
 
 const product = (name, price, extra = {}) => `<html><head><title>${name} | Shop</title>
   <script type="application/ld+json">${JSON.stringify({
@@ -520,4 +520,14 @@ test('a retry shares the first request\'s time limit, so a search cannot outlast
   assert.equal(signals.length, 2);
   assert.equal(signals[0], signals[1]);
   assert.ok(Date.now() - started < 150, 'the retry got a fresh time limit');
+});
+
+test('a Google link is followed to the shop, even when Google redirects relatively', async () => {
+  const away = async () => new Response(null, { status: 302, headers: { location: 'https://shop.example/p' } });
+  assert.equal(await resolveResultLink('https://www.google.com/url?q=1', { fetchImpl: away }), 'https://shop.example/p');
+
+  const relative = async () => new Response('<a href="https://shop.example/p2">go</a>', { status: 302, headers: { location: '/url?q=2' } });
+  assert.equal(await resolveResultLink('https://www.google.com/url?q=2', { fetchImpl: relative }), 'https://shop.example/p2');
+
+  assert.equal(await resolveResultLink('https://shop.example/direct'), 'https://shop.example/direct');
 });

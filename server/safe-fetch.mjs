@@ -128,8 +128,13 @@ export async function resolveResultLink(link, options = {}) {
     headers: { 'user-agent': USER_AGENT }
   });
   const isGoogle = target => /(^|\.)google\.[a-z.]+$/.test(new URL(target).hostname);
+  /* A redirect can be relative ("/url?q=…"); that one stays on Google, so read the body instead. */
   const location = response.headers.get('location');
-  if (location && !isGoogle(location)) return location;
+  const next = location ? new URL(location, link).href : null;
+  if (next && !isGoogle(next)) {
+    await response.body?.cancel().catch(() => {});
+    return next;
+  }
 
   const body = await readCapped(response, 200_000);
   for (const [found] of body.matchAll(/https?:\/\/[^"'<>\s\\]+/g)) {
