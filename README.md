@@ -213,7 +213,10 @@ that wipes its disk, such as Render's free plan.
 Bangladesh time and commits the new list to `main`, which redeploys the site. A GitHub job may
 run at most six hours and a full crawl takes about that, so each run reads up to 6,000 pages per
 shop, oldest first: every page is re-read within about three days, inside the week after which a
-price stops being shown. A run that leaves fewer than 1,000 prices is not saved. Run it by hand
+price stops being shown. A run that leaves fewer than 1,000 prices is not saved. If Render's
+GitHub app can't see the repository, pushes don't redeploy; then save the service's deploy hook
+(Render: *Settings → Deploy Hook*) as the `RENDER_DEPLOY_HOOK` repository secret, and the workflow
+calls it after each refresh. Run it by hand
 from the Actions tab (*Refresh price list → Run workflow*), with a smaller limit for a quick test.
 
 On a server with a persistent disk you can instead set `PRICE_INDEX_REFRESH_HOURS=24` and point

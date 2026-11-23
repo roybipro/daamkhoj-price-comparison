@@ -54,8 +54,15 @@ export async function crawlShop(shop, deps) {
     delayMs = 1000, sleep = pause, now = Date.now, log = () => {}, onProgress = () => {}, progressEvery = 100
   } = deps;
 
-  const listed = await productPages(shop.sitemap, { fetchPage: fetchSitemap, isProduct: url => shop.product.test(url) });
-  if (!listed.length) throw new Error(`${shop.shop}: the sitemap listed no product pages`);
+  /* A refused sitemap and an empty one look alike from here, so the answer goes in the error. */
+  let answered = 'no answer';
+  const readSitemap = async url => {
+    const response = await fetchSitemap(url);
+    answered = `HTTP ${response.status}`;
+    return response;
+  };
+  const listed = await productPages(shop.sitemap, { fetchPage: readSitemap, isProduct: url => shop.product.test(url) });
+  if (!listed.length) throw new Error(`${shop.shop}: the sitemap listed no product pages (last answer: ${answered})`);
 
   const pageOf = url => url.replace(/\?variant=\d+$/, '');
   const byPage = new Map();
