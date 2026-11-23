@@ -3,7 +3,8 @@
    been verified, and a real price must not sit beside an invented score. */
 
 import { escapeHtml, money, pluralCount } from '../core/format.js';
-import { safeHttpUrl } from '../core/live.js';
+import { shopLogo } from '../core/links.js';
+import { ago, safeHttpUrl } from '../core/live.js';
 import { OUT_ICON, priceTag } from './fragments.js';
 import type { LiveGroup, LiveOffer, LiveResult, LiveState } from '../types.js';
 
@@ -20,6 +21,12 @@ function stockTag(offer: LiveOffer): string {
   return '<span class="tag">Stock not stated</span>';
 }
 
+/* "Checked 5 min ago", green while it is under an hour old; the exact time on hover. */
+function checkedTag(iso: string): string {
+  const fresh = Date.now() - Date.parse(iso) < 60 * 60 * 1000;
+  return `<span class="tag${fresh ? ' ok' : ''}" title="${escapeHtml(clock(iso))}">Checked ${escapeHtml(ago(iso))}</span>`;
+}
+
 /* Two letters stand in for a logo, since live shops come from the open web. */
 const initials = (shop: string): string => shop.replace(/^www\./, '').slice(0, 2).toUpperCase();
 
@@ -28,7 +35,7 @@ function liveRow(offer: LiveOffer, group: LiveGroup, checkedAt: string): string 
   const href = safeHttpUrl(offer.url);
   return `<div class="offer live ${isLowest ? 'pick' : ''}">
     <div class="seller">
-      <span class="mono" aria-hidden="true">${escapeHtml(initials(offer.shop))}</span>
+      <span class="mono" aria-hidden="true"><img src="${escapeHtml(shopLogo(offer.shop))}" alt="" loading="lazy" onerror="this.remove()">${escapeHtml(initials(offer.shop))}</span>
       <span class="t">
         <div class="store-name">${escapeHtml(offer.shop)}</div>
         <div class="sub">${escapeHtml(offer.title)}</div>
@@ -38,7 +45,7 @@ function liveRow(offer: LiveOffer, group: LiveGroup, checkedAt: string): string 
       <div class="p-line">${isLowest ? priceTag(offer.price) : `<b class="num">${money(offer.price)}</b>`}</div>
       ${isLowest ? '<span class="save">Lowest for this version</span>' : ''}
     </div>
-    <div class="meta">${stockTag(offer)}<span class="tag">Checked ${escapeHtml(clock(offer.checkedAt ?? checkedAt))}</span><span class="tag live-trust">Shop not rated yet</span></div>
+    <div class="meta">${stockTag(offer)}${checkedTag(offer.checkedAt ?? checkedAt)}<span class="tag live-trust">Shop not rated yet</span></div>
     <div class="acts">${href
       ? `<a class="shop-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer nofollow"
           title="${escapeHtml(`Open ${offer.title} on ${offer.shop}`)}">Visit shop ${OUT_ICON}</a>`
@@ -79,7 +86,7 @@ function leftOut(result: LiveResult): string {
 }
 
 /** One search result card: a product, the shops selling it, and where its price starts. */
-interface ResultCard { key: string; title: string; image: string | null; from: number; to: number; shops: string[]; inStock: number }
+interface ResultCard { key: string; title: string; image: string | null; from: number; to: number; shops: string[]; inStock: number; checkedAt: string }
 
 const keyOf = (offer: LiveOffer): string => offer.product || offer.title.toLowerCase();
 
@@ -90,10 +97,10 @@ function resultCards(result: LiveResult): ResultCard[] {
     const card = cards.get(key);
     const photo = offer.image ? safeHttpUrl(offer.image) : null;
     if (!card) {
-      cards.set(key, { key, title: offer.title, image: photo, from: offer.price, to: offer.price, shops: [offer.shop], inStock: offer.inStock === false ? 0 : 1, pricedFrom: offer });
+      cards.set(key, { key, title: offer.title, image: photo, from: offer.price, to: offer.price, shops: [offer.shop], inStock: offer.inStock === false ? 0 : 1, pricedFrom: offer, checkedAt: offer.checkedAt ?? result.checkedAt });
       continue;
     }
-    if (offer.price < card.from) { card.from = offer.price; card.title = offer.title; }
+    if (offer.price < card.from) { card.from = offer.price; card.title = offer.title; card.checkedAt = offer.checkedAt ?? result.checkedAt; }
     card.to = Math.max(card.to, offer.price);
     card.image ??= photo;
     if (!card.shops.includes(offer.shop)) card.shops.push(offer.shop);
@@ -103,8 +110,9 @@ function resultCards(result: LiveResult): ResultCard[] {
   return [...cards.values()].sort((a, b) => b.shops.length - a.shops.length || a.from - b.from);
 }
 
+/* The shop's logo over its initials, which show through if the logo can't load. */
 const favicon = (shop: string): string =>
-  `<span class="dot" title="${escapeHtml(shop)}"><img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(shop)}&amp;sz=32" alt="" loading="lazy" onerror="this.remove()">${escapeHtml(initials(shop))}</span>`;
+  `<span class="dot" title="${escapeHtml(shop)}"><img src="${escapeHtml(shopLogo(shop))}" alt="" loading="lazy" onerror="this.remove()">${escapeHtml(initials(shop))}</span>`;
 
 /* Shown until the shop's own photo loads, and instead of it when there is none yet. */
 const NO_PHOTO = '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1.2 11.2a1.5 1.5 0 0 1-1.5 1.3H7.7a1.5 1.5 0 0 1-1.5-1.3z"/><path d="M9 10V6.5a3 3 0 0 1 6 0V10"/></svg>';
@@ -119,6 +127,7 @@ function resultCard(card: ResultCard): string {
       ${priceTag(card.from, many || card.to > card.from ? 'from' : '')}
       <span class="pc-shops">${card.shops.slice(0, 4).map(favicon).join('')}${card.shops.length > 4 ? `<span class="dot more">+${card.shops.length - 4}</span>` : ''}
         <span class="pc-meta">${many ? `Compare ${card.shops.length} shops` : '1 shop'}</span></span>
+      <span class="pc-fresh${Date.now() - Date.parse(card.checkedAt) < 60 * 60 * 1000 ? ' live' : ''}">Price checked ${escapeHtml(ago(card.checkedAt))}</span>
     </span>
   </button>`;
 }
@@ -172,10 +181,18 @@ export function liveView(live: LiveState, view: { product: string; limit: number
   const corrected = live.typed
     ? `<div class="note" role="status">Showing results for <b>“${escapeHtml(result.query)}”</b>. You typed “${escapeHtml(live.typed)}”.</div>`
     : '';
-  const status = live.pending
+  const checking = live.checking
+    ? '<p class="checking" role="status"><i aria-hidden="true"></i>Checking these prices on the shops\' own sites…</p>'
+    : result.rechecked ? `<p class="checking done" role="status">Prices checked on the shops' sites just now.</p>` : '';
+  const status = `${checking}${live.pending
     ? '<div class="note" role="status">Checking more shops on the web. Their prices will be added here as they arrive.</div>'
-    : live.note ? `<div class="note" role="status">${escapeHtml(live.note)}</div>` : '';
+    : live.note ? `<div class="note" role="status">${escapeHtml(live.note)}</div>` : ''}`;
 
+  if (!result.groups.length && live.instant) {
+    return `<div class="empty"><h3>Nothing in our price list matches “${escapeHtml(result.query)}” yet</h3>
+      <p>Search the web to look for it on other shops' sites. That takes a minute.</p>
+      <button class="btn-primary" data-act="searchWeb">Search the web</button></div>`;
+  }
   if (!result.groups.length) {
     return `${corrected}<div class="empty"><h3>No clear prices found for “${escapeHtml(result.query)}”</h3>
       <p>${escapeHtml(summary)} Try the full product name, such as “iPhone 15” or “HP 250 G9”.</p></div>`;

@@ -3,6 +3,7 @@
    from shops' pages, so all of it goes through escapeHtml or safeHttpUrl. */
 
 import { escapeHtml, money, pluralCount } from '../core/format.js';
+import { shopLogo } from '../core/links.js';
 import { safeHttpUrl } from '../core/live.js';
 import type { BrowseCard, BrowseData, BrowseShelf, RenderContext } from '../types.js';
 import { priceTag } from './fragments.js';
@@ -44,7 +45,7 @@ function card(item: BrowseCard, shelf: string): string {
       <span class="pc-name">${escapeHtml(item.name)}</span>
       ${priceTag(item.from, 'from')}
       <span class="pc-meta">${pluralCount(item.shops, 'shop')}${item.versions > 1 ? `, ${pluralCount(item.versions, 'version')}` : ''}</span>
-      <span class="pc-shop">Lowest at ${escapeHtml(item.shop.replace(/^www\./, ''))}</span>
+      <span class="pc-shop"><img src="${escapeHtml(shopLogo(item.shop))}" alt="" loading="lazy" onerror="this.remove()">Lowest at ${escapeHtml(item.shop.replace(/^www\./, ''))}</span>
     </span>
   </button>`;
 }
@@ -68,7 +69,7 @@ function shopStrip(data: BrowseData): string {
     <div class="shop-tiles">${data.shops.map(({ shop, prices }) => {
       const host = shop.replace(/^www\./, '');
       return `<a class="shop-tile" href="https://${escapeHtml(host)}" target="_blank" rel="noopener noreferrer nofollow">
-        <span class="mono md"><img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&amp;sz=64" alt="" onerror="this.remove()">${escapeHtml(host.slice(0, 2).toUpperCase())}</span>
+        <span class="mono md"><img src="${escapeHtml(shopLogo(host))}" alt="" onerror="this.remove()">${escapeHtml(host.slice(0, 2).toUpperCase())}</span>
         <span><b>${escapeHtml(host)}</b><span class="num">${prices.toLocaleString('en-US')} prices</span></span>
       </a>`;
     }).join('')}</div>

@@ -394,3 +394,85 @@ test('shelves are found from the listings themselves, one product per name, in t
     ['phones', ['iPhone 16 Pro Max']]
   ]);
 });
+
+test('while typing, a half-typed word is completed from the list and real products are suggested', () => {
+  const index = createPriceIndex({ version: 1, shops: {
+    'a.bd': { entries: [entry('a.bd', 'iPhone 17 128GB', 110000), entry('a.bd', 'iPhone 17 Pro Max 256GB', 160000), entry('a.bd', 'Galaxy A16 5G', 21000), entry('a.bd', 'IP68 Waterproof Case', 500)] },
+    'b.bd': { entries: [entry('b.bd', 'iPhone 17 256GB', 125000), entry('b.bd', 'Galaxy A16 5G 8/256GB', 22000), entry('b.bd', 'Galaxy A17 5G', 26000)] }
+  } }, { now: () => NOW });
+
+  const iph = index.search('iph', { partial: true });
+  assert.equal(iph.query, 'iphone');
+  assert.equal(iph.completedFrom, 'iph');
+  assert.ok(iph.priced >= 2);
+  assert.ok(iph.suggestions.some(item => item.name === 'iPhone 17' && item.shops === 2), JSON.stringify(iph.suggestions));
+
+  assert.equal(index.search('ip', { partial: true }).query, 'iphone', 'the commonest word wins over a rare one typed in full');
+  assert.equal(index.search('galaxy a1', { partial: true }).query, 'galaxy a16', 'completed among Galaxy listings, as the top suggestion');
+  const whole = index.search('iphone 17', { partial: true });
+  assert.equal(whole.completedFrom, undefined, 'a whole word stays as typed');
+  assert.deepEqual(index.search('zzzz', { partial: true }).suggestions, []);
+});
+
+test('re-checked prices replace the listed ones in memory, and the answer says when they were read', () => {
+  const index = createPriceIndex({ version: 1, shops: {
+    'a.bd': { entries: [entry('a.bd', 'Galaxy A16 5G', 21000)] },
+    'b.bd': { entries: [entry('b.bd', 'Galaxy A16 5G', 22000)] }
+  } }, { now: () => NOW });
+  const url = index.search('galaxy a16').groups.flatMap(group => group.offers).find(offer => offer.shop === 'a.bd').url;
+  assert.equal(index.update([{ url, price: 19500, inStock: false, checkedAt: '2026-11-21T11:59:00.000Z' }]), 1);
+  const offer = index.search('galaxy a16').groups.flatMap(group => group.offers).find(item => item.url === url);
+  assert.equal(offer.price, 19500);
+  assert.equal(offer.inStock, false);
+  assert.equal(offer.checkedAt, '2026-11-21T11:59:00.000Z');
+  assert.equal(index.update([{ url: 'https://nowhere/x', price: 1, checkedAt: 'x' }, { url, price: 0, checkedAt: 'x' }]), 0, 'unknown pages and non-prices are ignored');
+});
+
+test('a live re-check reads only stale pages behind the first results, politely, and answers again', async () => {
+  const { createRechecker } = await import('../server/recheck.mjs');
+  const stale = '2026-11-20T00:00:00.000Z';
+  const index = createPriceIndex({ version: 1, shops: {
+    'a.bd': { entries: [entry('a.bd', 'Galaxy A16 5G', 21000, { checkedAt: stale })] },
+    'd.bd': { entries: [entry('d.bd', 'Galaxy A16 5G', 20000, { checkedAt: stale })] },
+    's.bd': { entries: [
+      { shop: 's.bd', url: 'https://s.bd/products/a16?variant=1', name: 'Galaxy A16 5G 128GB', price: 22000, inStock: true, checkedAt: stale },
+      { shop: 's.bd', url: 'https://s.bd/products/a16?variant=2', name: 'Galaxy A16 5G 256GB', price: 25000, inStock: true, checkedAt: stale }
+    ] },
+    'c.bd': { entries: [entry('c.bd', 'Galaxy A16 5G', 23000, { checkedAt: '2026-11-21T11:50:00.000Z' })] }
+  } }, { now: () => NOW });
+
+  const fetched = [];
+  const pages = {
+    'https://a.bd/product/galaxy-a16-5g': `<script type="application/ld+json">${JSON.stringify({ '@type': 'Product', name: 'Galaxy A16 5G', offers: { price: 20500, priceCurrency: 'BDT', availability: 'InStock' } })}</script>`,
+    'https://s.bd/products/a16.js': JSON.stringify({ title: 'Galaxy A16 5G', variants: [{ id: 1, title: '128GB', price: 2150000, available: true }, { id: 2, title: '256GB', price: 2450000, available: false }] })
+  };
+  const recheck = createRechecker({
+    fetchPage: async url => { fetched.push(url); return url in pages ? { ok: true, status: 200, text: pages[url] } : { ok: false, status: 500, text: '' }; },
+    robots: { allows: async url => !url.includes('d.bd') },
+    shops: [{ shop: 's.bd', kind: 'shopify' }],
+    now: () => NOW
+  });
+
+  const answer = await recheck(index, 'galaxy a16');
+  assert.ok(!fetched.some(url => url.includes('c.bd')), 'a price read ten minutes ago is not read again');
+  assert.ok(!fetched.some(url => url.includes('d.bd')), 'robots.txt is honoured');
+  assert.equal(fetched.filter(url => url.startsWith('https://s.bd/')).length, 1, 'one read prices every Shopify version');
+  const prices = Object.fromEntries(answer.groups.flatMap(group => group.offers).map(offer => [offer.url, offer]));
+  assert.equal(prices['https://a.bd/product/galaxy-a16-5g'].price, 20500);
+  assert.equal(prices['https://a.bd/product/galaxy-a16-5g'].checkedAt, new Date(NOW).toISOString());
+  assert.equal(prices['https://s.bd/products/a16?variant=1'].price, 21500);
+  assert.equal(prices['https://s.bd/products/a16?variant=2'].inStock, false);
+  assert.equal(answer.changed, 3);
+
+  const again = await recheck(index, 'galaxy a16');
+  assert.equal(again.rechecked, 1, 'just-read pages are skipped; only the page robots refused stays stale');
+});
+
+test('the re-check endpoint runs the server\'s re-check, and says so when there is none', async () => {
+  const asked = [];
+  const api = createApi({ liveSearch: null, recheck: async (query, options) => { asked.push([query, options]); return { query, groups: [], rechecked: 0 }; } });
+  assert.equal((await call(api, '/api/recheck', 'galaxy a16')).status, 200);
+  assert.deepEqual(asked, [['galaxy a16', { product: '' }]]);
+  assert.equal((await call(createApi({ liveSearch: null }), '/api/recheck')).status, 503);
+  assert.equal((await call(createApi({ liveSearch: null }), '/api/nothing')).status, 404);
+});

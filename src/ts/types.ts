@@ -176,6 +176,12 @@ export interface LiveResult {
   source?: 'index';
   /** What was typed, when the price list corrected its spelling to `query`. */
   correctedFrom?: string;
+  /** What was typed, when a half-typed word was completed to make `query`. */
+  completedFrom?: string;
+  /** Real products whose names start the way the search does, while it is being typed. */
+  suggestions?: LiveSuggestion[];
+  /** How many shop pages a live re-check just read. */
+  rechecked?: number;
   /** How many of the prices came from the price list, in a web search's answer. */
   indexed?: number;
   checkedAt: string;
@@ -192,11 +198,18 @@ export type LiveState =
   | { status: 'error'; query: string; message: string }
   /** `pending` while the web search is still running behind a price-list answer; `note` when it failed;
       `typed` when the search ran with its spelling corrected from what was typed. */
-  | { status: 'done'; query: string; result: LiveResult; pending?: boolean; note?: string; typed?: string };
+  | { status: 'done'; query: string; result: LiveResult; pending?: boolean; note?: string; typed?: string;
+      /** Shown while typing, before the search was submitted. */
+      instant?: boolean;
+      /** While the prices on screen are being read again from the shops. */
+      checking?: boolean };
+
+export interface LiveSuggestion { name: string; shops: number }
 
 export type ViewName = 'results' | 'stores' | 'compare' | 'how';
 export type SortKey = 'value' | 'price' | 'trust' | 'eta';
-export interface SuggestItem { kind: 'product' | 'store'; id: string; label: string; sub: string }
+/** 'live' items come from the price list; 'product' and 'store' from the sample demo. */
+export interface SuggestItem { kind: 'product' | 'store' | 'live'; id: string; label: string; sub: string }
 
 export interface SearchApi {
   products(query: string): { product: Product; score: number }[];
@@ -230,6 +243,8 @@ export interface State {
   product: string;
   /** How many result cards are shown. */
   resultLimit: number;
+  /** The price list's suggestions for what is being typed. */
+  liveSuggest: LiveSuggestion[];
 }
 
 /** Everything a view needs to render, passed in rather than reached for globally. */

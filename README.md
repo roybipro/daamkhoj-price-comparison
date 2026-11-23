@@ -20,6 +20,7 @@ npm run build     # emit dist/ (the deployable artifact)
 npm run typecheck # tsc --noEmit only
 npm run crawl     # build the price list behind instant search (hours; see below)
 npm run backfill-images  # photos for the home page's shelves (minutes)
+npm run fetch-logos      # each listed shop's own logo, into src/assets/shops/
 ```
 
 TypeScript is compiled, not transpiled at runtime: `src/ts/**/*.ts` → `dist/js/**/*.js` as
@@ -215,6 +216,18 @@ the list: the lowest price of any
 version, how many shops sell it, the shop with that price, and a photo. A product only shows when
 at least two shops sell it. Opening a card runs that search, which compares versions properly. On a
 host with no price list the home page falls back to the sample demo.
+
+**Search is instant and live.** Results follow the typing: each pause asks the price list
+(`/api/search/quick?partial=1`), which completes a half-typed last word the way its suggestions do
+("iph" → iPhone, "galaxy a1" → Galaxy A18) and answers in milliseconds with real products and
+real suggestions. A second later `/api/recheck` reads the shops' pages behind the first results
+again (no paid search: the list knows each page), so prices on screen show "checked just now";
+opening a product re-reads every shop for it. Re-checks stay polite: a page read in the last half
+hour is not read again, at most six pages per shop and 24 per check, two at a time, robots.txt
+honoured. The paid web search runs only when a search is submitted.
+
+**Shop logos** are each listed shop's own icon, saved under `src/assets/shops/` by
+`npm run fetch-logos` and served from this site; shops a web search finds use a favicon service.
 
 **Photos** come from each product page's structured data, else its sharing image, else Shopify's
 product JSON, and the crawl saves them with each price. `npm run backfill-images` fetches photos

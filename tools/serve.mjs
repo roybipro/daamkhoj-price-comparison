@@ -5,6 +5,9 @@ import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApi, createDefaultLiveSearch, startWarming } from '../server/api.mjs';
+import { createRechecker } from '../server/recheck.mjs';
+import { createRobots } from '../server/robots.mjs';
+import { fetchPublic } from '../server/safe-fetch.mjs';
 import { pullIndexFile, watchIndexFile } from '../server/price-index.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -31,7 +34,10 @@ if (process.env.PRICE_INDEX_URL) {
   void pull();
   setInterval(pull, (Number(process.env.PRICE_INDEX_PULL_HOURS) || 6) * 60 * 60 * 1000).unref();
 }
-const api = createApi({ liveSearch, searchIndex });
+/* Re-reading a page has to fit inside a shopper's wait, so its time limit is short. */
+const rechecker = createRechecker({ fetchPage: url => fetchPublic(url, { timeoutMs: 8_000 }), robots: createRobots(url => fetchPublic(url)) });
+const recheck = async (query, options) => rechecker(await searchIndex.index(), query, options);
+const api = createApi({ liveSearch, searchIndex, recheck });
 
 /* PRICE_INDEX_REFRESH_HOURS runs the crawl from here, in its own process so a long crawl never
    slows the site: on start if the list is missing or older than that, then on that schedule.
@@ -74,7 +80,7 @@ const TYPES = {
 /* ES modules need an http(s) origin, so this stands in for the static host locally. */
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${host}`);
-  if (url.pathname === '/api/search' || url.pathname === '/api/search/quick' || url.pathname === '/api/browse') return api(req, res, url);
+  if (url.pathname.startsWith('/api/')) return api(req, res, url);
 
   let pathname;
   try {

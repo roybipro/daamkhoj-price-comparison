@@ -47,7 +47,7 @@ export function productKey(name) {
 }
 
 /** A key written the way the shops write it: "apple airpods pro" → "Apple AirPods Pro". */
-function displayName(key, names) {
+export function displayName(key, names) {
   const words = names.flatMap(name => name.split(/[\s,()/|]+/));
   return key.split(' ').map(token =>
     words.find(word => word.toLowerCase().replace(/[^a-z0-9+]/g, '') === token) ?? token).join(' ');

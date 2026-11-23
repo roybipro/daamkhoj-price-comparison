@@ -8,12 +8,27 @@ const TIMEOUT_MS = 200_000;
 /* The price list answers in milliseconds; anything slow means the server is struggling. */
 const QUICK_TIMEOUT_MS = 10_000;
 
-/** `quick` asks the saved price list, which is instant; `web` runs the full search as well. */
-export async function fetchLive(query: string, cancel: AbortSignal, kind: 'quick' | 'web' = 'web'): Promise<LiveState> {
-  const path = kind === 'quick' ? 'api/search/quick' : 'api/search';
+/* Re-reading a few shop pages takes seconds, not minutes. */
+const RECHECK_TIMEOUT_MS = 30_000;
+
+const PATHS = { quick: 'api/search/quick', web: 'api/search', recheck: 'api/recheck' } as const;
+const LIMITS = { quick: QUICK_TIMEOUT_MS, web: TIMEOUT_MS, recheck: RECHECK_TIMEOUT_MS } as const;
+
+/**
+ * `quick` asks the saved price list, which is instant (`partial` while the last word is still
+ * being typed); `recheck` reads the shops' pages behind those results again (`product` for one
+ * product's); `web` runs the full search as well.
+ */
+export async function fetchLive(
+  query: string, cancel: AbortSignal, kind: 'quick' | 'web' | 'recheck' = 'web',
+  options: { partial?: boolean; product?: string } = {}
+): Promise<LiveState> {
+  const params = new URLSearchParams({ q: query });
+  if (options.partial) params.set('partial', '1');
+  if (options.product) params.set('product', options.product);
   try {
-    const response = await fetch(`${path}?q=${encodeURIComponent(query)}`, {
-      signal: AbortSignal.any([cancel, AbortSignal.timeout(kind === 'quick' ? QUICK_TIMEOUT_MS : TIMEOUT_MS)]),
+    const response = await fetch(`${PATHS[kind]}?${params}`, {
+      signal: AbortSignal.any([cancel, AbortSignal.timeout(LIMITS[kind])]),
       headers: { accept: 'application/json' }
     });
     if (response.status === 404 || response.status === 503) return { status: 'unavailable', query };
@@ -51,4 +66,35 @@ export async function fetchBrowse(): Promise<BrowseState> {
   } catch {
     return { status: 'unavailable' };
   }
+}
+
+/**
+ * Prices just re-read from the shops, applied to what is on screen: each offer takes its page's
+ * new price, stock and time, each version re-sorts cheapest first, and the lowest is re-named.
+ */
+export function applyFresh(current: LiveResult, fresh: LiveResult): LiveResult {
+  const byUrl = new Map(fresh.groups.flatMap(group => group.offers).map(offer => [offer.url, offer] as const));
+  const groups = current.groups.map(group => {
+    const offers = group.offers
+      .map(offer => {
+        const read = byUrl.get(offer.url);
+        return read ? { ...offer, price: read.price, inStock: read.inStock, checkedAt: read.checkedAt, image: offer.image ?? read.image } : offer;
+      })
+      .sort((a, b) => a.price - b.price);
+    const buyable = offers.filter(offer => offer.inStock !== false);
+    return { ...group, offers, lowest: group.comparable && buyable.length > 1 ? buyable[0].url : null };
+  });
+  return { ...current, groups };
+}
+
+/** How long ago a price was read, in words: "just now", "5 min ago", "2 days ago". */
+export function ago(iso: string | undefined, now = Date.now()): string {
+  const minutes = iso ? Math.round((now - Date.parse(iso)) / 60_000) : NaN;
+  if (!Number.isFinite(minutes)) return '';
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.round(hours / 24);
+  return `${days} ${days === 1 ? 'day' : 'days'} ago`;
 }
