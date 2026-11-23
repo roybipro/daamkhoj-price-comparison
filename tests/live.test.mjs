@@ -1,7 +1,9 @@
 /* Live search rules, tested with no network: every outside call is a stand-in. */
 
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import { test } from 'node:test';
+import { gzipSync } from 'node:zlib';
 
 import { createApi, createRateLimiter } from '../server/api.mjs';
 import { createLiveSearch, groupOffers, LiveSearchError } from '../server/live-search.mjs';
@@ -9,7 +11,7 @@ import { matchesQuery, variantOf } from '../server/matching.mjs';
 import { readPage } from '../server/page-price.mjs';
 import { createBrightDataSearch } from '../server/providers/bright-data.mjs';
 import { createRobots, isAllowed, parseRobots } from '../server/robots.mjs';
-import { assertPublicUrl, fetchPublic, isPrivateAddress, resolveResultLink } from '../server/safe-fetch.mjs';
+import { assertPublicUrl, fetchPublic, isPrivateAddress, publicRequest, resolveResultLink } from '../server/safe-fetch.mjs';
 
 const product = (name, price, extra = {}) => `<html><head><title>${name} | Shop</title>
   <script type="application/ld+json">${JSON.stringify({
@@ -547,4 +549,49 @@ test('a retried empty answer counts against the daily limit', async () => {
   assert.equal(calls, 4);
   /* 4 of 5 used, and the next search needs 2. */
   await assert.rejects(live.run('galaxy a16'), error => error.code === 'budget');
+});
+
+/* A real server on this machine, reached through a name the test resolves however it likes. */
+async function localServer(handler) {
+  const server = createServer(handler);
+  await new Promise(done => server.listen(0, '127.0.0.1', done));
+  return { port: server.address().port, close: () => new Promise(done => server.close(done)) };
+}
+
+test('the connection itself refuses a private address, so a host cannot switch answers after the check', async () => {
+  const { port, close } = await localServer((_, res) => res.end('secret'));
+  try {
+    const local = async () => [{ address: '127.0.0.1', family: 4 }];
+    await assert.rejects(publicRequest(`http://shop.example:${port}/`, {}, { resolve: local }), /private host/);
+
+    /* Rebinding: the first lookup (the check) says public, the second (the connection) private. */
+    let lookups = 0;
+    const rebinding = async () => (lookups++ === 0 ? [{ address: '93.184.216.34', family: 4 }] : [{ address: '127.0.0.1', family: 4 }]);
+    await assert.rejects(fetchPublic('http://rebind.example/', {
+      resolve: rebinding,
+      fetchImpl: (url, init) => publicRequest(`http://rebind.example:${port}/`, init, { resolve: rebinding })
+    }), /private host/);
+    assert.equal(lookups, 2);
+  } finally {
+    await close();
+  }
+});
+
+test('pages come back decoded, and redirects are left to the caller to check', async () => {
+  const { port, close } = await localServer((req, res) => {
+    if (req.url === '/move') return res.writeHead(301, { location: '/there' }).end('moved');
+    res.writeHead(200, { 'content-type': 'text/html', 'content-encoding': 'gzip' }).end(gzipSync('<title>ok ৳</title>'));
+  });
+  try {
+    const options = { resolve: async () => [{ address: '127.0.0.1', family: 4 }], isPrivate: () => false };
+    const page = await publicRequest(`http://shop.example:${port}/`, {}, options);
+    assert.equal(page.status, 200);
+    assert.equal(await page.text(), '<title>ok ৳</title>');
+
+    const moved = await publicRequest(`http://shop.example:${port}/move`, {}, options);
+    assert.equal(moved.status, 301);
+    assert.equal(moved.headers.get('location'), '/there');
+  } finally {
+    await close();
+  }
 });

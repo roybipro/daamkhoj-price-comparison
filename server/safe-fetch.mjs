@@ -3,7 +3,11 @@
    caps how long and how much any one page can cost. */
 
 import { lookup } from 'node:dns/promises';
+import http from 'node:http';
+import https from 'node:https';
 import { isIP } from 'node:net';
+import { Readable } from 'node:stream';
+import zlib from 'node:zlib';
 
 export const USER_AGENT = 'Mozilla/5.0 (compatible; DaamKhojBot/0.1; price comparison)';
 
@@ -90,16 +94,68 @@ async function readCapped(response, maxBytes) {
   return Buffer.concat(chunks).subarray(0, maxBytes).toString('utf8');
 }
 
+/* Checking an address and then letting fetch look the name up again leaves a gap: a host can
+   answer the check with a public address and the connection with a private one. Here the
+   address is checked at the moment of connecting, on the very answer the socket uses. */
+function checkedLookup(resolve, isPrivate) {
+  return (hostname, options, callback) => {
+    resolve(hostname, { all: true }).then(addresses => {
+      if (!addresses.length || addresses.some(({ address }) => isPrivate(address))) {
+        throw Object.assign(new Error('private host'), { code: 'EPRIVATE' });
+      }
+      if (options?.all) return callback(null, addresses.map(({ address, family }) => ({ address, family: family ?? isIP(address) })));
+      const [{ address, family }] = addresses;
+      return callback(null, address, family ?? isIP(address));
+    }).catch(error => callback(error));
+  };
+}
+
+const DECODERS = { gzip: zlib.createGunzip, 'x-gzip': zlib.createGunzip, deflate: zlib.createInflate, br: zlib.createBrotliDecompress };
+
+/**
+ * A fetch-shaped GET over node:http, with no redirects followed, whose connections can only
+ * reach public addresses. It answers with a standard Response.
+ */
+export function publicRequest(raw, init = {}, { resolve = lookup, isPrivate = isPrivateAddress } = {}) {
+  const url = new URL(raw);
+  const client = url.protocol === 'https:' ? https : http;
+  return new Promise((done, fail) => {
+    const request = client.get(url, {
+      headers: { 'accept-encoding': 'gzip, deflate, br', ...init.headers },
+      lookup: checkedLookup(resolve, isPrivate),
+      signal: init.signal,
+      /* A shared pool could hand back a socket opened under an older answer. */
+      agent: false
+    }, response => {
+      const headers = new Headers();
+      for (const [name, value] of Object.entries(response.headers)) {
+        for (const one of [].concat(value ?? [])) headers.append(name, String(one));
+      }
+      const status = response.statusCode ?? 502;
+      const decode = DECODERS[String(response.headers['content-encoding'] ?? '').trim().toLowerCase()];
+      const stream = decode ? response.pipe(decode()) : response;
+      if (decode) response.on('error', error => stream.destroy(error));
+      headers.delete('content-encoding');
+      headers.delete('content-length');
+      const empty = status === 204 || status === 304 || (status >= 300 && status < 400);
+      if (empty) response.resume();
+      done(new Response(empty ? null : Readable.toWeb(stream), { status: status < 200 || status > 599 ? 502 : status, headers }));
+    });
+    request.on('error', fail);
+  });
+}
+
 /** Follows redirects by hand, so each hop has to pass the same check. */
 export async function fetchPublic(raw, options = {}) {
-  const { fetchImpl = fetch, resolve = lookup, maxRedirects = 3, maxBytes = 2_000_000, timeoutMs = 15_000 } = options;
+  const { resolve = lookup, maxRedirects = 3, maxBytes = 2_000_000, timeoutMs = 15_000 } = options;
+  const { fetchImpl = (url, init) => publicRequest(url, init, { resolve }) } = options;
   const signal = AbortSignal.timeout(timeoutMs);
   let current = raw;
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
     await assertPublicUrl(current, resolve);
     const response = await fetchImpl(current, {
-      redirect: 'manual',
+      redirect: 'manual', /* for a fetch passed in; publicRequest never follows one */
       signal,
       headers: { 'user-agent': USER_AGENT, accept: 'text/html,text/plain;q=0.9,*/*;q=0.1' }
     });
