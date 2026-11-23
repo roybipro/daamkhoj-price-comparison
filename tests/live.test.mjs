@@ -9,7 +9,7 @@ import { matchesQuery, variantOf } from '../server/matching.mjs';
 import { readPage } from '../server/page-price.mjs';
 import { createBrightDataSearch } from '../server/providers/bright-data.mjs';
 import { createRobots, isAllowed, parseRobots } from '../server/robots.mjs';
-import { assertPublicUrl, fetchPublic, isPrivateAddress } from '../server/safe-fetch.mjs';
+import { assertPublicUrl, fetchPublic, isPrivateAddress, resolveResultLink } from '../server/safe-fetch.mjs';
 
 const product = (name, price, extra = {}) => `<html><head><title>${name} | Shop</title>
   <script type="application/ld+json">${JSON.stringify({
@@ -21,6 +21,12 @@ test('reads a clear taka price from structured data', () => {
   assert.equal(page.price, 74499);
   assert.equal(page.name, 'iPhone 15');
   assert.equal(page.inStock, true);
+});
+
+test('a character code past Unicode does not lose the page\'s price', () => {
+  const page = readPage(product('iPhone 15 &#99999999; &#x110000; &#2547;', '74,499'));
+  assert.equal(page.price, 74499);
+  assert.equal(page.name, 'iPhone 15 &#99999999; &#x110000; ৳');
 });
 
 test('reads stock from the page', () => {
@@ -131,6 +137,20 @@ test('private addresses are refused, including through a redirect', async () => 
 
   const fetchImpl = async () => new Response(null, { status: 302, headers: { location: 'http://inside.example/secret' } });
   await assert.rejects(fetchPublic('https://shop.example/', { fetchImpl, resolve }), /private host/);
+});
+
+test('a private IPv4 address hidden inside an IPv6 one is still refused', async () => {
+  /* The URL parser rewrites [::ffff:127.0.0.1] as [::ffff:7f00:1], which once slipped through. */
+  for (const address of ['::ffff:7f00:1', '::ffff:a9fe:a9fe', '::127.0.0.1', '64:ff9b::a00:1', '2002:c0a8:101::', 'fe80::1%en0', '2001:db8::1', '::']) {
+    assert.ok(isPrivateAddress(address), address);
+  }
+  for (const address of ['::ffff:808:808', '2606:4700::1111', '2404:6800:4003::200e']) {
+    assert.ok(!isPrivateAddress(address), address);
+  }
+  const resolve = async () => [{ address: '93.184.216.34' }];
+  for (const url of ['http://[::ffff:127.0.0.1]/', 'http://[::ffff:169.254.169.254]/latest/meta-data', 'http://[64:ff9b::7f00:1]/']) {
+    await assert.rejects(assertPublicUrl(url, resolve), /private host/, url);
+  }
 });
 
 test('a huge page is cut off at the size limit', async () => {
@@ -500,4 +520,31 @@ test('a retry shares the first request\'s time limit, so a search cannot outlast
   assert.equal(signals.length, 2);
   assert.equal(signals[0], signals[1]);
   assert.ok(Date.now() - started < 150, 'the retry got a fresh time limit');
+});
+
+test('a Google link is followed to the shop, even when Google redirects relatively', async () => {
+  const away = async () => new Response(null, { status: 302, headers: { location: 'https://shop.example/p' } });
+  assert.equal(await resolveResultLink('https://www.google.com/url?q=1', { fetchImpl: away }), 'https://shop.example/p');
+
+  const relative = async () => new Response('<a href="https://shop.example/p2">go</a>', { status: 302, headers: { location: '/url?q=2' } });
+  assert.equal(await resolveResultLink('https://www.google.com/url?q=2', { fetchImpl: relative }), 'https://shop.example/p2');
+
+  assert.equal(await resolveResultLink('https://shop.example/direct'), 'https://shop.example/direct');
+});
+
+test('a retried empty answer counts against the daily limit', async () => {
+  let calls = 0;
+  const search = createBrightDataSearch({
+    apiKey: 'k', zone: 'z',
+    fetchImpl: async () => {
+      calls++;
+      /* Every wording comes back empty once, then answers. */
+      return new Response(calls <= 2 ? '' : JSON.stringify({ organic: [] }));
+    }
+  });
+  const live = createLiveSearch({ search, resolveLink: async link => link, fetchPage: async () => ({ ok: false }), robots: { allows: async () => true }, dailyLimit: 5 });
+  await live.run('iphone 15');
+  assert.equal(calls, 4);
+  /* 4 of 5 used, and the next search needs 2. */
+  await assert.rejects(live.run('galaxy a16'), error => error.code === 'budget');
 });

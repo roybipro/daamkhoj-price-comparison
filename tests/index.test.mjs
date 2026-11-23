@@ -127,6 +127,18 @@ test('Shopify shops are read through the product JSON, asking robots.txt about t
   assert.equal(entries[0].name, 'Phone 128GB');
 });
 
+test('a Shopify page listed with a trailing slash is still read through its JSON', async () => {
+  const pages = {
+    'https://s.bd/sitemap.xml': urlset(['https://s.bd/products/phone/']),
+    'https://s.bd/products/phone.js': JSON.stringify({ title: 'Phone', variants: [{ id: 5, title: 'Default Title', price: 500000, available: true }] })
+  };
+  const { entries } = await crawlShop({ shop: 's.bd', sitemap: 'https://s.bd/sitemap.xml', product: /\/products\//, kind: 'shopify' }, {
+    fetchPage: site(pages), robots: { allows: async () => true }, sleep: noWait
+  });
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].price, 5000);
+});
+
 test('an empty sitemap is an error, so a broken shop never wipes its saved prices', async () => {
   await assert.rejects(crawlShop(shop, { fetchPage: async () => ({ ok: false }), robots: allowAll, sleep: noWait }), /no product pages/);
 });

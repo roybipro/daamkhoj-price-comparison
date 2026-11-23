@@ -7,18 +7,57 @@ import { isIP } from 'node:net';
 
 export const USER_AGENT = 'Mozilla/5.0 (compatible; DaamKhojBot/0.1; price comparison)';
 
-export function isPrivateAddress(address) {
-  const ip = address.toLowerCase().replace(/^::ffff:/, '');
-  if (isIP(ip) === 4) {
-    const [a, b] = ip.split('.').map(Number);
-    return a === 0 || a === 10 || a === 127 || a >= 224
-      || (a === 100 && b >= 64 && b <= 127)
-      || (a === 169 && b === 254)
-      || (a === 172 && b >= 16 && b <= 31)
-      || (a === 192 && b === 168)
-      || (a === 198 && (b === 18 || b === 19));
+function isPrivateIPv4(ip) {
+  const [a, b, c] = ip.split('.').map(Number);
+  return a === 0 || a === 10 || a === 127 || a >= 224
+    || (a === 100 && b >= 64 && b <= 127)
+    || (a === 169 && b === 254)
+    || (a === 172 && b >= 16 && b <= 31)
+    || (a === 192 && b === 168)
+    || (a === 192 && b === 0 && (c === 0 || c === 2))
+    || (a === 198 && (b === 18 || b === 19))
+    || (a === 198 && b === 51 && c === 100)
+    || (a === 203 && b === 0 && c === 113);
+}
+
+/** The eight 16-bit groups of an IPv6 address, with any dotted IPv4 tail turned into two. */
+function ipv6Groups(ip) {
+  let text = ip;
+  const tail = text.match(/(\d+\.\d+\.\d+\.\d+)$/);
+  if (tail) {
+    const [a, b, c, d] = tail[1].split('.').map(Number);
+    text = text.slice(0, -tail[1].length) + `${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
   }
-  return ip === '::' || ip === '::1' || /^f[cd]/.test(ip) || /^fe[89ab]/.test(ip) || ip.startsWith('ff');
+  const [head, rest] = text.split('::');
+  const left = head ? head.split(':') : [];
+  const right = rest ? rest.split(':') : [];
+  const missing = rest === undefined ? 0 : 8 - left.length - right.length;
+  return [...left, ...new Array(missing).fill('0'), ...right].map(group => parseInt(group, 16));
+}
+
+const ipv4From = (high, low) => [high >> 8, high & 255, low >> 8, low & 255].join('.');
+
+export function isPrivateAddress(address) {
+  const ip = address.toLowerCase().replace(/^\[|\]$/g, '').replace(/%.*$/, '');
+  if (isIP(ip) === 4) return isPrivateIPv4(ip);
+  if (isIP(ip) !== 6) return true;
+
+  const groups = ipv6Groups(ip);
+  const zeros = count => groups.slice(0, count).every(group => group === 0);
+  /* An IPv4 address can ride inside an IPv6 one ("::ffff:127.0.0.1" is written "::ffff:7f00:1"),
+     and then it is the IPv4 address that decides. */
+  if ((zeros(5) && groups[5] === 0xffff) || zeros(6)) {
+    if (zeros(8) || (zeros(7) && groups[7] === 1)) return true;
+    return isPrivateIPv4(ipv4From(groups[6], groups[7]));
+  }
+  if (groups[0] === 0x64 && groups[1] === 0xff9b) return isPrivateIPv4(ipv4From(groups[6], groups[7]));
+  if (groups[0] === 0x2002) return isPrivateIPv4(ipv4From(groups[1], groups[2]));
+  const first = groups[0];
+  return (first & 0xfe00) === 0xfc00 /* unique local */
+    || (first & 0xffc0) === 0xfe80 /* link local */
+    || (first & 0xff00) === 0xff00 /* multicast */
+    || (first === 0x2001 && groups[1] === 0x0db8) /* documentation */
+    || (first === 0x0100 && groups[1] === 0 && groups[2] === 0 && groups[3] === 0); /* discard */
 }
 
 export async function assertPublicUrl(raw, resolve = lookup) {
@@ -89,8 +128,13 @@ export async function resolveResultLink(link, options = {}) {
     headers: { 'user-agent': USER_AGENT }
   });
   const isGoogle = target => /(^|\.)google\.[a-z.]+$/.test(new URL(target).hostname);
+  /* A redirect can be relative ("/url?q=…"); that one stays on Google, so read the body instead. */
   const location = response.headers.get('location');
-  if (location && !isGoogle(location)) return location;
+  const next = location ? new URL(location, link).href : null;
+  if (next && !isGoogle(next)) {
+    await response.body?.cancel().catch(() => {});
+    return next;
+  }
 
   const body = await readCapped(response, 200_000);
   for (const [found] of body.matchAll(/https?:\/\/[^"'<>\s\\]+/g)) {

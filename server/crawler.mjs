@@ -77,7 +77,8 @@ export async function crawlShop(shop, deps) {
     stats.read++;
     try {
       /* robots.txt is asked about the address actually fetched, which differs for Shopify. */
-      const target = shop.kind === 'shopify' ? `${page}.js` : page;
+      /* "/products/phone/" has its JSON at "/products/phone.js", not "/products/phone/.js". */
+      const target = shop.kind === 'shopify' ? `${page.replace(/\/+$/, '')}.js` : page;
       if (!(await robots.allows(target))) {
         stats.blocked++;
         kept.delete(page);

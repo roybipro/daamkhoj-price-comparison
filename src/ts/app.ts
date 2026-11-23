@@ -194,11 +194,13 @@ async function startLive(): Promise<void> {
 function focusedControl(): string | null {
   const active = document.activeElement;
   if (!(active instanceof HTMLElement) || !(dom.out.contains(active) || dom.tray.contains(active))) return null;
-  if (active.id) return `#${active.id}`;
+  /* Escaped, because a suggested search can hold a quote, and a bad selector stops the render. */
+  if (active.id) return `#${CSS.escape(active.id)}`;
   const { act, id, view, q } = active.dataset;
   if (!act) return null;
-  return [`[data-act="${act}"]`, id && `[data-id="${id}"]`, view && `[data-view="${view}"]`, q && `[data-q="${q}"]`]
-    .filter(Boolean).join('');
+  const attr = (name: string, value: string | undefined): string | false =>
+    value !== undefined && value !== '' && `[data-${name}="${CSS.escape(value)}"]`;
+  return [attr('act', act), attr('id', id), attr('view', view), attr('q', q)].filter(Boolean).join('');
 }
 
 function render(): void {
@@ -277,6 +279,8 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
   copyLink: () => {
     /* The label only flips on a real success; a rejected clipboard write leaves the
        button saying "Copy link", which is the truth about what just happened. */
+    /* The clipboard only exists on https or localhost; elsewhere there is nothing to do. */
+    if (!navigator.clipboard) return;
     navigator.clipboard.writeText(window.location.href).then(() => {
       state.linkCopied = true;
       render();
