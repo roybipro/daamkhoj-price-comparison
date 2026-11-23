@@ -15,7 +15,9 @@ export class LiveSearchError extends Error {
   }
 }
 
-export const cleanQuery = rawQuery => String(rawQuery ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+/* Control characters (a typed or pasted NUL, tab, escape) become spaces. Format characters such
+   as the zero-width joiners stay: Bangla spelling uses them. */
+export const cleanQuery = rawQuery => String(rawQuery ?? '').replace(/[\p{Cc}\s]+/gu, ' ').trim().slice(0, 80);
 
 /** The query to search for, or a LiveSearchError when there is nothing to search for. */
 export function validQuery(rawQuery) {
