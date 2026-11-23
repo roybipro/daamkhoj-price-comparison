@@ -7,16 +7,16 @@
 <meta name="description" content="A demo of price and trust comparison for Bangladeshi online shops. Live results are read from shop pages; everything else is sample data.">
 <!-- Sample prices attached to real shop names must not reach search results. Remove with live data. -->
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#080d0b">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f3ea">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#080d0b">
+<meta name="theme-color" content="#eef2f0">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#eef2f0">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0e1a24">
 <script>
   /* Resolve the palette before first paint so the page never flashes the wrong theme. */
   (function () {
     var saved = null;
     try { saved = localStorage.getItem('daamkhoj:theme'); } catch (e) { /* storage blocked */ }
     var theme = (saved === 'light' || saved === 'dark') ? saved
-      : (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+      : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
     document.documentElement.dataset.theme = theme;
   })();
 </script>
@@ -25,7 +25,7 @@
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anek+Bangla:wdth,wght@75..100,400..800&display=swap" rel="stylesheet">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles/tokens.css">
 <link rel="stylesheet" href="styles/base.css">
@@ -38,13 +38,12 @@
   <div class="wrap top-in">
     <a class="brand" href="./" aria-label="DaamKhoj — home">
       <span class="brand-mark" aria-hidden="true">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 5.5V19M8.5 19h7M5 7.5h14"/>
-          <path d="M5 7.5 2.8 11.7M5 7.5l2.2 4.2M19 7.5l-2.2 4.2M19 7.5l2.2 4.2"/>
-          <path d="M2.4 11.7h5.2a2.6 2.6 0 0 1-5.2 0zM16.4 11.7h5.2a2.6 2.6 0 0 1-5.2 0z"/>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
+          <path d="M3.5 12.2 11.3 4.4a1.5 1.5 0 0 1 1.1-.4H19a1 1 0 0 1 1 1v6.6a1.5 1.5 0 0 1-.4 1.1l-7.8 7.8a1.4 1.4 0 0 1-2 0l-6.3-6.3a1.4 1.4 0 0 1 0-2z"/>
+          <circle cx="16" cy="8" r="1.6" fill="currentColor" stroke="none"/>
         </svg>
       </span>
-      <span class="brand-name">DaamKhoj<small>Bangladesh price comparison</small></span>
+      <span class="brand-name">DaamKhoj <span lang="bn">দামখোঁজ</span></span>
     </a>
     <nav class="tabs" id="tabs" role="tablist" aria-label="Sections">
       <button role="tab" data-view="results" aria-selected="true">Prices</button>
@@ -54,37 +53,38 @@
     </nav>
     <button class="theme-toggle" type="button" data-act="theme" aria-label="Switch colour theme" title="Switch between light and dark">
       <span class="in-light">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-        <span class="label">Dark</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       </span>
       <span class="in-dark">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
-        <span class="label">Light</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
       </span>
     </button>
-    <p class="snap">Sample data<br><b>27 Sep 2026</b></p>
   </div>
 </header>
 
-<div class="sample-banner" role="note">
-  <p class="wrap"><b>Sample data, except live results.</b> Prices marked Live are read from shops' own pages, and can still be out of date or wrong. Everything else here, including every trust score, is made up for this demo and says nothing about how those shops really operate. Check the shop's own site before you buy.</p>
-</div>
-
 <main class="wrap">
+  <details class="sample-banner" role="note">
+    <summary><b>Demo.</b> Prices marked Live are read from shops' pages; the rest is sample data from 27 Sep 2026.</summary>
+    <p>Live prices can still be out of date or wrong. Everything else here, including every trust score, is made up for this demo and says nothing about how those shops really operate. Check the shop's own site before you buy.</p>
+  </details>
+
   <div class="search-zone">
+    <h1 class="hero"><span lang="bn">কোথায় সবচেয়ে কম দাম?</span>
+      <span class="hero-en">Find the lowest price for one product across Bangladesh's online shops.</span></h1>
     <form class="search-bar" id="sform" role="search">
       <div class="field">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
-        <input id="q" type="search" autocomplete="off" placeholder="Search a product — iPhone 15, HP 250 G9, Miniket rice 5kg…"
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+        <input id="q" type="search" autocomplete="off" placeholder="iPhone 15, HP 250 G9, Miniket rice 5kg…"
                role="combobox" aria-expanded="false" aria-controls="suggest-wrap" aria-autocomplete="list"
                aria-label="Search for a product or shop">
-        <button type="button" class="clear" data-act="clearQuery" aria-label="Clear search">✕</button>
+        <button type="button" class="clear" data-act="clearQuery" aria-label="Clear search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
         <button type="submit" class="go">Search</button>
       </div>
       <div id="suggest-wrap"></div>
     </form>
-    <div class="chips">
-      <span class="lbl">Popular searches</span>
+    <div class="chips" aria-label="Popular searches">
       <button class="chip" data-act="query" data-q="iPhone 15">iPhone 15</button>
       <button class="chip" data-act="query" data-q="Galaxy A16">Galaxy A16</button>
       <button class="chip" data-act="query" data-q="HP 250 G9">HP 250 G9</button>
@@ -105,7 +105,7 @@
 <footer>
   <div class="wrap in">
     <p class="fine"><b>What DaamKhoj is not:</b> we are not a shop and nothing is bought here. We line up the prices and terms each store already publishes. <b>Every price, rating and policy outside results marked Live is sample data for the demo</b> — check the shop's own site for the live price, warranty and return terms before you pay.</p>
-    <p class="fine"><b>The trust score</b> comes from seven signals: business history, buyer reviews, payment safety, returns, authenticity, delivery and support. The full method is in the <button class="chip" data-act="view" data-view="how">How it works</button> tab.</p>
+    <p class="fine"><b>The trust score</b> comes from seven signals: business history, buyer reviews, payment safety, returns, authenticity, delivery and support. The full method is in the <button class="link" data-act="view" data-view="how">How it works</button> tab.</p>
   </div>
 </footer>
 

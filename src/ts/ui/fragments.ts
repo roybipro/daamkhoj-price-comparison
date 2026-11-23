@@ -10,6 +10,13 @@ export function logo(store: Shop & { icon?: string }, size?: 'xs' | 'md'): strin
     <img src="${store.icon ?? iconUrl(store)}" alt="${escapeHtml(store.name)} logo" onerror="this.remove()">${store.monogram}</span>`;
 }
 
+/** Marks a link that leaves for a shop's own site. */
+export const OUT_ICON = '<svg class="out" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
+
+/** The lowest price wears a shop's price tag; nothing else does. */
+export const priceTag = (amount: number, lead = ''): string =>
+  `<span class="pricetag">${lead ? `<span class="pt-lead">${lead}</span>` : ''}<b class="num">${money(amount)}</b></span>`;
+
 export function sparkline(points: number[]): string {
   const low = Math.min(...points);
   const high = Math.max(...points);
@@ -61,7 +68,7 @@ export function meter(offer: Offer): string {
   const { score, tier } = offer.trust;
   return `<div class="meter">
     <div class="bar"><i data-tier="${tier.id}" style="width:${score}%"></i></div>
-    <div class="cap"><span>Trust ${score}</span><span class="tier-${tier.id}">${tier.label}</span></div>
+    <div class="cap"><span>Trust <b class="num">${score}</b></span><span class="tier-${tier.id}">${tier.label}</span></div>
   </div>`;
 }
 
@@ -98,34 +105,36 @@ export function tags(offer: Offer): string {
 
 export interface OfferRowOptions {
   isBest?: boolean;
+  /** The lowest all-in price of the product: the one row that wears the price tag. */
+  isLowest?: boolean;
   selected?: boolean;
   compareFull?: boolean;
   weights: TrustWeight[];
 }
 
 export function offerRow(offer: Offer, options: OfferRowOptions): string {
-  const { isBest = false, selected = false, compareFull = false, weights } = options;
+  const { isBest = false, isLowest = false, selected = false, compareFull = false, weights } = options;
   const dropped = offer.suppressed;
   const gapToMedian = offer.market.median - offer.landed;
   const struck = offer.mrp > offer.price ? `<span class="mrp num">${money(offer.mrp)}</span>` : '';
   const delta = gapToMedian > 0
-    ? `<span class="save num">−${money(gapToMedian)} under market median</span>`
+    ? `<span class="save num">${money(gapToMedian)} under the median</span>`
     : gapToMedian < 0
-      ? `<span class="save num over">${money(-gapToMedian)} over median</span>`
+      ? `<span class="save num over">${money(-gapToMedian)} over the median</span>`
       : '';
 
   return `<div class="offer ${isBest ? 'pick' : ''} ${dropped ? 'dropped' : ''}" data-offer="${offer.id}">
     <div class="seller">
       ${logo(offer.store)}
       <span class="t">
-        <div class="store-name">${escapeHtml(offer.store.name)}</div>
-        <div class="sub">${offer.seller ? escapeHtml(offer.seller) : 'Shop’s own stock'} · ${escapeHtml(offer.store.url)}</div>
+        <div class="store-name">${escapeHtml(offer.store.name)}${isBest && !dropped ? '<span class="best-label">Best value</span>' : ''}</div>
+        <div class="sub">${offer.seller ? escapeHtml(offer.seller) : 'Shop’s own stock'}</div>
       </span>
     </div>
     <div class="price">
-      <b class="num">${money(offer.price)}</b>${struck}
+      <div class="p-line">${isLowest && !dropped ? priceTag(offer.price) : `<b class="num">${money(offer.price)}</b>`}${struck}</div>
       ${delta}
-      <span class="total num">All-in ${money(offer.landed)} · 12-week sample trend ${sparkline(offer.history)}</span>
+      <span class="total num">All-in ${money(offer.landed)} ${sparkline(offer.history)}</span>
     </div>
     <div class="trust" tabindex="0" aria-label="Trust score ${offer.trust.score} out of 100">
       ${meter(offer)}
@@ -134,11 +143,11 @@ export function offerRow(offer: Offer, options: OfferRowOptions): string {
     <div class="meta">${tags(offer)}</div>
     ${dropped ? '' : `<div class="acts">
       <button class="cmp" data-act="compare" data-id="${offer.id}" aria-pressed="${selected}"
-        ${!selected && compareFull ? 'disabled' : ''}>${selected ? '✓ Added' : '+ Compare'}</button>
-      <a href="${escapeHtml(offer.link)}" target="_blank" rel="noopener noreferrer nofollow"
-        title="${escapeHtml(`Find ${offer.product.name} on ${offer.store.name}`)}">Find this product ↗</a>
+        ${!selected && compareFull ? 'disabled' : ''}>${selected ? 'Added' : 'Compare'}</button>
+      <a class="shop-link" href="${escapeHtml(offer.link)}" target="_blank" rel="noopener noreferrer nofollow"
+        title="${escapeHtml(`Find ${offer.product.name} on ${offer.store.name}`)}">Visit shop ${OUT_ICON}</a>
     </div>`}
-    ${dropped ? `<div class="reason">Excluded: ${offer.trust.flags.map(escapeHtml).join(' · ')} — this price is not counted in the comparison.</div>` : ''}
+    ${dropped ? `<div class="reason">Not counted in the comparison: ${offer.trust.flags.map(escapeHtml).join('; ')}.</div>` : ''}
   </div>`;
 }
 
@@ -155,9 +164,11 @@ export function groupCard(group: Group, options: GroupCardOptions): string {
   const { open, showToggle, trend, weights, selected, maxCompare } = options;
   const { product, live, dropped, best, category, stats, market } = group;
   const visible = open ? live : live.slice(0, 3);
+  const lowest = live.reduce<Offer | undefined>((low, offer) => (!low || offer.landed < low.landed ? offer : low), undefined);
   const chart = trend ? buildTrend(live, market.median) : null;
   const rowOptions = (offer: Offer) => ({
     isBest: Boolean(best && offer.id === best.id),
+    isLowest: live.length > 1 && offer === lowest,
     selected: selected.includes(offer.id),
     compareFull: selected.length >= maxCompare,
     weights
@@ -168,16 +179,16 @@ export function groupCard(group: Group, options: GroupCardOptions): string {
       <div class="gh-main">
         <div class="gh-kicker">
           <span class="pill cat">${escapeHtml(category.en)}</span>
-          ${best && best.trust.score >= GOOD_SCORE ? '<span class="pill best">Best deal — cheap and safe</span>' : ''}
+          ${best && best.trust.score >= GOOD_SCORE ? '<span class="pill best">Cheap and trusted</span>' : ''}
         </div>
-        <h3>${escapeHtml(product.name)}<span class="sub">${escapeHtml(product.brand)} · ${escapeHtml(product.spec)}</span></h3>
+        <h3>${escapeHtml(product.name)}<span class="sub">${escapeHtml(product.brand)}, ${escapeHtml(product.spec)}</span></h3>
         ${live.length > 1 ? `<button class="t-btn" data-act="trend" data-id="${product.id}"
           aria-expanded="${trend}" aria-controls="trend-${escapeHtml(product.id)}">${trend ? 'Hide 12-week trend' : 'Show 12-week trend'}</button>` : ''}
       </div>
       <div class="gh-price">
-        <div class="from num">${live.length ? money(stats.min) : '—'}</div>
-        <div class="range num">${live.length ? `from · ${pluralCount(live.length, 'shop')}` : 'not in these filters'}</div>
-        <div class="avg num">${live.length ? `Market median ${money(market.median)} · highest ${money(stats.max)}` : ''}</div>
+        ${live.length ? priceTag(stats.min, 'from') : '<div class="range">Not in these filters</div>'}
+        ${live.length ? `<div class="range">${pluralCount(live.length, 'shop')}, up to <span class="num">${money(stats.max)}</span></div>
+        <div class="avg">Market median <span class="num">${money(market.median)}</span></div>` : ''}
       </div>
     </div>
     <div class="offers">

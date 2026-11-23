@@ -28,13 +28,21 @@ live search; without it the site runs on sample prices.
 
 ## Design
 
-Two palettes — light and dark — from one token file. `src/styles/tokens.css` holds every
+The look is a shop's price tag. Ink navy on a cool mint page, Bangladesh's bottle green for
+anything you can press, and turmeric yellow kept for one job: the lowest price wears a notched
+swing tag, with its punched hole, and nothing else on the page is that loud. One typeface,
+[Anek Bangla](https://fonts.google.com/specimen/Anek+Bangla), sets Bangla and Latin alike; its
+width axis narrows headlines and prices into a sign-like cut, and the home page leads with the
+question shoppers ask, «কোথায় সবচেয়ে কম দাম?». Once a search runs, or another tab is open, that
+headline steps aside so results start on the first screen of a phone.
+
+Two palettes, light and dark, come from one token file. `src/styles/tokens.css` holds every
 colour as a custom property, and `[data-theme="dark"]` overrides them wholesale; nothing
 below that file hard-codes a colour, so the modes cannot drift apart. The header toggle
 writes the choice to `localStorage`, and an inline script in `index.html` resolves
-`stored → prefers-color-scheme → dark` before first paint so the page never flashes the
+`stored → prefers-color-scheme → light` before first paint so the page never flashes the
 wrong theme. Trust tiers are CSS classes rather than inline hex, because the greens and
-ambers that read well on near-black do not read well on paper.
+ambers that read well on night navy do not read well on paper.
 
 Both themes hold at least 5:1 contrast on every text element — comfortably past WCAG AA.
 
