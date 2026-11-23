@@ -2,6 +2,7 @@
    GET /api/recheck?q=… re-reads the shops' pages behind a search's first results and answers again.
    GET /api/search/quick?q=… answers from the saved price list at once, with no paid request.
    GET /api/search?q=… runs the paid web search and adds the price list's answer to it.
+   GET /api/health says whether the site is serving prices, and how old they are, for uptime checks.
    Credentials come from the environment and stay on the server; nothing here returns or logs them. */
 
 import { createBrightDataSearch } from './providers/bright-data.mjs';
@@ -150,8 +151,27 @@ export function createApi({
     }
   }
 
+  /* For an uptime check and the host's health check: 503 only when no prices are being served.
+     Old prices still answer 200, with their age, so a host never restarts a working server for it. */
+  async function health(req, res) {
+    try {
+      const index = searchIndex?.index ? await searchIndex.index() : null;
+      const prices = index?.size ?? 0;
+      const updatedAt = index?.updatedAt ?? null;
+      const ageHours = updatedAt ? Math.round((Date.now() - Date.parse(updatedAt)) / 360_000) / 10 : null;
+      return send(res, prices ? 200 : 503, {
+        ok: prices > 0, prices, shops: index?.shops ?? 0, listUpdatedAt: updatedAt, listAgeHours: ageHours,
+        uptimeSeconds: Math.round(process.uptime()), memoryMB: Math.round(process.memoryUsage().rss / 1e6)
+      });
+    } catch (error) {
+      log(`health check failed: ${error.message}`);
+      return send(res, 503, { ok: false });
+    }
+  }
+
   return async function handle(req, res, url) {
     if (req.method !== 'GET') return send(res, 405, { error: 'Use GET' });
+    if (url.pathname === '/api/health') return health(req, res);
     if (url.pathname === '/api/browse') return browse(req, res);
     if (url.pathname === '/api/recheck') return recheckPrices(req, res, url);
     if (url.pathname === '/api/search/quick') return quick(req, res, url);

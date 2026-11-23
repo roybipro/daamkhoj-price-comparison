@@ -118,11 +118,22 @@ createServer(async (req, res) => {
     return;
   }
 
-  res.writeHead(200, {
+  /* A browser keeps what it fetched and asks again with the file's tag; an unchanged file costs a
+     tiny "not modified" answer instead of the whole file. Pages, scripts and styles are always
+     checked, so a deploy never leaves a visitor with half old, half new modules; images (shop
+     logos, icons) are reused for a day without asking. */
+  const etag = `W/"${info.size.toString(36)}-${Math.round(info.mtimeMs).toString(36)}"`;
+  const image = /^image\//.test(TYPES[path.extname(file)] ?? '');
+  const headers = {
     'content-type': TYPES[path.extname(file)] || 'application/octet-stream',
-    'content-length': info.size,
-    'cache-control': 'no-store'
-  });
+    'cache-control': image ? 'public, max-age=86400' : 'no-cache',
+    etag
+  };
+  if (req.headers['if-none-match'] === etag) {
+    res.writeHead(304, headers).end();
+    return;
+  }
+  res.writeHead(200, { ...headers, 'content-length': info.size });
   /* A file removed after the stat above (a rebuild while serving) ends this one response, not the server. */
   createReadStream(file).on('error', () => res.destroy()).pipe(res);
 }).listen(port, host, () => {

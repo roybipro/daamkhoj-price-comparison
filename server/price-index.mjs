@@ -8,7 +8,7 @@
 import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { fromBangla } from './bangla.mjs';
 import { cleanQuery, dropSuspiciousPrices, groupOffers, mergeGroups, validQuery } from './live-search.mjs';
-import { buildBrowse, discoverCategories, displayName, productKey } from './browse.mjs';
+import { buildBrowseSteps, discoverCategoriesSteps, displayName, productKey, runInSlices, runNow } from './browse.mjs';
 import { createSpeller, matchesQuery, mentionsInTokens, requiredWords, variantOf, wordSet } from './matching.mjs';
 
 const EMPTY = { version: 1, shops: {} };
@@ -67,9 +67,14 @@ export async function pullIndexFile(url, file, { fetchImpl = fetch, timeoutMs = 
  * shown as current, and at most `maxOffers` are returned, cheapest first within each version.
  */
 export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 * 60 * 1000, maxOffers = 300 } = {}) {
-  const entries = Object.values(data?.shops ?? {}).flatMap(shop => shop.entries ?? []);
+  /* Prices too old to show are not kept in memory at all: the file keeps them for the crawl, but
+     a server holding every price twenty-odd shops ever listed would outgrow a small host. */
+  const loadedAt = now();
+  const entries = Object.values(data?.shops ?? {}).flatMap(shop => shop.entries ?? [])
+    .filter(entry => !(loadedAt - Date.parse(entry.checkedAt) > maxAgeMs));
   let shelves = null;
   let shelvedAt = -Infinity;
+  let rebuilding = null;
   /* Set when a re-check changed a price, so the shelves catch up within minutes, not an hour. */
   let shelvesStale = false;
   /* Each entry's words, split once, and for each word the entries that use it: a search starts
@@ -335,6 +340,8 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
   const index = {
     size: entries.length,
     shops: Object.keys(data?.shops ?? {}).length,
+    /** When the list was saved, for a health check to see how old the prices are. */
+    updatedAt: data?.updatedAt ?? null,
 
     /** `partial` while the last word may still be half typed; `closest` to fall back to a broader
         search rather than nothing, for a shopper (never for merging with a web search). */
@@ -356,23 +363,60 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
     },
 
     /** The home page's shelves. Rebuilt hourly: the list doesn't change, but prices age out of it,
-        and a card must never offer a price its own search would leave out. */
+        and a card must never offer a price its own search would leave out. Built here at once,
+        for tests and tools; a server uses browseSoon, which never makes a request wait. */
     browse() {
-      if (now() - shelvedAt >= 60 * 60 * 1000 || (shelvesStale && now() - shelvedAt >= 5 * 60 * 1000)) {
-        shelves = null;
+      if (shelvesDue()) shelves = null;
+      if (!shelves) {
         shelvedAt = now();
         shelvesStale = false;
-      }
-      if (!shelves) {
-        const fresh = now() - maxAgeMs;
-        const counts = Object.fromEntries(Object.entries(data?.shops ?? {}).map(([shop, { entries: listed = [] }]) =>
-          [shop, listed.filter(entry => Date.parse(entry.checkedAt) >= fresh).length]));
-        shelves = buildBrowse(query => searchExactly(query), counts,
-          discoverCategories(entries.filter(entry => Date.parse(entry.checkedAt) >= fresh)));
+        shelves = runNow(shelfSteps());
       }
       return shelves;
-    }
+    },
+
+    /** The shelves as they are, rebuilding in the background when due; waits only if there are none yet. */
+    browseSoon() {
+      if (!shelves) return index.rebuildShelves();
+      if (shelvesDue()) index.rebuildShelves().catch(() => {});
+      return Promise.resolve(shelves);
+    },
+
+    /** Builds the shelves a few milliseconds at a time; the old ones are served until it is done. */
+    rebuildShelves() {
+      if (!rebuilding) {
+        shelvedAt = now();
+        shelvesStale = false;
+        rebuilding = runInSlices(shelfSteps())
+          .then(built => (shelves = built))
+          .finally(() => { rebuilding = null; });
+      }
+      return rebuilding;
+    },
+
+    /** The last list's shelves, shown while this list's are built, so the home page never goes blank. */
+    adoptShelves(previous) {
+      const theirs = previous?.currentShelves?.();
+      if (!shelves && theirs) {
+        shelves = theirs;
+        shelvedAt = -Infinity;
+      }
+    },
+
+    currentShelves: () => shelves
   };
+
+  function shelvesDue() {
+    return now() - shelvedAt >= 60 * 60 * 1000 || (shelvesStale && now() - shelvedAt >= 5 * 60 * 1000);
+  }
+
+  function* shelfSteps() {
+    const fresh = now() - maxAgeMs;
+    const counts = Object.fromEntries(Object.entries(data?.shops ?? {}).map(([shop, { entries: listed = [] }]) =>
+      [shop, listed.filter(entry => Date.parse(entry.checkedAt) >= fresh).length]));
+    const categories = yield* discoverCategoriesSteps(entries.filter(entry => Date.parse(entry.checkedAt) >= fresh));
+    return yield* buildBrowseSteps(query => searchExactly(query), counts, categories);
+  }
   return index;
 }
 
@@ -391,14 +435,17 @@ export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, lo
     const version = await stat(file).then(info => `${info.mtimeMs}:${info.size}`, () => 'none');
     if (version === loadedVersion) return;
     try {
+      const previous = index;
       index = createPriceIndex(await loadIndexFile(file), { now, ...options });
       loadedVersion = version;
       log(`price list: ${index.size} prices from ${index.shops} shops`);
-      /* Shelve now, in the background, so the first visitor's home page doesn't wait for it. */
+      /* Searches use the new list at once; the home page keeps the last list's shelves until the
+         new ones are built, a slice at a time, so no request waits on them. */
       const loaded = index;
-      setTimeout(() => {
+      loaded.adoptShelves(previous);
+      setTimeout(async () => {
         try {
-          loaded.browse();
+          await loaded.rebuildShelves();
         } catch {
           /* Reported when asked for. */
         }
@@ -423,7 +470,7 @@ export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, lo
   };
   search.browse = async () => {
     await refresh();
-    return index.browse();
+    return index.browseSoon();
   };
   /** The list being served, for work that changes it in memory, such as a price re-check. */
   search.index = async () => {

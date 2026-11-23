@@ -148,7 +148,8 @@ export function createRechecker({
       }
       if (!pages.size) break;
       index.update(await readPages(pages));
-      index.reshelve();
+      /* A slice at a time, so the photos arriving never freeze searches. */
+      await index.rebuildShelves();
     }
     const after = missing().length;
     return { filled: before - after, missing: after };

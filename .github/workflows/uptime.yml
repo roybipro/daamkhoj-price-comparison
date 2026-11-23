@@ -1,0 +1,40 @@
+# Every 30 minutes, asks the live site whether it is serving current prices. A failed check fails
+# this workflow, and GitHub emails the repository's owner. Render's free plan sleeps when idle,
+# so a check may have to wake the server: the first answer can take about a minute.
+name: Uptime
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      SITE: ${{ vars.SITE_URL || 'https://daamkhoj.onrender.com' }}
+    steps:
+      - name: Ask the live site for its health
+        run: |
+          body=''
+          for attempt in 1 2 3; do
+            body=$(curl --fail --silent --show-error --max-time 90 "$SITE/api/health") && break
+            body=''
+            sleep 20
+          done
+          if [ -z "$body" ]; then
+            echo "::error::$SITE/api/health did not answer after 3 tries"
+            exit 1
+          fi
+          echo "$body"
+          # Prices older than two days mean the nightly crawl has stopped saving.
+          BODY="$body" node -e '
+            const health = JSON.parse(process.env.BODY);
+            if (health.prices < 1000) throw new Error(`only ${health.prices} prices are being served`);
+            if (health.listAgeHours > 48) throw new Error(`the price list is ${health.listAgeHours} hours old`);
+            console.log(`ok: ${health.prices} prices from ${health.shops} shops, list ${health.listAgeHours} h old`);
+          '
