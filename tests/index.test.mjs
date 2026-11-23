@@ -208,6 +208,36 @@ test('the price list refuses meaningless searches like the web search does', () 
   assert.throws(() => createPriceIndex(listOf()).search(' '), error => error.code === 'query');
 });
 
+test('a search typed in Bangla finds the English listings and says what it was read as', async () => {
+  const { fromBangla, skeleton } = await import('../server/bangla.mjs');
+  assert.equal(fromBangla('আইফোন ১৫ প্রো ম্যাক্স এর দাম কত'), 'iphone 15 pro max');
+  /* One name, several spellings; model codes and sizes in Bangla letters and digits. */
+  assert.equal(fromBangla('স্যামসাং গ্যালাক্সি এ১৬'), 'samsung galaxy a16');
+  assert.equal(fromBangla('সামসাং গেলাক্সি এ ১৬'), 'samsung galaxy a16');
+  assert.equal(skeleton('শাওমী'), skeleton('শাওমি'));
+  assert.equal(skeleton('অ্যাপল'), skeleton('এপল'));
+  assert.equal(fromBangla('আইফোন ১৫ ১২৮ জিবি কালো'), 'iphone 15 128gb black');
+  assert.equal(fromBangla('অ্যাংকার পাওয়ার ব্যাংক'), 'anker power bank');
+  /* A half-typed name completes, but never into a colour; English is left alone. */
+  assert.equal(fromBangla('স্যাম', { partial: true }), 'samsung');
+  assert.equal(fromBangla('সা', { partial: true }), 'সা');
+  assert.equal(fromBangla('iPhone 15'), 'iPhone 15');
+  assert.equal(fromBangla('আইফোন iPhone'), 'iphone iPhone');
+
+  const index = createPriceIndex(listOf(
+    entry('a.bd', 'iPhone 15 128GB', 82000),
+    entry('b.bd', 'Apple iPhone 15 128GB', 83000)
+  ), { now: () => NOW });
+  for (const options of [{}, { closest: true }, { partial: true, closest: true }]) {
+    const answer = index.search('আইফোন ১৫ এর দাম', options);
+    assert.equal(answer.query, 'iphone 15');
+    assert.equal(answer.correctedFrom, 'আইফোন ১৫ এর দাম');
+    assert.equal(answer.priced, 2);
+  }
+  assert.equal(index.search('iphone 15').correctedFrom, undefined);
+  assert.throws(() => index.search('দাম কত'), error => error.code === 'query');
+});
+
 test('merged results count a page once and keep the first copy', () => {
   const group = (label, offers) => ({ label, comparable: true, lowest: null, offers });
   const offer = (url, price, checkedAt) => ({ shop: new URL(url).hostname, url, title: 'T', price, inStock: true, ...(checkedAt && { checkedAt }) });

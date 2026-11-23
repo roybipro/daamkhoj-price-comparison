@@ -6,7 +6,8 @@
    with times as ISO strings. Searching it needs no network and no paid request. */
 
 import { readFile, rename, stat, writeFile } from 'node:fs/promises';
-import { dropSuspiciousPrices, groupOffers, mergeGroups, validQuery } from './live-search.mjs';
+import { fromBangla } from './bangla.mjs';
+import { cleanQuery, dropSuspiciousPrices, groupOffers, mergeGroups, validQuery } from './live-search.mjs';
 import { buildBrowse, discoverCategories, displayName, productKey } from './browse.mjs';
 import { createSpeller, matchesQuery, mentionsInTokens, requiredWords, variantOf, wordSet } from './matching.mjs';
 
@@ -337,8 +338,14 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
 
     /** `partial` while the last word may still be half typed; `closest` to fall back to a broader
         search rather than nothing, for a shopper (never for merging with a web search). */
-    search: (rawQuery, { partial = false, closest = false } = {}) =>
-      (partial ? searchAsTyped(rawQuery, closest) : closest ? searchClosest(rawQuery) : searchCorrecting(rawQuery)),
+    search: (rawQuery, { partial = false, closest = false } = {}) => {
+      /* A search typed in Bangla runs in the shops' English and says what it was read as, the way
+         a spelling correction does: "আইফোন ১৫" → "iphone 15". */
+      const typed = cleanQuery(rawQuery);
+      const query = fromBangla(typed, { partial });
+      const answer = partial ? searchAsTyped(query, closest) : closest ? searchClosest(query) : searchCorrecting(query);
+      return query === typed ? answer : { ...answer, correctedFrom: typed };
+    },
     update,
 
     /** Builds the shelves again at the next ask, as after a batch of photos arrives. */

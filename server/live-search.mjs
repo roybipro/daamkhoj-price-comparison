@@ -1,6 +1,7 @@
 /* The two-step search: find candidate pages with a search provider, then read each page's own
    price. Only prices read from a page, for the product asked about, ever reach a customer. */
 
+import { fromBangla } from './bangla.mjs';
 import { matchesQuery, mentionsProduct, queryTokens, variantOf } from './matching.mjs';
 import { productKey } from './browse.mjs';
 import { absoluteImage, readPage } from './page-price.mjs';
@@ -19,9 +20,9 @@ export class LiveSearchError extends Error {
    as the zero-width joiners stay: Bangla spelling uses them. */
 export const cleanQuery = rawQuery => String(rawQuery ?? '').replace(/[\p{Cc}\s]+/gu, ' ').trim().slice(0, 80);
 
-/** The query to search for, or a LiveSearchError when there is nothing to search for. */
+/** The query to search for, in the shops' English, or a LiveSearchError when there is nothing to search for. */
 export function validQuery(rawQuery) {
-  const query = cleanQuery(rawQuery);
+  const query = cleanQuery(fromBangla(cleanQuery(rawQuery)));
   if (query.length < 2 || !queryTokens(query).length) throw new LiveSearchError('query', 'Search for a product name');
   return query;
 }
