@@ -51,8 +51,19 @@ export function createBrightDataSearch({ apiKey, zone, engine = 'bing', fetchImp
   async function searchWords(words) {
     /* Empty answers do come back with a 200, so one retry is worth its cost. It shares the first
        request's time limit: a fresh one would let a search outlast the browser's wait. */
-    const signal = AbortSignal.timeout(timeoutMs);
-    const text = (await request(words, signal)) || (await request(words, signal));
+    /* A plain timer, not AbortSignal.timeout(): that one does not keep Node running, so a request
+       waiting only on it could be dropped when nothing else is pending. */
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(new DOMException('The search took too long', 'TimeoutError')),
+      timeoutMs
+    );
+    let text;
+    try {
+      text = (await request(words, controller.signal)) || (await request(words, controller.signal));
+    } finally {
+      clearTimeout(timer);
+    }
     if (!text) throw new Error('search provider returned nothing');
 
     const organic = JSON.parse(text).organic;
