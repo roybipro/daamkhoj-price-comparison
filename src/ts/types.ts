@@ -144,6 +144,8 @@ export interface LiveOffer {
   checkedAt?: string;
   /** The product photo the shop's page publishes. */
   image?: string;
+  /** Which product this price is for, so results can show one card per product. */
+  product?: string;
 }
 
 /** One product on a home-page shelf: where its price starts, and how many shops sell it. */
@@ -222,6 +224,12 @@ export interface State {
   browse: BrowseState;
   /** The home page's chosen category, or '' for all of them. */
   shelf: string;
+  /** How many of the chosen category's cards are shown; "Show more" adds a page. */
+  shelfLimit: number;
+  /** The search result opened from its card, or '' for the grid of all results. */
+  product: string;
+  /** How many result cards are shown. */
+  resultLimit: number;
 }
 
 /** Everything a view needs to render, passed in rather than reached for globally. */

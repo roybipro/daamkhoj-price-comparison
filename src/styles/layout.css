@@ -103,6 +103,11 @@ footer .fine { flex: 1 1 340px; max-width: 70ch; line-height: 1.6; }
   .pc-body .pricetag { font-size: 14px; }
   .shop-strip { padding: 16px; }
   .gh-img { width: 64px; height: 64px; }
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .summary div:nth-child(3) { border-left: 0; }
+  .summary div:nth-child(n+3) { border-top: 1px solid var(--line-2); }
+  .gh-img.big { width: 84px; height: 84px; }
+  .detail-head { gap: 12px; }
   /* On a phone, once a search runs, its results matter more than other suggestions. */
   body[data-mode="search"] .search-zone .chips { display: none; }
   .lead { margin-top: 24px; }

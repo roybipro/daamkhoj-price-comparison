@@ -2,6 +2,7 @@
    price. Only prices read from a page, for the product asked about, ever reach a customer. */
 
 import { matchesQuery, mentionsProduct, queryTokens, variantOf } from './matching.mjs';
+import { productKey } from './browse.mjs';
 import { absoluteImage, readPage } from './page-price.mjs';
 
 /* Social sites, and price guides whose figures are not a shop's offer. */
@@ -44,11 +45,23 @@ async function mapLimited(items, limit, work) {
 /* A real product can sell well below its usual price, but under half is far more likely to be a
    deposit, a part or a mistake, and it would be named the lowest price. */
 export function dropSuspiciousPrices(offers) {
-  if (offers.length < 3) return { kept: offers, dropped: 0 };
-  const sorted = offers.map(offer => offer.price).sort((a, b) => a - b);
-  const median = sorted[Math.floor(sorted.length / 2)];
-  const kept = offers.filter(offer => offer.price >= median / 2);
-  return { kept, dropped: offers.length - kept.length };
+  /* Only like is compared with like: in a search for "realme buds", ৳1,400 earbuds are not
+     suspicious beside ৳8,000 ones, so each product is judged against its own prices. */
+  const byProduct = new Map();
+  for (const offer of offers) {
+    const key = offer.product ?? productKey(offer.title ?? '');
+    byProduct.set(key, [...(byProduct.get(key) ?? []), offer]);
+  }
+  const kept = [...byProduct.values()].flatMap(same => {
+    if (same.length < 3) return same;
+    const sorted = same.map(offer => offer.price).sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    return same.filter(offer => offer.price >= median / 2);
+  });
+  /* Kept in the order they came, so a cheapest-first list stays cheapest first. */
+  const keep = new Set(kept);
+  const ordered = offers.filter(offer => keep.has(offer));
+  return { kept: ordered, dropped: offers.length - ordered.length };
 }
 
 /* Sorted cheapest first; the lowest price is only named where there is a real choice. */
@@ -57,12 +70,15 @@ function finishGroups(groups) {
     group.offers.sort((a, b) => a.price - b.price);
     /* One shop selling a version in several colours or pages is still one shop: its cheapest
        price you can buy stands for it, or its cheapest at all when none is in stock. */
+    /* Per product, not per group: where versions are unclear, one group holds many products, and
+       each of a shop's different products must stay. */
     const pick = new Map();
+    const slot = offer => `${offer.shop}|${offer.product ?? productKey(offer.title ?? '')}`;
     for (const offer of group.offers) {
-      const held = pick.get(offer.shop);
-      if (!held || (held.inStock === false && offer.inStock !== false)) pick.set(offer.shop, offer);
+      const held = pick.get(slot(offer));
+      if (!held || (held.inStock === false && offer.inStock !== false)) pick.set(slot(offer), offer);
     }
-    group.offers = group.offers.filter(offer => pick.get(offer.shop) === offer);
+    group.offers = group.offers.filter(offer => pick.get(slot(offer)) === offer);
     const buyable = group.offers.filter(offer => offer.inStock !== false);
     group.lowest = group.comparable && buyable.length > 1 ? buyable[0].url : null;
   }
@@ -70,8 +86,9 @@ function finishGroups(groups) {
   return groups.sort((a, b) => Number(b.comparable) - Number(a.comparable) || lead(a) - lead(b));
 }
 
-const shown = ({ shop, url, title, price, inStock, checkedAt, image }) => ({
-  shop, url, title, price, inStock, ...(checkedAt && { checkedAt }), ...(image && { image })
+/* `product` names the product a price is for, so a page can show one card per product. */
+const shown = ({ shop, url, title, price, inStock, checkedAt, image, product }) => ({
+  shop, url, title, price, inStock, product: product ?? productKey(title), ...(checkedAt && { checkedAt }), ...(image && { image })
 });
 
 /** Same version together. */

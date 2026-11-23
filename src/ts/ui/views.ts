@@ -12,7 +12,7 @@ const showsLive = (ctx: RenderContext): boolean => ctx.state.live.status !== 'id
 
 export function resultsView(ctx: RenderContext): string {
   const { state, catalog, groups } = ctx;
-  if (showsLive(ctx)) return liveView(state.live);
+  if (showsLive(ctx)) return liveView(state.live, { product: state.product, limit: state.resultLimit });
   if (!state.q && state.browse.status === 'ready') return browseView(ctx, state.browse.data);
   const priceCount = groups.reduce((n, g) => n + g.live.length + g.dropped.length, 0);
   const shopFilter = state.storeId ? catalog.stores.find(s => s.id === state.storeId) : undefined;

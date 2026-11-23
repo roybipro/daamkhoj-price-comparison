@@ -8,7 +8,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { browseQueries } from '../server/browse.mjs';
 import { INDEX_SHOPS } from '../server/index-shops.mjs';
 import { absoluteImage, readImage } from '../server/page-price.mjs';
 import { createPriceIndex, loadIndexFile, saveIndexFile } from '../server/price-index.mjs';
@@ -36,7 +35,7 @@ for (const { entries = [] } of Object.values(data.shops)) {
 }
 
 const wanted = new Map();
-for (const query of browseQueries()) {
+for (const query of index.browse().shelves.flatMap(shelf => shelf.cards.map(card => card.name))) {
   const offers = index.search(query).groups.flatMap(group => group.offers);
   for (const shop of new Set(offers.map(offer => offer.shop))) {
     const cheapest = offers.filter(offer => offer.shop === shop).sort((a, b) => a.price - b.price)[0];

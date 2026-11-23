@@ -78,7 +78,79 @@ function leftOut(result: LiveResult): string {
   return parts.length ? ` Left out: ${parts.join(', ')}.` : '';
 }
 
-export function liveView(live: LiveState): string {
+/** One search result card: a product, the shops selling it, and where its price starts. */
+interface ResultCard { key: string; title: string; image: string | null; from: number; to: number; shops: string[]; inStock: number }
+
+const keyOf = (offer: LiveOffer): string => offer.product || offer.title.toLowerCase();
+
+function resultCards(result: LiveResult): ResultCard[] {
+  const cards = new Map<string, ResultCard & { pricedFrom: LiveOffer }>();
+  for (const offer of result.groups.flatMap(group => group.offers)) {
+    const key = keyOf(offer);
+    const card = cards.get(key);
+    const photo = offer.image ? safeHttpUrl(offer.image) : null;
+    if (!card) {
+      cards.set(key, { key, title: offer.title, image: photo, from: offer.price, to: offer.price, shops: [offer.shop], inStock: offer.inStock === false ? 0 : 1, pricedFrom: offer });
+      continue;
+    }
+    if (offer.price < card.from) { card.from = offer.price; card.title = offer.title; }
+    card.to = Math.max(card.to, offer.price);
+    card.image ??= photo;
+    if (!card.shops.includes(offer.shop)) card.shops.push(offer.shop);
+    if (offer.inStock !== false) card.inStock++;
+  }
+  /* Sold by the most shops first: those are the real comparisons. Then cheapest first. */
+  return [...cards.values()].sort((a, b) => b.shops.length - a.shops.length || a.from - b.from);
+}
+
+const favicon = (shop: string): string =>
+  `<span class="dot" title="${escapeHtml(shop)}"><img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(shop)}&amp;sz=32" alt="" loading="lazy" onerror="this.remove()">${escapeHtml(initials(shop))}</span>`;
+
+/* Shown until the shop's own photo loads, and instead of it when there is none yet. */
+const NO_PHOTO = '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1.2 11.2a1.5 1.5 0 0 1-1.5 1.3H7.7a1.5 1.5 0 0 1-1.5-1.3z"/><path d="M9 10V6.5a3 3 0 0 1 6 0V10"/></svg>';
+
+function resultCard(card: ResultCard): string {
+  const many = card.shops.length > 1;
+  return `<button class="pcard rcard" data-act="product" data-id="${escapeHtml(card.key)}" title="${escapeHtml(`Compare ${card.title}`)}">
+    <span class="pc-img">${NO_PHOTO}${card.image
+      ? `<img src="${escapeHtml(card.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span>
+    <span class="pc-body">
+      <span class="pc-name">${escapeHtml(card.title)}</span>
+      ${priceTag(card.from, many || card.to > card.from ? 'from' : '')}
+      <span class="pc-shops">${card.shops.slice(0, 4).map(favicon).join('')}${card.shops.length > 4 ? `<span class="dot more">+${card.shops.length - 4}</span>` : ''}
+        <span class="pc-meta">${many ? `Compare ${card.shops.length} shops` : '1 shop'}</span></span>
+    </span>
+  </button>`;
+}
+
+function summaryStrip(cards: ResultCard[]): string {
+  const shops = new Set(cards.flatMap(card => card.shops)).size;
+  const low = Math.min(...cards.map(card => card.from));
+  const high = Math.max(...cards.map(card => card.to));
+  return `<dl class="summary">
+    <div><dt>Products</dt><dd class="num">${cards.length}</dd></div>
+    <div><dt>Shops</dt><dd class="num">${shops}</dd></div>
+    <div><dt>Lowest price</dt><dd class="num">${money(low)}</dd></div>
+    <div><dt>Highest price</dt><dd class="num">${money(high)}</dd></div>
+  </dl>`;
+}
+
+/** One product's page: its versions compared across shops, from the same answer. */
+function productDetail(result: LiveResult, card: ResultCard, many: boolean): string {
+  const groups = result.groups
+    .map(group => ({ ...group, offers: group.offers.filter(offer => keyOf(offer) === card.key) }))
+    .filter(group => group.offers.length);
+  return `${many ? `<button class="link back" data-act="allResults">All results for “${escapeHtml(result.query)}”</button>` : ''}
+    <div class="detail-head">
+      ${card.image ? `<span class="gh-img big"><img src="${escapeHtml(card.image)}" alt="" referrerpolicy="no-referrer" onerror="this.parentElement.remove()"></span>` : ''}
+      <div><h2>${escapeHtml(card.title)}</h2>
+        <p>${card.shops.length > 1 ? `${pluralCount(card.shops.length, 'shop')}, ` : '1 shop, '}${card.to > card.from ? `${money(card.from)} to ${money(card.to)}` : money(card.from)}</p></div>
+    </div>
+    <p class="fine-print">Only the same version is compared. Prices can change, so confirm on the shop's site before you pay.</p>
+    ${groups.map(group => liveGroup(group, result.checkedAt, result.query)).join('')}`;
+}
+
+export function liveView(live: LiveState, view: { product: string; limit: number } = { product: '', limit: 40 }): string {
   if (live.status === 'loading') {
     return `<div class="lead loading" role="status"><h2>Checking prices for “${escapeHtml(live.query)}”</h2>
       <p>Searching the web and reading each shop's own page. A new search can take a minute or more. Popular searches are usually instant.</p>
@@ -101,22 +173,25 @@ export function liveView(live: LiveState): string {
     ? `<div class="note" role="status">Showing results for <b>“${escapeHtml(result.query)}”</b>. You typed “${escapeHtml(live.typed)}”.</div>`
     : '';
   const status = live.pending
-    ? '<div class="note" role="status">Checking more shops on the web. This can take a minute, and their prices will be added here.</div>'
+    ? '<div class="note" role="status">Checking more shops on the web. Their prices will be added here as they arrive.</div>'
     : live.note ? `<div class="note" role="status">${escapeHtml(live.note)}</div>` : '';
-  const when = fromList
-    ? 'Read from each shop\'s own page; each price shows when.'
-    : `Read from each shop's own page, ${escapeHtml(clock(result.checkedAt))}.`;
 
   if (!result.groups.length) {
     return `${corrected}<div class="empty"><h3>No clear prices found for “${escapeHtml(result.query)}”</h3>
       <p>${escapeHtml(summary)} Try the full product name, such as “iPhone 15” or “HP 250 G9”.</p></div>`;
   }
 
-  return `<div class="lead"><h2>Live prices for “${escapeHtml(result.query)}”</h2>
-      <p>${when} Only the same version is compared. Prices can change, so confirm on the shop's site before you pay.</p></div>
+  const cards = resultCards(result);
+  const open = cards.find(card => card.key === view.product) ?? (cards.length === 1 ? cards[0] : undefined);
+  if (open) return `${corrected}${status}${productDetail(result, open, cards.length > 1)}`;
+
+  return `<div class="lead"><h2>Results for “${escapeHtml(result.query)}”</h2>
+      <p>Prices read from each shop's own page. Open a product to compare its versions across shops.</p></div>
     ${corrected}${status}
-    <div class="note">${escapeHtml(summary)}</div>
-    ${result.groups.map(group => liveGroup(group, result.checkedAt, result.query)).join('')}`;
+    ${summaryStrip(cards)}
+    <div class="cards grid-cards results">${cards.slice(0, view.limit).map(resultCard).join('')}</div>
+    ${cards.length > view.limit ? `<button class="more more-all" data-act="moreResults">Show more (${cards.length - view.limit} left)</button>` : ''}
+    <p class="fine-print">${escapeHtml(summary)}</p>`;
 }
 
 export function liveUnavailableNote(): string {
