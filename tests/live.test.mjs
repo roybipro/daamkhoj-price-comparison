@@ -531,3 +531,20 @@ test('a Google link is followed to the shop, even when Google redirects relative
 
   assert.equal(await resolveResultLink('https://shop.example/direct'), 'https://shop.example/direct');
 });
+
+test('a retried empty answer counts against the daily limit', async () => {
+  let calls = 0;
+  const search = createBrightDataSearch({
+    apiKey: 'k', zone: 'z',
+    fetchImpl: async () => {
+      calls++;
+      /* Every wording comes back empty once, then answers. */
+      return new Response(calls <= 2 ? '' : JSON.stringify({ organic: [] }));
+    }
+  });
+  const live = createLiveSearch({ search, resolveLink: async link => link, fetchPage: async () => ({ ok: false }), robots: { allows: async () => true }, dailyLimit: 5 });
+  await live.run('iphone 15');
+  assert.equal(calls, 4);
+  /* 4 of 5 used, and the next search needs 2. */
+  await assert.rejects(live.run('galaxy a16'), error => error.code === 'budget');
+});

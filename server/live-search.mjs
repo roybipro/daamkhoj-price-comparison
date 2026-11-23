@@ -150,7 +150,10 @@ export function createLiveSearch(deps) {
     if (budget.used + cost > dailyLimit) throw new LiveSearchError('budget', 'Daily live search limit reached');
     budget.used += cost;
 
-    const results = await search(query);
+    /* A retried empty answer is paid for too, so the limit counts what was really spent. */
+    let paid = 0;
+    const results = await search(query, { onRequest: () => { paid++; } })
+      .finally(() => { if (paid > cost) budget.used += paid - cost; });
     /* Off-topic results are never opened and don't use up a slot. Exact matches go first. */
     const describe = result => `${result.title} ${result.description} ${result.link}`;
     const onTopic = results.filter(result => mentionsProduct(describe(result), query));

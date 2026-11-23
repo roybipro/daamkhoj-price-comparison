@@ -33,7 +33,8 @@ export function createBrightDataSearch({ apiKey, zone, engine = 'bing', fetchImp
   const setup = ENGINES[engine];
   if (!setup) throw new Error(`unknown search engine "${engine}"`);
 
-  async function request(words, signal) {
+  async function request(words, signal, onRequest) {
+    onRequest();
     const target = new URL(setup.origin);
     target.search = new URLSearchParams({ q: words, ...setup.params }).toString();
 
@@ -48,7 +49,7 @@ export function createBrightDataSearch({ apiKey, zone, engine = 'bing', fetchImp
     return response.text();
   }
 
-  async function searchWords(words) {
+  async function searchWords(words, onRequest) {
     /* Empty answers do come back with a 200, so one retry is worth its cost. It shares the first
        request's time limit: a fresh one would let a search outlast the browser's wait. */
     /* A plain timer, not AbortSignal.timeout(): that one does not keep Node running, so a request
@@ -60,7 +61,7 @@ export function createBrightDataSearch({ apiKey, zone, engine = 'bing', fetchImp
     );
     let text;
     try {
-      text = (await request(words, controller.signal)) || (await request(words, controller.signal));
+      text = (await request(words, controller.signal, onRequest)) || (await request(words, controller.signal, onRequest));
     } finally {
       clearTimeout(timer);
     }
@@ -74,8 +75,9 @@ export function createBrightDataSearch({ apiKey, zone, engine = 'bing', fetchImp
     }));
   }
 
-  async function search(query) {
-    const answers = await Promise.allSettled(setup.wordings.map(wording => searchWords(wording(query))));
+  /** `onRequest` hears of every paid request, retries included. */
+  async function search(query, { onRequest = () => {} } = {}) {
+    const answers = await Promise.allSettled(setup.wordings.map(wording => searchWords(wording(query), onRequest)));
     const lists = answers.filter(answer => answer.status === 'fulfilled').map(answer => answer.value);
     /* One wording failing is fine; all of them failing is an outage. */
     if (!lists.length) throw answers[0].reason;
@@ -91,7 +93,7 @@ export function createBrightDataSearch({ apiKey, zone, engine = 'bing', fetchImp
     return [...merged.values()];
   }
 
-  /* The daily limit counts paid requests, so it needs to know what one search costs. */
+  /* The daily limit counts paid requests, so it needs to know what one search usually costs. */
   search.requests = setup.wordings.length;
   return search;
 }
