@@ -208,6 +208,9 @@ function render(): void {
   const ctx = context();
   dom.out.innerHTML = `${toolbarView(ctx)}${VIEWS[state.view](ctx)}`;
   dom.tray.innerHTML = trayView(ctx);
+  /* Once a search is submitted, or another tab is open, the headline steps aside so the content
+     starts on the first screen. Not while typing: the box would jump under the reader's thumb. */
+  document.body.dataset.mode = state.live.status === 'idle' && state.view === 'results' ? 'home' : 'search';
   dom.tabs.querySelectorAll<HTMLButtonElement>('button[data-view]').forEach(tab =>
     tab.setAttribute('aria-selected', String(tab.dataset.view === state.view)));
   renderSuggestions(ctx);

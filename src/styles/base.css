@@ -1,35 +1,36 @@
-/* Reset, typography and shared utilities. */
+/* Reset, type and shared utilities. One family, Anek Bangla, does every job: it sets Bangla
+   and Latin alike, and its width axis gives headlines and prices a narrow, sign-like cut. */
 
 * { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 
 body {
   margin: 0;
   font-family: var(--font);
-  font-size: 15px;
-  line-height: 1.55;
+  font-size: 16px;
+  line-height: 1.5;
   color: var(--text);
-  background:
-    radial-gradient(1100px 500px at 8% -10%, var(--glow-1), transparent 62%),
-    radial-gradient(760px 420px at 98% 4%, var(--glow-2), transparent 60%),
-    var(--bg);
-  background-attachment: fixed;
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3, h4, h5 { margin: 0; line-height: 1.22; font-weight: 700; letter-spacing: -.02em; font-family: var(--display); }
+h1, h2, h3, h4, h5 {
+  margin: 0; line-height: 1.12; font-weight: 700; letter-spacing: -.01em;
+  font-family: var(--display); font-stretch: 82%;
+}
 p { margin: 0; }
 a { color: inherit; }
-button, select, input { font: inherit; color: inherit; }
+button, select, input, summary { font: inherit; color: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
 
-/* Prices, scores and every other number sit in mono so columns of digits align. */
-.num { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+/* Figures line up in columns, and prices take the narrow cut. */
+.num { font-variant-numeric: tabular-nums lining-nums; letter-spacing: 0; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+.wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 20px; }
 
-:focus-visible { outline: none; box-shadow: var(--ring); border-radius: 6px; }
-::selection { background: var(--selection); }
+:focus-visible { outline: none; box-shadow: var(--ring); border-radius: 8px; }
+::selection { background: var(--selection); color: var(--text); }
 
 /* Trust tiers are classes, not inline colours, so both palettes can tune contrast. */
 .tier-strong { color: var(--tier-strong); }
@@ -40,5 +41,5 @@ button, select, input { font: inherit; color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  * { transition: none !important; }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
 }

@@ -2,7 +2,7 @@ import type { Offer, RenderContext, ShopProfile, TrustWeight } from '../types.js
 import { escapeHtml, money, pluralCount, pluralNoun } from '../core/format.js';
 import { homeUrl } from '../core/links.js';
 import { UNDER_MARKET_RULE } from '../core/trust.js';
-import { groupCard, logo } from './fragments.js';
+import { groupCard, logo, OUT_ICON } from './fragments.js';
 import { liveUnavailableNote, liveView } from './live.js';
 
 const TRENDING = ['iPhone 15', 'Galaxy A16', 'HP 250 G9', 'Miniket rice 5kg', 'Soybean oil 5 litre', 'TP-Link Archer C6', 'Casio F91W', 'Romoss power bank 20000'];
@@ -23,12 +23,12 @@ export function resultsView(ctx: RenderContext): string {
         <p>Type a product above — in English, Bangla or Banglish. This demo lines up ${catalog.totals.offers} sample prices from ${catalog.totals.stores} shops across ${catalog.totals.products} products.</p></div>`;
 
   const hints = shopHints.length ? `<div class="note">That matches a shop: ${shopHints.map(store =>
-    `<button class="chip" data-act="shop" data-id="${store.id}">${escapeHtml(store.name)} · trust ${store.score}</button>`).join(' ')}</div>` : '';
+    `<button class="chip" data-act="shop" data-id="${store.id}">${escapeHtml(store.name)}, trust ${store.score}</button>`).join(' ')}</div>` : '';
 
   const applied = [
     state.minTrust ? `trust ${state.minTrust}+` : '',
     state.codOnly ? 'cash on delivery only' : ''
-  ].filter(Boolean).join(' · ');
+  ].filter(Boolean).join(', ');
 
   const showAll = Boolean(state.q) || state.showAll;
   const shown = showAll ? groups : groups.slice(0, 6);
@@ -48,8 +48,7 @@ export function resultsView(ctx: RenderContext): string {
       <p>The sample catalogue is still small. Try a broader word, or pick one of the searches below.</p>
       <div class="chips" style="justify-content:center">${TRENDING.map(t =>
         `<button class="chip" data-act="query" data-q="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join('')}</div></div>` : ''}
-    ${!showAll && groups.length > shown.length ? `<button class="more" data-act="all"
-      style="border:1px dashed var(--line);border-radius:var(--r);background:var(--card)">Show the other ${groups.length - shown.length} ${pluralNoun(groups.length - shown.length, 'product')}</button>` : ''}`;
+    ${!showAll && groups.length > shown.length ? `<button class="more more-all" data-act="all">Show the other ${groups.length - shown.length} ${pluralNoun(groups.length - shown.length, 'product')}</button>` : ''}`;
 }
 
 function signalSummary(store: ShopProfile, weights: TrustWeight[]): string {
@@ -70,7 +69,7 @@ export function storesView(ctx: RenderContext): string {
     <div class="grid">${list.map(store => `<article class="panel">
       <div class="row1">
         ${logo(store)}
-        <div><h4>${escapeHtml(store.name)}</h4><div class="site">${escapeHtml(store.url)} · ${store.since}${store.closed ? `–${store.closed}` : ''}</div></div>
+        <div><h4>${escapeHtml(store.name)}</h4><div class="site">${escapeHtml(store.url)}, ${store.closed ? `${store.since}–${store.closed}` : `since ${store.since}`}</div></div>
         <div class="score-big"><div class="n num tier-${store.tier.id}">${store.score}</div><div class="l">${store.tier.label}</div></div>
       </div>
       <p class="blurb">${escapeHtml(store.blurb)}</p>
@@ -85,10 +84,10 @@ export function storesView(ctx: RenderContext): string {
       </div>
       ${signalSummary(store, weights)}
       <div class="facts" style="margin-top:10px">${store.categories.map(c =>
-        `<span class="tag" style="background:var(--paper-2)">${escapeHtml(catalog.categories.get(c)?.en ?? c)}</span>`).join('')}</div>
-      <div style="margin-top:11px;display:flex;gap:8px">
+        `<span class="tag cat">${escapeHtml(catalog.categories.get(c)?.en ?? c)}</span>`).join('')}</div>
+      <div class="panel-acts">
         <button class="cmp" data-act="shop" data-id="${store.id}">See this shop's prices</button>
-        ${store.closed ? '' : `<a class="cmp" href="${homeUrl(store)}" target="_blank" rel="noopener noreferrer nofollow" style="text-decoration:none">Website ↗</a>`}
+        ${store.closed ? '' : `<a class="shop-link" href="${homeUrl(store)}" target="_blank" rel="noopener noreferrer nofollow">Website ${OUT_ICON}</a>`}
       </div>
     </article>`).join('')}</div>`;
 }
@@ -187,7 +186,8 @@ export function toolbarView(ctx: RenderContext): string {
   const { state, catalog } = ctx;
   if (state.view !== 'results' || showsLive(ctx)) return '';
   return `<div class="toolbar">
-    <span class="count" aria-live="polite">Comparing <b class="num">${catalog.totals.offers}</b> prices · <b class="num">${catalog.totals.stores}</b> shops · <b class="num">${catalog.totals.products}</b> products</span>
+    <p class="count" aria-live="polite"><b class="num">${catalog.totals.offers}</b> sample prices from <b class="num">${catalog.totals.stores}</b> shops for <b class="num">${catalog.totals.products}</b> products</p>
+    <div class="controls">
     <label class="control">Sort
       <select id="sort">${Object.entries(state.sortLabels).map(([id, label]) =>
         `<option value="${id}"${state.sort === id ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select>
@@ -201,8 +201,9 @@ export function toolbarView(ctx: RenderContext): string {
         `<option value="${s.id}"${state.storeId === s.id ? ' selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}</select>
     </label>
     <button class="toggle" data-act="cod" aria-pressed="${state.codOnly}"><input type="checkbox" ${state.codOnly ? 'checked' : ''} tabindex="-1">Cash on delivery only</button>
-    ${state.minTrust || state.codOnly || state.storeId ? '<button class="toggle" data-act="reset">Clear filters ✕</button>' : ''}
-    <button class="toggle" data-act="copyLink">${state.linkCopied ? 'Link copied ✓' : 'Copy link'}</button>
+    ${state.minTrust || state.codOnly || state.storeId ? '<button class="toggle" data-act="reset">Clear filters</button>' : ''}
+    <button class="toggle" data-act="copyLink">${state.linkCopied ? 'Link copied' : 'Copy link'}</button>
+    </div>
   </div>`;
 }
 
@@ -215,13 +216,13 @@ export function trayView(ctx: RenderContext): string {
   const lowest = Math.min(...picked.map(o => o.landed));
 
   return `<div class="tray"><div class="wrap tray-in">
-    <span class="lbl">Comparing ${picked.length}/${state.maxCompare} · ${escapeHtml(picked[0].product.name)}</span>
-    <div class="slots">${picked.map(offer => `<span class="slot">${logo(offer.store, 'xs')}${escapeHtml(offer.store.name)} ·
+    <span class="lbl"><b>${escapeHtml(picked[0].product.name)}</b> ${picked.length} of ${state.maxCompare} picked</span>
+    <div class="slots">${picked.map(offer => `<span class="slot">${logo(offer.store, 'xs')}${escapeHtml(offer.store.name)}
       <b class="num">${money(offer.landed)}</b>
       <button data-act="remove" data-id="${offer.id}" aria-label="Remove ${escapeHtml(offer.store.name)}">×</button></span>`).join('')}</div>
     <div class="actions">
       <button class="btn-ghost" data-act="clear">Clear</button>
-      <button class="btn-primary" data-act="view" data-view="compare" ${picked.length < 2 ? 'disabled' : ''}>Compare · lowest ${money(lowest)}</button>
+      <button class="btn-primary" data-act="view" data-view="compare" ${picked.length < 2 ? 'disabled' : ''}>${picked.length < 2 ? 'Pick one more' : `Compare, from ${money(lowest)}`}</button>
     </div>
   </div></div>`;
 }
@@ -240,7 +241,7 @@ export function suggestionsView(ctx: RenderContext): string {
       sub: ctx.catalog.categories.get(hit.product.cat)?.en ?? ''
     })),
     ...ctx.search.stores(query).slice(0, 3).map(store => ({
-      kind: 'store' as const, id: store.id, label: store.name, sub: `trust ${store.score}`
+      kind: 'store' as const, id: store.id, label: store.name, sub: `Shop, trust ${store.score}`
     }))
   ];
   ctx.state.suggest = items;

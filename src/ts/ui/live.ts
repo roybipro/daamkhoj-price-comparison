@@ -4,6 +4,7 @@
 
 import { escapeHtml, money, pluralCount } from '../core/format.js';
 import { safeHttpUrl } from '../core/live.js';
+import { OUT_ICON, priceTag } from './fragments.js';
 import type { LiveGroup, LiveOffer, LiveResult, LiveState } from '../types.js';
 
 const clock = (iso: string): string => {
@@ -19,45 +20,45 @@ function stockTag(offer: LiveOffer): string {
   return '<span class="tag">Stock not stated</span>';
 }
 
+/* Two letters stand in for a logo, since live shops come from the open web. */
+const initials = (shop: string): string => shop.replace(/^www\./, '').slice(0, 2).toUpperCase();
+
 function liveRow(offer: LiveOffer, group: LiveGroup, checkedAt: string): string {
   const isLowest = group.lowest === offer.url;
   const href = safeHttpUrl(offer.url);
-  const initial = escapeHtml(offer.shop.slice(0, 2).toUpperCase());
-  return `<div class="offer ${isLowest ? 'pick' : ''}">
+  return `<div class="offer live ${isLowest ? 'pick' : ''}">
     <div class="seller">
-      <span class="mono" aria-hidden="true">${initial}</span>
+      <span class="mono" aria-hidden="true">${escapeHtml(initials(offer.shop))}</span>
       <span class="t">
         <div class="store-name">${escapeHtml(offer.shop)}</div>
         <div class="sub">${escapeHtml(offer.title)}</div>
       </span>
     </div>
     <div class="price">
-      <b class="num">${money(offer.price)}</b>
-      ${isLowest ? '<span class="save num">Lowest for this version</span>' : ''}
+      <div class="p-line">${isLowest ? priceTag(offer.price) : `<b class="num">${money(offer.price)}</b>`}</div>
+      ${isLowest ? '<span class="save">Lowest for this version</span>' : ''}
     </div>
-    <div class="trust"><div class="meter"><div class="cap"><span class="live-trust">Trust not rated</span></div></div></div>
-    <div class="meta">${stockTag(offer)}<span class="tag">Checked ${escapeHtml(clock(offer.checkedAt ?? checkedAt))}</span></div>
+    <div class="meta">${stockTag(offer)}<span class="tag">Checked ${escapeHtml(clock(offer.checkedAt ?? checkedAt))}</span><span class="tag live-trust">Shop not rated yet</span></div>
     <div class="acts">${href
-      ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer nofollow"
-          title="${escapeHtml(`Open ${offer.title} on ${offer.shop}`)}">Open shop page ↗</a>`
+      ? `<a class="shop-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer nofollow"
+          title="${escapeHtml(`Open ${offer.title} on ${offer.shop}`)}">Visit shop ${OUT_ICON}</a>`
       : ''}</div>
   </div>`;
 }
 
-function liveGroup(group: LiveGroup, checkedAt: string): string {
+function liveGroup(group: LiveGroup, checkedAt: string, query: string): string {
   const note = group.comparable
-    ? pluralCount(group.offers.length, 'shop')
+    ? `${pluralCount(group.offers.length, 'shop')} selling this version of “${query}”`
     : 'Not compared, because these pages do not say which version they sell';
-  return `<section class="group">
+  const choice = group.comparable && group.offers.length > 1;
+  return `<section class="group${group.comparable ? '' : ' unclear'}">
     <div class="group-head">
       <div class="gh-main">
-        <div class="gh-kicker"><span class="pill best">Live</span></div>
+        <div class="gh-kicker"><span class="pill live">Live</span></div>
         <h3>${escapeHtml(group.label)}<span class="sub">${escapeHtml(note)}</span></h3>
       </div>
-      <div class="gh-price">
-        <div class="from num">${money(group.offers[0].price)}</div>
-        <div class="range num">from</div>
-      </div>
+      ${choice ? `<div class="gh-price">${priceTag(group.offers[0].price, 'from')}
+        <div class="range">up to <span class="num">${money(group.offers[group.offers.length - 1].price)}</span></div></div>` : ''}
     </div>
     <div class="offers">${group.offers.map(offer => liveRow(offer, group, checkedAt)).join('')}</div>
   </section>`;
@@ -77,8 +78,9 @@ function leftOut(result: LiveResult): string {
 
 export function liveView(live: LiveState): string {
   if (live.status === 'loading') {
-    return `<div class="lead" role="status"><h2>Checking live prices for “${escapeHtml(live.query)}”…</h2>
-      <p>Searching the web and reading each shop's own page. A new search can take a minute or more. Popular searches are usually instant.</p></div>`;
+    return `<div class="lead loading" role="status"><h2>Checking prices for “${escapeHtml(live.query)}”</h2>
+      <p>Searching the web and reading each shop's own page. A new search can take a minute or more. Popular searches are usually instant.</p>
+      <div class="progress" aria-hidden="true"><i></i></div></div>`;
   }
   if (live.status === 'error') {
     return `<div class="empty" role="alert"><h3>Live prices are not available</h3>
@@ -109,7 +111,7 @@ export function liveView(live: LiveState): string {
       <p>${when} Only the same version is compared. Prices can change, so confirm on the shop's site before you pay.</p></div>
     ${status}
     <div class="note">${escapeHtml(summary)}</div>
-    ${result.groups.map(group => liveGroup(group, result.checkedAt)).join('')}`;
+    ${result.groups.map(group => liveGroup(group, result.checkedAt, result.query)).join('')}`;
 }
 
 export function liveUnavailableNote(): string {
