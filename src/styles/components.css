@@ -497,6 +497,9 @@ select option { background: var(--surface); color: var(--text); }
 .checking i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--brand); animation: spin .8s linear infinite; }
 .checking.done { color: var(--ok-text); }
 .checking.done::before { content: "✓"; font-weight: 800; }
+/* A search still on its way over a slow connection: the old results fade under a "Searching…" line. */
+#out[aria-busy="true"] > :not(.searching) { opacity: .55; transition: opacity .2s; }
+@media (prefers-reduced-motion: reduce) { #out[aria-busy="true"] > :not(.searching) { transition: none; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .offer.live .mono img { padding: 6px; }

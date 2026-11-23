@@ -197,7 +197,18 @@ async function startLive(webSearch = false): Promise<void> {
     state.live = { status: 'loading', query };
     render();
   }
-  const listed = await fetchLive(query, request.signal, 'quick', { partial: !webSearch });
+  /* The list answers in a fraction of a second, but not on every connection: if it hasn't after
+     300 ms, a quiet "Searching…" line says something is happening, over the results still shown.
+     The answer's render replaces it. */
+  const busy = setTimeout(() => {
+    if (liveRequest !== request || request.signal.aborted || webSearch) return;
+    dom.out.setAttribute('aria-busy', 'true');
+    dom.out.insertAdjacentHTML('afterbegin', '<p class="checking searching" role="status"><i aria-hidden="true"></i>Searching…</p>');
+  }, 300);
+  const listed = await fetchLive(query, request.signal, 'quick', { partial: !webSearch }).finally(() => {
+    clearTimeout(busy);
+    dom.out.removeAttribute('aria-busy');
+  });
   if (request.signal.aborted) return;
 
   let searched = query;
