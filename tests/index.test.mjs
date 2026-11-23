@@ -505,6 +505,24 @@ test('while typing, a half-typed word is completed from the list and real produc
   assert.deepEqual(index.search('zzzz', { partial: true }).suggestions, []);
 });
 
+test('a whole model number typed last is searched as typed, not stretched into a longer one', () => {
+  const index = createPriceIndex(listOf(
+    entry('a.bd', 'AMD Ryzen 5 5600 Processor', 12000),
+    entry('b.bd', 'AMD Ryzen 5 5600 Desktop Processor', 12500),
+    entry('a.bd', 'AMD Ryzen 5 5600GT Processor', 18500),
+    entry('b.bd', 'AMD Ryzen 5 5600GT AM4 Processor', 19000),
+    entry('c.bd', 'AMD Ryzen 5 5600GT Processor with Radeon Graphics', 18900)
+  ), { now: () => NOW });
+  /* The 5600GT is sold by more shops, so it leads the suggestions; the 5600 is still what was asked. */
+  const answer = index.search('ryzen 5 5600', { partial: true, closest: true });
+  assert.equal(answer.query, 'ryzen 5 5600');
+  assert.equal(answer.completedFrom, undefined);
+  const names = answer.groups.flatMap(group => group.offers.map(offer => offer.title ?? offer.name));
+  assert.ok(names.length >= 2 && names.every(name => !/5600GT/i.test(name)), JSON.stringify(names));
+  /* A half-typed number is still finished. */
+  assert.match(index.search('ryzen 5 560', { partial: true, closest: true }).query, /ryzen 5 5600/);
+});
+
 test('re-checked prices replace the listed ones in memory, and the answer says when they were read', () => {
   const index = createPriceIndex({ version: 1, shops: {
     'a.bd': { entries: [entry('a.bd', 'Galaxy A16 5G', 21000)] },
