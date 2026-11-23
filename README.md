@@ -25,7 +25,8 @@ npm run fetch-logos      # each listed shop's own logo, into src/assets/shops/
 
 TypeScript is compiled, not transpiled at runtime: `src/ts/**/*.ts` → `dist/js/**/*.js` as
 plain ES modules. The shipped site has **zero runtime dependencies** — no framework, no
-polyfills, no bundler. Requires Node 20.12+ to build. Copy `.env.example` to `.env` to turn on
+polyfills, no bundler. Requires Node 22+ to build (CI, the nightly crawl and the live site run
+Node 26); TypeScript 7 compiles it. Copy `.env.example` to `.env` to turn on
 live search; without it the site runs on sample prices.
 
 ## Design
@@ -202,7 +203,8 @@ A web search takes a minute, so searches are answered first from a price list bu
 time. `npm run crawl` reads each shop's sitemap (its own list of product pages), then opens each
 page and reads its price by the same rules as live search: `robots.txt` honoured, one clear BDT
 price, the product named on the page. Each shop is read one page at a time with a one-second
-pause, so a full run of about 18,000 pages takes several hours; progress is saved as it goes.
+pause, shops side by side; the 21 shops list well over 100,000 product pages, so a crawl reads a
+share of them each night, and progress is saved as it goes.
 
 ```bash
 npm run crawl                                   # every shop in server/index-shops.mjs
@@ -215,12 +217,20 @@ nothing is picked by hand) and keeping every product two or more shops sell. Eac
 the list: the lowest price of any
 version, how many shops sell it, the shop with that price, and a photo. A product only shows when
 at least two shops sell it. Opening a card runs that search, which compares versions properly. On a
-host with no price list the home page falls back to the sample demo.
+host with no price list the home page falls back to the sample demo. Building the shelves runs a
+search per product, seconds of work on a small server, so the server rebuilds them hourly a few
+milliseconds at a time between requests, and keeps answering from the last ones meanwhile.
 
 **Search is instant and live.** Results follow the typing: each pause asks the price list
 (`/api/search/quick?partial=1`), which completes a half-typed last word the way its suggestions do
 ("iph" → iPhone, "galaxy a1" → Galaxy A18) and answers in milliseconds with real products and
-real suggestions. A second later `/api/recheck` reads the shops' pages behind the first results
+real suggestions. A last word the list knows in full is searched as typed ("ryzen 5 5600" stays
+the 5600, not the 5600GT), spelling slips are corrected ("onplus" → OnePlus), joined and split
+spellings are merged ("powerbank" = "power bank"), and a search with no exact match shows the
+closest one with a note. **Searches typed in Bangla work too:** `server/bangla.mjs` reads them in
+the shops' English first ("আইফোন ১৫ প্রো ম্যাক্স এর দাম কত" → iphone 15 pro max, "স্যামসাং
+গ্যালাক্সি এ১৬" → samsung galaxy a16), knowing the common spellings of brands and products,
+Bangla digits, letter names in model codes and sizes, and the answer says what it was read as. A second later `/api/recheck` reads the shops' pages behind the first results
 again (no paid search: the list knows each page), so prices on screen show "checked just now";
 opening a product re-reads every shop for it. Re-checks stay polite: a page read in the last half
 hour is not read again, at most six pages per shop and 24 per check, two at a time, robots.txt
@@ -233,10 +243,10 @@ honoured. The paid web search runs only when a search is submitted.
 product JSON, and the crawl saves them with each price. `npm run backfill-images` fetches photos
 for the products on the shelves without waiting for the nightly crawls to reach them.
 
-Submitting a search calls `GET /api/search/quick?q=…` and `GET /api/search?q=…` together. The
-quick one answers from the list in milliseconds, with no paid request and no Bright Data key
-needed, and its prices show at once; the web search's answer, which includes the list's, then
-replaces them. Each price shows when it was read, and prices more than a week old are left out.
+Submitting a search answers from the list as well (`GET /api/search/quick`), in milliseconds and
+with no paid request or Bright Data key needed. The paid web search (`GET /api/search?q=…`) runs
+only when the shopper presses *Search the web*, or on a host with no price list; its answer
+includes the list's. Each price shows when it was read, and prices more than a week old are left out.
 A shop selling one version in several colours counts once, at its cheapest price in stock.
 
 The list is saved to `data/price-index.json` (`PRICE_INDEX_FILE`), and the server picks up a new
@@ -244,10 +254,12 @@ crawl within 30 seconds. The file is committed, so a fresh deploy answers at onc
 that wipes its disk, such as Render's free plan.
 
 **It refreshes itself.** `.github/workflows/refresh-prices.yml` crawls every night at 02:30
-Bangladesh time and commits the new list to `main`, which redeploys the site. A GitHub job may
-run at most six hours, so each run reads up to 8,000 pages per shop, oldest first: even the
-biggest shop (Techland, about 40,000 pages) is re-read within five days, inside the week after
-which a price stops being shown. A run that leaves fewer than 1,000 prices is not saved. If Render's
+Bangladesh time and commits the new list to `main`. A GitHub job may run at most six hours, so
+each run reads up to 8,000 pages per shop, never-read pages first, then the longest unread, and
+starts no page after 270 minutes (`npm run crawl -- --minutes=270`) so it always has time to save.
+A run that leaves fewer than 1,000 prices is not saved. Each run's summary page has a table of
+every shop (`tools/crawl-report.mjs`), and the run fails, so GitHub emails the owner, if the list
+lost 30% of its current prices or a third of the shops went unrefreshed. If Render's
 GitHub app can't see the repository, pushes don't redeploy; then save the service's deploy hook
 (Render: *Settings → Deploy Hook*) as the `RENDER_DEPLOY_HOOK` repository secret, and the workflow
 calls it after each refresh. Run it by hand
@@ -268,6 +280,27 @@ the shops whose `robots.txt` allows it, only iStock's search page returns result
 running JavaScript. Seven more were added on 2026-11-23 after
 a 12-page sample each (priced of 12): Trust Tech 12, Star Tech 11, Binary Logic 11, Gadget & Gear
 11, Techland 10, Global Brand 8 and Gadget Breeze 8; Ryans (4) and Computer Source (1) did not pass.
+Ten more joined the same day after the same check plus 20 prices read by hand from each: Ryans
+(10/12 on a second sample), PC House, Ultra Tech, Smart, UCC, Vertech, KRY International, Diamu,
+Gadget Mart and Transcom Digital, 21 shops in all. Mobile Dokan BD passed the price check but is a
+price guide with no cart, so it is left out. Sumash Tech refuses GitHub's and Render's servers, so
+its prices only refresh from a crawl run elsewhere.
+
+## Keeping it running
+
+- **`GET /api/health`** says how many prices are served, from how many shops, how old the list is,
+  and the server's uptime and memory. It answers 503 only when no prices are served. On Render,
+  set it as the service's health check path so a stuck server is restarted.
+- **`.github/workflows/uptime.yml`** asks for it every 30 minutes and fails, so GitHub emails the
+  owner, if the site does not answer, serves fewer than 1,000 prices, or the list is over two days
+  old (the nightly crawl has stopped saving). Set the `SITE_URL` repository variable if the site
+  moves.
+- **Rate limits** tell visitors apart by `CLIENT_IP_HEADER` (on Render, `cf-connecting-ip`), never
+  by the first `X-Forwarded-For` entry, which a visitor can write.
+- **Static files** are revalidated with an ETag (a tiny "not modified" when unchanged), so a deploy
+  never mixes old and new modules; shop logos and icons are kept for a day.
+- **Memory:** the server keeps only prices young enough to show, about 1.6 KB each; Render's free
+  plan (512 MB) holds roughly 100,000 comfortably.
 
 ## Going live
 
