@@ -337,7 +337,7 @@ test('shelves are rebuilt as prices age, so a card never offers a price its sear
     'a.bd': { entries: [entry('a.bd', 'Galaxy A16 5G 8/256GB', 30000)] },
     'b.bd': { entries: [entry('b.bd', 'Galaxy A16 5G 8/256GB', 29000)] }
   } }, { now: () => time });
-  const cards = () => index.browse().shelves.flatMap(shelf => shelf.cards).filter(card => card.name === 'Galaxy A16');
+  const cards = () => index.browse().shelves.flatMap(shelf => shelf.cards).filter(card => /galaxy a16/i.test(card.name));
   assert.equal(cards().length, 1);
   time += 8 * 24 * 60 * 60 * 1000;
   assert.equal(cards().length, 0);
@@ -359,4 +359,28 @@ test('a misspelt search is corrected from the list\'s own words, and says so; a 
   const nothing = index.search('zzzzqq phone');
   assert.equal(nothing.correctedFrom, undefined);
   assert.equal(nothing.priced, 0);
+});
+
+test('shelves are found from the listings themselves, one product per name, in the right category', async () => {
+  const { discoverCategories, productKey } = await import('../server/browse.mjs');
+  assert.equal(productKey('Apple iPhone 16 Pro Max 256GB Desert Titanium'), 'iphone 16 pro max');
+  assert.equal(productKey('iPhone 17 Mist Blue / 256GB'), 'iphone 17');
+  assert.equal(productKey('MacBook Air M4 13.6-inch 16GB 256GB'), 'macbook air m4');
+  assert.equal(productKey('JBL Tune 110 In-Ear Headphones'), 'jbl tune 110 ear headphones');
+  assert.equal(productKey('Samsung 55 inch Crystal UHD TV'), 'samsung crystal uhd tv');
+  assert.equal(productKey('Samsung Galaxy A16 5G (8/256GB) - Official'), 'galaxy a16');
+  assert.equal(productKey('Apple Watch Series 10 GPS 42mm'), 'apple watch series 10');
+  assert.equal(productKey('Anker 511 Charger Nano Pro, 20W'), 'anker 511 charger nano pro');
+
+  const listings = [
+    entry('a.bd', 'Apple iPhone 16 Pro Max 256GB Desert Titanium', 150000), entry('b.bd', 'Apple iPhone 16 Pro Max 512GB Black Titanium', 170000),
+    entry('a.bd', 'Apple Watch Series 10 GPS 42mm', 45000), entry('b.bd', 'Apple Watch Series 10 46mm Jet Black', 47000),
+    entry('a.bd', 'iPhone 16 Pro Max Silicone Case with MagSafe', 6000),
+    entry('a.bd', 'Only One Shop Gadget X1', 1000)
+  ];
+  const categories = discoverCategories(listings);
+  assert.deepEqual(categories.map(category => [category.id, category.products]), [
+    ['watches', ['Apple Watch Series 10']],
+    ['phones', ['iPhone 16 Pro Max']]
+  ]);
 });

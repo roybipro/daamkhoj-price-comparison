@@ -209,7 +209,9 @@ npm run crawl -- --shop=dazzle.com.bd --limit=50  # one shop, a sample
 ```
 
 **The home page browses the list.** `GET /api/browse` returns shelves of popular products by
-category (`server/browse.mjs` names them), each answered from the list: the lowest price of any
+category, found by grouping the list's listings under their product names (`server/browse.mjs`;
+nothing is picked by hand) and keeping every product two or more shops sell. Each is answered from
+the list: the lowest price of any
 version, how many shops sell it, the shop with that price, and a photo. A product only shows when
 at least two shops sell it. Opening a card runs that search, which compares versions properly. On a
 host with no price list the home page falls back to the sample demo.
@@ -230,9 +232,9 @@ that wipes its disk, such as Render's free plan.
 
 **It refreshes itself.** `.github/workflows/refresh-prices.yml` crawls every night at 02:30
 Bangladesh time and commits the new list to `main`, which redeploys the site. A GitHub job may
-run at most six hours and a full crawl takes about that, so each run reads up to 6,000 pages per
-shop, oldest first: every page is re-read within about three days, inside the week after which a
-price stops being shown. A run that leaves fewer than 1,000 prices is not saved. If Render's
+run at most six hours, so each run reads up to 8,000 pages per shop, oldest first: even the
+biggest shop (Techland, about 40,000 pages) is re-read within five days, inside the week after
+which a price stops being shown. A run that leaves fewer than 1,000 prices is not saved. If Render's
 GitHub app can't see the repository, pushes don't redeploy; then save the service's deploy hook
 (Render: *Settings → Deploy Hook*) as the `RENDER_DEPLOY_HOOK` repository secret, and the workflow
 calls it after each refresh. Run it by hand
@@ -250,7 +252,9 @@ Shops in the list were checked by hand: their `robots.txt` allows product pages,
 (13 from the pages; iStock is a Shopify shop, so it is read through Shopify's product JSON,
 which prices each version). Searching shops' own search pages was tried first and dropped: of
 the shops whose `robots.txt` allows it, only iStock's search page returns results without
-running JavaScript.
+running JavaScript. Seven more were added on 2026-11-23 after
+a 12-page sample each (priced of 12): Trust Tech 12, Star Tech 11, Binary Logic 11, Gadget & Gear
+11, Techland 10, Global Brand 8 and Gadget Breeze 8; Ryans (4) and Computer Source (1) did not pass.
 
 ## Going live
 

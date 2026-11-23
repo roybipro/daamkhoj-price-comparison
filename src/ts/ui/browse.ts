@@ -18,7 +18,12 @@ const ICONS: Record<string, string> = {
   tablets: stroke('<rect x="4.5" y="2.5" width="15" height="19" rx="2.5"/><circle cx="12" cy="18.3" r=".6" fill="currentColor"/>'),
   audio: stroke('<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="6.5" rx="1.5"/><rect x="16.5" y="14" width="4.5" height="6.5" rx="1.5"/>'),
   watches: stroke('<rect x="6.5" y="6.5" width="11" height="11" rx="3"/><path d="M9 6.5 9.6 2.5h4.8L15 6.5M9 17.5l.6 4h4.8l.6-4M12 9.5V12l1.5 1.5"/>'),
-  accessories: stroke('<path d="M9 2.5v5M15 2.5v5M7 7.5h10v3a5 5 0 0 1-10 0v-3zM12 15.5v6"/>')
+  accessories: stroke('<path d="M9 2.5v5M15 2.5v5M7 7.5h10v3a5 5 0 0 1-10 0v-3zM12 15.5v6"/>'),
+  power: stroke('<path d="M9 2.5v5M15 2.5v5M7 7.5h10v3a5 5 0 0 1-10 0v-3zM12 15.5v6"/>'),
+  gaming: stroke('<path d="M7 8.5h10a4 4 0 0 1 4 4v1.5a3 3 0 0 1-5.3 2l-1.2-1.5h-5l-1.2 1.5A3 3 0 0 1 3 14v-1.5a4 4 0 0 1 4-4zM8 11v3M6.5 12.5h3M15.5 12h.01M17.5 13.5h.01"/>'),
+  screens: stroke('<rect x="2.5" y="4" width="19" height="12.5" rx="1.5"/><path d="M8.5 20.5h7M12 16.5v4"/>'),
+  pc: stroke('<rect x="2.5" y="6.5" width="19" height="11" rx="2"/><path d="M6 10h.01M9 10h.01M12 10h.01M15 10h.01M18 10h.01M7.5 14h9"/>'),
+  more: stroke('<circle cx="5.5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor"/>')
 };
 const icon = (id: string, size?: number): string =>
   size ? (ICONS[id] ?? ICONS.all).replace(/width="26" height="26"/, `width="${size}" height="${size}"`) : ICONS[id] ?? ICONS.all;
@@ -87,7 +92,9 @@ export function browseView(ctx: RenderContext, data: BrowseData): string {
     ${chosen
       ? `<section class="shelf"><div class="shelf-head"><h2>${escapeHtml(chosen.label)}</h2>
           <button class="link" data-act="shelf" data-id="">All categories</button></div>
-          <div class="cards grid-cards">${chosen.cards.map(item => card(item, chosen.id)).join('')}</div></section>`
+          <div class="cards grid-cards">${chosen.cards.slice(0, ctx.state.shelfLimit).map(item => card(item, chosen.id)).join('')}</div>
+          ${chosen.cards.length > ctx.state.shelfLimit
+            ? `<button class="more more-all" data-act="moreCards">Show more (${chosen.cards.length - ctx.state.shelfLimit} left)</button>` : ''}</section>`
       : data.shelves.map(shelfRow).join('')}
 
     ${shopStrip(data)}

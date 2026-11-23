@@ -45,7 +45,10 @@ const state: State = {
   trend: null,
   live: { status: 'idle' },
   browse: { status: 'loading' },
-  shelf: ''
+  shelf: '',
+  shelfLimit: 40,
+  product: '',
+  resultLimit: 40
 };
 
 function must<T extends Element>(selector: string): T {
@@ -160,6 +163,8 @@ async function startLive(): Promise<void> {
   }
   const request = new AbortController();
   liveRequest = request;
+  state.product = '';
+  state.resultLimit = 40;
   state.view = 'results';
   state.live = { status: 'loading', query };
   render();
@@ -282,7 +287,11 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
   },
   all: () => { state.showAll = true; render(); },
   query: trigger => { state.q = trigger.dataset.q ?? ''; state.view = 'results'; dom.input.value = state.q; void startLive(); window.scrollTo({ top: 0 }); },
-  shelf: trigger => { state.shelf = trigger.dataset.id ?? ''; render(); },
+  shelf: trigger => { state.shelf = trigger.dataset.id ?? ''; state.shelfLimit = 40; render(); },
+  moreCards: () => { state.shelfLimit += 40; render(); },
+  product: trigger => { state.product = trigger.dataset.id ?? ''; render(); window.scrollTo({ top: 0 }); },
+  allResults: () => { state.product = ''; render(); },
+  moreResults: () => { state.resultLimit += 40; render(); },
   focusSearch: () => { window.scrollTo({ top: 0 }); dom.input.focus(); },
   retryLive: () => { void startLive(); },
   shop: trigger => { state.storeId = trigger.dataset.id ?? ''; state.view = 'results'; state.showAll = true; render(); window.scrollTo({ top: 0 }); },

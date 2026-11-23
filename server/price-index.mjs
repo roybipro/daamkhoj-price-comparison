@@ -7,8 +7,8 @@
 
 import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dropSuspiciousPrices, groupOffers, validQuery } from './live-search.mjs';
-import { buildBrowse } from './browse.mjs';
-import { createSpeller, matchesQuery, mentionsInTokens, variantOf, wordSet } from './matching.mjs';
+import { buildBrowse, discoverCategories } from './browse.mjs';
+import { createSpeller, matchesQuery, mentionsInTokens, requiredWords, variantOf, wordSet } from './matching.mjs';
 
 const EMPTY = { version: 1, shops: {} };
 
@@ -57,23 +57,39 @@ export async function pullIndexFile(url, file, { fetchImpl = fetch, timeoutMs = 
  * Instant search over a loaded list. Prices older than `maxAgeMs` are left out rather than
  * shown as current, and at most `maxOffers` are returned, cheapest first within each version.
  */
-export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 * 60 * 1000, maxOffers = 120 } = {}) {
+export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 * 60 * 1000, maxOffers = 300 } = {}) {
   const entries = Object.values(data?.shops ?? {}).flatMap(shop => shop.entries ?? []);
   let shelves = null;
   let shelvedAt = -Infinity;
-  /* Each entry's words, split once: a search then only checks those words. */
+  /* Each entry's words, split once, and for each word the entries that use it: a search starts
+     from its rarest word's entries instead of reading every name in the list. */
   let words = null;
+  let postings = null;
+  const candidates = query => {
+    if (!words) {
+      words = entries.map(entry => wordSet(`${entry.name} ${entry.url}`));
+      postings = new Map();
+      words.forEach((set, i) => {
+        for (const word of set) {
+          const list = postings.get(word);
+          if (list) list.push(i);
+          else postings.set(word, [i]);
+        }
+      });
+    }
+    const lists = requiredWords(query).map(word => postings.get(word) ?? []);
+    if (!lists.length) return entries.map((_, i) => i);
+    return lists.reduce((smallest, list) => (list.length < smallest.length ? list : smallest));
+  };
   let speller = null;
 
   /** Prices whose names hold every word of the query, freshest list only. */
   function searchExactly(rawQuery) {
     const query = validQuery(rawQuery);
     const oldest = now() - maxAgeMs;
-    words ??= entries.map(entry => wordSet(`${entry.name} ${entry.url}`));
-    const matched = entries.filter((entry, i) =>
-      mentionsInTokens(words[i], query)
-      && Date.parse(entry.checkedAt) >= oldest
-      && matchesQuery(entry.name, query));
+    const matched = candidates(query)
+      .filter(i => mentionsInTokens(words[i], query) && Date.parse(entries[i].checkedAt) >= oldest && matchesQuery(entries[i].name, query))
+      .map(i => entries[i]);
 
     const offers = matched.map(entry => ({
       shop: entry.shop,
@@ -131,7 +147,8 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
       const fresh = now() - maxAgeMs;
       const counts = Object.fromEntries(Object.entries(data?.shops ?? {}).map(([shop, { entries: listed = [] }]) =>
         [shop, listed.filter(entry => Date.parse(entry.checkedAt) >= fresh).length]));
-      shelves ??= buildBrowse(query => index.search(query), counts);
+      shelves ??= buildBrowse(query => searchExactly(query), counts,
+        discoverCategories(entries.filter(entry => Date.parse(entry.checkedAt) >= fresh)));
       return shelves;
     }
   };

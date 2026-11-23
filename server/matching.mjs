@@ -39,6 +39,9 @@ export function mentionsProduct(text, query) {
 /** The words of a text, worked out once so a long list can be checked against many searches. */
 export const wordSet = text => new Set(tokensOf(text));
 
+/** The words a search requires: every word of it that is not a number or a size. */
+export const requiredWords = query => queryTokens(query).filter(token => !/\d/.test(token));
+
 /** mentionsProduct, for words already split by wordSet. */
 export function mentionsInTokens(tokens, query) {
   return queryTokens(query).filter(token => !/\d/.test(token)).every(token => tokens.has(token));
