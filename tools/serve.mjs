@@ -45,7 +45,10 @@ if (process.env.PRICE_INDEX_URL) {
   setInterval(pull, (Number(process.env.PRICE_INDEX_PULL_HOURS) || 6) * 60 * 60 * 1000).unref();
 }
 const recheck = async (query, options) => rechecker(await searchIndex.index(), query, options);
-const api = createApi({ liveSearch, searchIndex, recheck });
+/* CLIENT_IP_HEADER names the header the host's proxy fills with the visitor's real address
+   (cf-connecting-ip on Render, which sits behind Cloudflare), so each visitor gets their own
+   rate limit and a made-up X-Forwarded-For buys nothing. Unset, the connection's address is used. */
+const api = createApi({ liveSearch, searchIndex, recheck, clientHeader: process.env.CLIENT_IP_HEADER });
 
 /* PRICE_INDEX_REFRESH_HOURS runs the crawl from here, in its own process so a long crawl never
    slows the site: on start if the list is missing or older than that, then on that schedule.
@@ -116,7 +119,8 @@ createServer(async (req, res) => {
     'content-length': info.size,
     'cache-control': 'no-store'
   });
-  createReadStream(file).pipe(res);
+  /* A file removed after the stat above (a rebuild while serving) ends this one response, not the server. */
+  createReadStream(file).on('error', () => res.destroy()).pipe(res);
 }).listen(port, host, () => {
   console.log(`DaamKhoj — serving dist/ at http://${host}:${port}/ (live search ${liveSearch ? 'on' : 'off: no credentials'})`);
 });

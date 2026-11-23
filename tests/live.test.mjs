@@ -5,8 +5,8 @@ import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { gzipSync } from 'node:zlib';
 
-import { createApi, createRateLimiter } from '../server/api.mjs';
-import { createLiveSearch, groupOffers, LiveSearchError } from '../server/live-search.mjs';
+import { clientAddressFrom, createApi, createRateLimiter } from '../server/api.mjs';
+import { cleanQuery, createLiveSearch, groupOffers, LiveSearchError } from '../server/live-search.mjs';
 import { matchesQuery, variantOf } from '../server/matching.mjs';
 import { readPage } from '../server/page-price.mjs';
 import { createBrightDataSearch } from '../server/providers/bright-data.mjs';
@@ -607,21 +607,43 @@ test('non-Google lookalike hosts are never opened by resolveResultLink and trans
   assert.equal(fetched, 0);
 });
 
-test('rate limiter evicts only the oldest client and honours x-forwarded-for', async () => {
+test('rate limiter evicts only the oldest client', () => {
   const allow = createRateLimiter({ limit: 1, maxClients: 2 });
   assert.equal(allow('a'), true);
   assert.equal(allow('b'), true);
   assert.equal(allow('c'), true);
   assert.equal(allow('b'), false, 'second client stays rate-limited when oldest is evicted');
+});
 
-  const api = createApi({ liveSearch: { run: async () => ({ groups: [] }) }, allowClient: createRateLimiter({ limit: 1 }) });
-  const hit = ip => new Promise(resolve => {
-    const res = { writeHead(status) { this.status = status; }, end(body) { resolve({ status: this.status, body: JSON.parse(body) }); } };
-    api({ method: 'GET', headers: { 'x-forwarded-for': `${ip}, 10.0.0.1` }, socket: { remoteAddress: '127.0.0.1' } }, res, new URL('http://x/api/search?q=iphone+15'));
-  });
-  assert.equal((await hit('203.0.113.10')).status, 200);
-  assert.equal((await hit('203.0.113.11')).status, 200);
-  assert.equal((await hit('203.0.113.10')).status, 429);
+test('a made-up X-Forwarded-For never buys a fresh rate limit; only the host-named header counts', async () => {
+  const caller = clientHeader => {
+    const api = createApi({ liveSearch: { run: async () => ({ groups: [] }) }, allowClient: createRateLimiter({ limit: 1 }), clientHeader });
+    return headers => new Promise(resolve => {
+      const res = { writeHead(status) { this.status = status; }, end() { resolve(this.status); } };
+      api({ method: 'GET', headers, socket: { remoteAddress: '10.0.0.9' } }, res, new URL('http://x/api/search?q=iphone+15'));
+    });
+  };
+
+  /* No header named: the connection's own address, whatever X-Forwarded-For says. */
+  const direct = caller('');
+  assert.equal(await direct({ 'x-forwarded-for': '203.0.113.10' }), 200);
+  assert.equal(await direct({ 'x-forwarded-for': '203.0.113.11' }), 429);
+
+  /* Behind Cloudflare on Render: cf-connecting-ip decides, and a forged first entry does nothing. */
+  const proxied = caller('CF-Connecting-IP');
+  assert.equal(await proxied({ 'cf-connecting-ip': '198.51.100.1', 'x-forwarded-for': 'fake-1, 198.51.100.1' }), 200);
+  assert.equal(await proxied({ 'cf-connecting-ip': '198.51.100.1', 'x-forwarded-for': 'fake-2, 198.51.100.1' }), 429);
+  assert.equal(await proxied({ 'cf-connecting-ip': '198.51.100.2' }), 200);
+
+  /* The named header missing: the entry the host's proxy appended last, never the first. */
+  assert.equal(clientAddressFrom({ headers: { 'x-forwarded-for': 'fake, 198.51.100.3' } }, 'cf-connecting-ip'), '198.51.100.3');
+  assert.equal(clientAddressFrom({ headers: { 'x-forwarded-for': 'fake' }, socket: { remoteAddress: '10.0.0.9' } }), '10.0.0.9');
+});
+
+test('control characters in a query become spaces; Bangla joiners stay', () => {
+  assert.equal(cleanQuery('iphone\u000015'), 'iphone 15');
+  assert.equal(cleanQuery('galaxy\tA16\u001b'), 'galaxy A16');
+  assert.equal(cleanQuery('র‌্যাম'), 'র‌্যাম');
 });
 
 test('accessories, substring collisions, plus models, decimals, and Apple Silicon tiers do not cross-match', () => {

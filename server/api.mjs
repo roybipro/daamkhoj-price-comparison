@@ -11,9 +11,22 @@ import { fetchPublic, resolveResultLink } from './safe-fetch.mjs';
 
 const STATUS = { query: 400, rate: 429, budget: 429 };
 
-function clientAddress(req) {
-  const forwarded = String(req.headers?.['x-forwarded-for'] ?? '').split(',')[0].trim();
-  return forwarded || req.socket?.remoteAddress || 'unknown';
+/**
+ * Who is asking, for the rate limits. A visitor can send any X-Forwarded-For, and Render adds the
+ * real address after it instead of replacing it, so the header's first entry proves nothing.
+ * Only a header the host sets and a visitor cannot (`trustedHeader`, from CLIENT_IP_HEADER, such
+ * as cf-connecting-ip behind Cloudflare) is believed. If it is missing, the last X-Forwarded-For
+ * entry (added by the host's own proxy) is used. With no header named, the connection's address.
+ */
+export function clientAddressFrom(req, trustedHeader = '') {
+  const header = String(trustedHeader ?? '').trim().toLowerCase();
+  if (header) {
+    const named = String(req.headers?.[header] ?? '').split(',')[0].trim();
+    if (named) return named;
+    const forwarded = String(req.headers?.['x-forwarded-for'] ?? '').split(',').map(entry => entry.trim()).filter(Boolean);
+    if (forwarded.length) return forwarded.at(-1);
+  }
+  return req.socket?.remoteAddress || 'unknown';
 }
 
 export function createRateLimiter({ limit = 20, windowMs = 60_000, now = Date.now, maxClients = 10_000 } = {}) {
@@ -79,8 +92,18 @@ function combine(web, listed) {
 export function createApi({
   liveSearch, searchIndex = null, recheck = null,
   allowClient = createRateLimiter(), allowQuick = createRateLimiter({ limit: 120 }), allowRecheck = createRateLimiter({ limit: 30 }),
-  log = console.error
+  clientHeader = '', log = console.error
 }) {
+  /* Said once in the log, so a host can see whether its proxy really sends the named header. */
+  let reported = !clientHeader;
+  const clientAddress = req => {
+    if (!reported) {
+      reported = true;
+      const sent = Boolean(req.headers?.[String(clientHeader).trim().toLowerCase()]);
+      log(`rate limits: ${sent ? `visitors told apart by ${clientHeader}` : `no ${clientHeader} header; using the last X-Forwarded-For entry`}`);
+    }
+    return clientAddressFrom(req, clientHeader);
+  };
   const failed = (res, error, what) => {
     if (error instanceof LiveSearchError) return send(res, STATUS[error.code] ?? 400, { error: error.message });
     log(`${what} failed: ${error.message}`);
