@@ -342,3 +342,21 @@ test('shelves are rebuilt as prices age, so a card never offers a price its sear
   time += 8 * 24 * 60 * 60 * 1000;
   assert.equal(cards().length, 0);
 });
+
+test('a misspelt search is corrected from the list\'s own words, and says so; a good one never is', () => {
+  const index = createPriceIndex({ version: 1, shops: {
+    'a.bd': { entries: [entry('a.bd', 'OnePlus Buds 3 TWS Earbuds', 6500), entry('a.bd', 'Samsung Galaxy A16 5G 8/256GB', 30000)] },
+    'b.bd': { entries: [entry('b.bd', 'OnePlus Buds 3 Earbuds', 6300), entry('b.bd', 'Galaxy Buds 3 Pro', 18000)] }
+  } }, { now: () => NOW });
+
+  const fixed = index.search('onplus buds');
+  assert.equal(fixed.query, 'oneplus buds');
+  assert.equal(fixed.correctedFrom, 'onplus buds');
+  assert.equal(fixed.priced, 2);
+
+  assert.equal(index.search('samsng galaxy a16').query, 'samsung galaxy a16', 'a model number stays as typed');
+  assert.equal(index.search('galaxy buds').correctedFrom, undefined, 'a search that finds something is left alone');
+  const nothing = index.search('zzzzqq phone');
+  assert.equal(nothing.correctedFrom, undefined);
+  assert.equal(nothing.priced, 0);
+});

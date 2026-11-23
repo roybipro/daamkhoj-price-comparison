@@ -172,6 +172,8 @@ export interface LiveResult {
   query: string;
   /** 'index' when the answer came from the saved price list alone. */
   source?: 'index';
+  /** What was typed, when the price list corrected its spelling to `query`. */
+  correctedFrom?: string;
   /** How many of the prices came from the price list, in a web search's answer. */
   indexed?: number;
   checkedAt: string;
@@ -186,8 +188,9 @@ export type LiveState =
   | { status: 'loading'; query: string }
   | { status: 'unavailable'; query: string }
   | { status: 'error'; query: string; message: string }
-  /** `pending` while the web search is still running behind a price-list answer; `note` when it failed. */
-  | { status: 'done'; query: string; result: LiveResult; pending?: boolean; note?: string };
+  /** `pending` while the web search is still running behind a price-list answer; `note` when it failed;
+      `typed` when the search ran with its spelling corrected from what was typed. */
+  | { status: 'done'; query: string; result: LiveResult; pending?: boolean; note?: string; typed?: string };
 
 export type ViewName = 'results' | 'stores' | 'compare' | 'how';
 export type SortKey = 'value' | 'price' | 'trust' | 'eta';

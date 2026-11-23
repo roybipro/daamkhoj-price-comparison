@@ -164,29 +164,33 @@ async function startLive(): Promise<void> {
   state.live = { status: 'loading', query };
   render();
 
-  /* The price list answers at once and the web search within a minute or so, so both start
-     together: the list's prices show first, and the web's answer, which includes them, replaces
-     them when it arrives. If the web search can't run, the list's prices stay. */
+  /* The price list answers in milliseconds, so it goes first: if it corrected the spelling
+     ("onplus" → "oneplus"), the paid web search runs with the corrected words too. Its prices
+     show at once; the web's answer, which includes them, replaces them when it arrives. If the
+     web search can't run, the list's prices stay. */
   const hasPrices = (answer: LiveState): answer is Extract<LiveState, { status: 'done' }> =>
     answer.status === 'done' && answer.result.groups.length > 0;
-  const quick = fetchLive(query, request.signal, 'quick');
-  let webArrived = false;
-  void quick.then(answer => {
-    if (request.signal.aborted || webArrived || !hasPrices(answer)) return;
-    state.live = { ...answer, pending: true };
-    render();
-  });
+  const listed = await fetchLive(query, request.signal, 'quick');
+  if (request.signal.aborted) return;
 
-  const web = await fetchLive(query, request.signal, 'web');
-  webArrived = true;
+  let searched = query;
+  let typed: string | undefined;
+  if (listed.status === 'done' && listed.result.correctedFrom) {
+    typed = listed.result.correctedFrom;
+    searched = listed.result.query;
+    state.q = searched;
+    dom.input.value = searched;
+  }
+  state.live = hasPrices(listed) ? { ...listed, pending: true, typed } : { status: 'loading', query: searched };
+  render();
+
+  const web = await fetchLive(searched, request.signal, 'web');
   if (request.signal.aborted) return;
   if (web.status === 'done') {
-    state.live = web;
+    state.live = { ...web, typed };
   } else {
-    const listed = await quick;
-    if (request.signal.aborted) return;
     state.live = hasPrices(listed)
-      ? { ...listed, ...(web.status === 'error' && { note: `Other shops could not be checked: ${web.message}` }) }
+      ? { ...listed, typed, ...(web.status === 'error' && { note: `Other shops could not be checked: ${web.message}` }) }
       : web;
   }
   render();
