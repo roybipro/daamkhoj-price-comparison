@@ -25,5 +25,7 @@ npm-debug.log*
 # Local agent config (holds API tokens)
 .codex/
 
-# The crawled price list — rebuild with `npm run crawl`
-data/
+# The crawled price list — rebuild with `npm run crawl`. A snapshot is committed so a fresh
+# deploy (whose disk starts empty) answers instant searches at once.
+data/*
+!data/price-index.json
