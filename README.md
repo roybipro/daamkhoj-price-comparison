@@ -205,10 +205,19 @@ needed, and its prices show at once; the web search's answer, which includes the
 replaces them. Each price shows when it was read, and prices more than a week old are left out.
 A shop selling one version in several colours counts once, at its cheapest price in stock.
 
-The list is saved to `data/price-index.json` (`PRICE_INDEX_FILE`), which git ignores, and the
-server picks up a new crawl within 30 seconds. Set `PRICE_INDEX_REFRESH_HOURS=24` to have the
-server crawl on that schedule itself. On a host that wipes its disk on deploy, such as Render
-without a persistent disk, point `PRICE_INDEX_FILE` at a persistent disk.
+The list is saved to `data/price-index.json` (`PRICE_INDEX_FILE`), and the server picks up a new
+crawl within 30 seconds. The file is committed, so a fresh deploy answers at once even on a host
+that wipes its disk, such as Render's free plan.
+
+**It refreshes itself.** `.github/workflows/refresh-prices.yml` crawls every night at 02:30
+Bangladesh time and commits the new list to `main`, which redeploys the site. A GitHub job may
+run at most six hours and a full crawl takes about that, so each run reads up to 6,000 pages per
+shop, oldest first: every page is re-read within about three days, inside the week after which a
+price stops being shown. A run that leaves fewer than 1,000 prices is not saved. Run it by hand
+from the Actions tab (*Refresh price list → Run workflow*), with a smaller limit for a quick test.
+
+On a server with a persistent disk you can instead set `PRICE_INDEX_REFRESH_HOURS=24` and point
+`PRICE_INDEX_FILE` at that disk, and the server crawls on that schedule itself.
 
 Shops in the list were checked by hand: their `robots.txt` allows product pages, and a sample of
 25 pages gave a clear price for Apple Gadgets (25), Dazzle (25), Sumash Tech (22) and iStock

@@ -1,0 +1,67 @@
+# Refreshes the price list every night and commits it to main; Render redeploys on that commit,
+# so the live site's instant search never runs on prices older than a few days.
+#
+# A full crawl of every page takes longer than a GitHub job may run, so each run reads at most
+# `limit` pages per shop, the ones read longest ago first. 6000 a night refreshes every page
+# within about three days, well inside the 7 days after which a price stops being shown.
+name: Refresh price list
+
+on:
+  schedule:
+    - cron: '30 20 * * *' # 02:30 in Bangladesh, when the shops are quietest
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: Most pages to read per shop
+        default: '6000'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-prices
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # One shop failing still saves the rest, so a failed exit doesn't stop the commit.
+      - name: Crawl
+        id: crawl
+        continue-on-error: true
+        env:
+          LIMIT: ${{ inputs.limit || '6000' }}
+        run: |
+          case "$LIMIT" in ''|*[!0-9]*) echo "limit must be a whole number"; exit 1;; esac
+          npm run crawl -- --limit="$LIMIT"
+
+      - name: Check the list before saving it
+        run: |
+          node --input-type=module -e "
+            import { loadIndexFile } from './server/price-index.mjs';
+            const data = await loadIndexFile('data/price-index.json');
+            const sizes = Object.entries(data.shops).map(([shop, { entries }]) => shop + ' ' + entries.length);
+            const total = Object.values(data.shops).reduce((sum, { entries }) => sum + entries.length, 0);
+            console.log(sizes.join('\n') + '\ntotal ' + total);
+            if (total < 1000) throw new Error('the list shrank to ' + total + ' prices; not saving it');
+          "
+
+      - name: Commit the new list
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/price-index.json
+          if git diff --cached --quiet; then
+            echo 'No prices changed.'
+            exit 0
+          fi
+          git commit -m "Refresh the price list (crawl ${{ steps.crawl.outcome }})"
+          git pull --rebase origin main
+          git push origin HEAD:main
