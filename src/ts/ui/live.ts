@@ -167,7 +167,8 @@ export function liveView(live: LiveState, view: { product: string; limit: number
   if (live.status === 'loading') {
     return `<div class="lead loading" role="status"><h2>Searching other shops for “${escapeHtml(live.query)}”</h2>
       <p>It isn't in our price list yet, so we're searching the web and reading each shop's own page. This takes about a minute; you can keep browsing meanwhile.</p>
-      <div class="progress" aria-hidden="true"><i></i></div></div>`;
+      <div class="progress" aria-hidden="true"><i></i></div>
+      <p style="margin-top:14px"><button class="chip" data-act="clearQuery">Cancel</button></p></div>`;
   }
   if (live.status === 'error') {
     return `<div class="empty" role="alert"><h3>Live prices are not available</h3>
@@ -185,7 +186,7 @@ export function liveView(live: LiveState, view: { product: string; limit: number
   const typed = live.typed ?? result.correctedFrom;
   const corrected = result.broadenedFrom
     ? `<div class="note" role="status">No exact match for “${escapeHtml(result.broadenedFrom)}” in our price list yet. Showing the closest: <b>“${escapeHtml(result.query)}”</b>.${
-      live.instant ? ' <button class="link" data-act="searchWeb">Search the web for it</button>' : ''}</div>`
+      fromList && !live.note ? ' <button class="link" data-act="searchWeb">Search the web for it</button>' : ''}</div>`
     : typed
       ? `<div class="note" role="status">Showing results for <b>“${escapeHtml(result.query)}”</b>. You typed “${escapeHtml(typed)}”.</div>`
       : '';
@@ -196,8 +197,8 @@ export function liveView(live: LiveState, view: { product: string; limit: number
     ? '<div class="note" role="status">Checking more shops on the web. Their prices will be added here as they arrive.</div>'
     : live.note ? `<div class="note" role="status">${escapeHtml(live.note)}</div>` : ''}`;
 
-  if (!result.groups.length && live.instant) {
-    return `<div class="empty"><h3>Nothing in our price list matches “${escapeHtml(result.query)}” yet</h3>
+  if (!result.groups.length && fromList && !live.note) {
+    return `${corrected}<div class="empty"><h3>Nothing in our price list matches “${escapeHtml(result.query)}” yet</h3>
       <p>Search the web to look for it on other shops' sites. That takes a minute.</p>
       <button class="btn-primary" data-act="searchWeb">Search the web</button></div>`;
   }

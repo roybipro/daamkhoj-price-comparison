@@ -6,7 +6,7 @@
    with times as ISO strings. Searching it needs no network and no paid request. */
 
 import { readFile, rename, stat, writeFile } from 'node:fs/promises';
-import { dropSuspiciousPrices, groupOffers, validQuery } from './live-search.mjs';
+import { dropSuspiciousPrices, groupOffers, mergeGroups, validQuery } from './live-search.mjs';
 import { buildBrowse, discoverCategories, displayName, productKey } from './browse.mjs';
 import { createSpeller, matchesQuery, mentionsInTokens, requiredWords, variantOf, wordSet } from './matching.mjs';
 
@@ -158,7 +158,9 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
       if (word.length >= 6 && /^\p{L}+$/u.test(word)) {
         for (let cut = 3; cut <= word.length - 3; cut++) {
           const score = Math.min(countOf(word.slice(0, cut)), countOf(word.slice(cut)));
-          if (score >= 2 && (!best || score > best.score)) best = { score, words: [word.slice(0, cut), word.slice(cut)] };
+          if (score >= 2 && score >= countOf(word) && (!best || score > best.score)) {
+            best = { score, words: [word.slice(0, cut), word.slice(cut)] };
+          }
         }
       }
       out.push(...(best?.words ?? [word]));
@@ -168,15 +170,20 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
 
   /* A search that finds nothing is tried again with words joined or split the way the list's
      names write them, then with its spelling corrected, and says so. A search that finds
-     something is never "corrected". */
+     something is never "corrected", though compound variants ("powerbank" / "power bank") merge. */
   function searchCorrecting(rawQuery) {
     const answer = searchExactly(rawQuery);
-    if (answer.found) return answer;
     const respaced = respace(answer.query);
     if (respaced !== answer.query.toLowerCase()) {
       const retried = searchExactly(respaced);
-      if (retried.found) return { ...retried, correctedFrom: answer.query };
+      if (!answer.found && retried.found) return { ...retried, correctedFrom: answer.query };
+      if (answer.found && retried.found) {
+        const groups = mergeGroups(answer.groups, retried.groups);
+        const listed = groups.flatMap(group => group.offers);
+        return { ...answer, found: answer.found + retried.found, priced: listed.length, groups };
+      }
     }
+    if (answer.found) return answer;
     speller ??= createSpeller(entries.map(entry => entry.name));
     const corrected = speller(answer.query);
     if (corrected.toLowerCase() === answer.query.toLowerCase()) return answer;
