@@ -1,7 +1,7 @@
 /* Browser side of live search: one request, reduced to a state the UI can render. A static
    host has no /api/search, so "unavailable" is a normal answer and the demo keeps working. */
 
-import type { BrowseData, BrowseState, LiveResult, LiveState } from '../types.js';
+import type { BrowseData, BrowseState, LiveGroup, LiveOffer, LiveResult, LiveState } from '../types.js';
 
 /* The server's worst case: 100 seconds searching, then up to 90 reading pages. */
 const TIMEOUT_MS = 200_000;
@@ -74,11 +74,17 @@ export async function fetchBrowse(): Promise<BrowseState> {
  */
 export function applyFresh(current: LiveResult, fresh: LiveResult): LiveResult {
   const byUrl = new Map(fresh.groups.flatMap(group => group.offers).map(offer => [offer.url, offer] as const));
+  const slotKey = (group: LiveGroup, offer: LiveOffer) =>
+    `${group.comparable}|${group.label.toLowerCase()}|${offer.shop}|${offer.product ?? ''}`;
+  const bySlot = new Map(fresh.groups.flatMap(group =>
+    group.offers.map(offer => [slotKey(group, offer), offer] as const)));
   const groups = current.groups.map(group => {
     const offers = group.offers
       .map(offer => {
-        const read = byUrl.get(offer.url);
-        return read ? { ...offer, price: read.price, inStock: read.inStock, checkedAt: read.checkedAt, image: offer.image ?? read.image } : offer;
+        const read = byUrl.get(offer.url) ?? bySlot.get(slotKey(group, offer));
+        return read
+          ? { ...offer, url: read.url, price: read.price, inStock: read.inStock, checkedAt: read.checkedAt, image: offer.image ?? read.image }
+          : offer;
       })
       .sort((a, b) => a.price - b.price);
     const buyable = offers.filter(offer => offer.inStock !== false);

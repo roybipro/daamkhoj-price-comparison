@@ -213,15 +213,20 @@ async function startLive(): Promise<void> {
 
   const web = await fetchLive(searched, request.signal, 'web');
   if (request.signal.aborted) return;
+  const current = state.live.status === 'done' ? state.live : listed;
   if (web.status === 'done' && (web.result.groups.length || !hasPrices(listed))) {
     state.live = { ...web, typed };
-  } else if (web.status === 'done' && hasPrices(listed)) {
-    /* The web found nothing more: the list's closest prices stay, and the page says so. */
-    state.live = { ...listed, typed, note: `The web search found no other shop prices for “${searched}”.` };
+  } else if (current.status === 'done') {
+    const note = web.status === 'done'
+      ? `The web search found no other shop prices for “${searched}”.`
+      : web.status === 'error'
+        ? `Other shops could not be checked: ${web.message}`
+        : !hasPrices(listed)
+          ? 'Live web search is not set up on this server; only our price list was searched.'
+          : undefined;
+    state.live = { ...current, pending: false, typed, ...(note && { note }) };
   } else {
-    state.live = hasPrices(listed)
-      ? { ...listed, typed, ...(web.status === 'error' && { note: `Other shops could not be checked: ${web.message}` }) }
-      : web;
+    state.live = web;
   }
   render();
 }
@@ -354,7 +359,8 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
     render();
     window.scrollTo({ top: 0 });
     /* Opening a product reads every shop's price for it again. */
-    if (!liveRequest || liveRequest.signal.aborted) liveRequest = new AbortController();
+    liveRequest?.abort();
+    liveRequest = new AbortController();
     void recheckShown(liveRequest, state.product);
   },
   searchWeb: () => { void startLive(); },
@@ -362,7 +368,16 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
   moreResults: () => { state.resultLimit += 40; render(); },
   focusSearch: () => { window.scrollTo({ top: 0 }); dom.input.focus(); },
   retryLive: () => { void startLive(); },
-  shop: trigger => { state.storeId = trigger.dataset.id ?? ''; state.view = 'results'; state.showAll = true; render(); window.scrollTo({ top: 0 }); },
+  shop: trigger => {
+    state.storeId = trigger.dataset.id ?? '';
+    state.q = '';
+    dom.input.value = '';
+    clearLive();
+    state.view = 'results';
+    state.showAll = true;
+    render();
+    window.scrollTo({ top: 0 });
+  },
   cod: () => { state.codOnly = !state.codOnly; render(); },
   copyLink: () => {
     /* The label only flips on a real success; a rejected clipboard write leaves the
@@ -400,8 +415,11 @@ dom.input.addEventListener('keydown', event => {
     if (state.suggestIndex >= 0 && chosen) chooseSuggestion(chosen);
     else { dom.input.blur(); void startLive(); }
   } else if (event.key === 'Escape') {
+    state.suggest = [];
     state.suggestIndex = -1;
-    renderSuggestions(context());
+    dom.suggest.innerHTML = '';
+    dom.input.setAttribute('aria-expanded', 'false');
+    dom.input.removeAttribute('aria-activedescendant');
   }
 });
 

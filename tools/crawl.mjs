@@ -47,19 +47,26 @@ const data = await loadIndexFile(values.file);
 
 /* Shops finish at different times, so saves are queued: one write at a time, latest data. */
 let saving = Promise.resolve();
-const save = () => (saving = saving.then(() => saveIndexFile(values.file, data)));
+const save = () => (saving = saving.then(() => saveIndexFile(values.file, data))
+  .catch(error => console.error(`save failed: ${error.message}`)));
 
 const started = Date.now();
 const results = await Promise.allSettled(shops.map(async shop => {
   const previous = data.shops[shop.shop]?.entries ?? [];
-  const record = (entries, stats) => {
-    data.shops[shop.shop] = { crawledAt: new Date().toISOString(), stats, entries };
+  const checked = data.shops[shop.shop]?.checked ?? {};
+  const record = (entries, stats, checkedPages) => {
+    data.shops[shop.shop] = {
+      crawledAt: new Date().toISOString(),
+      stats,
+      entries,
+      ...(Object.keys(checkedPages ?? {}).length ? { checked: checkedPages } : {})
+    };
     return save();
   };
-  const { entries, stats } = await crawlShop(shop, {
-    fetchPage, fetchSitemap, robots, previous, limit, delayMs, log: console.log, onProgress: record
+  const { entries, stats, checked: checkedPages } = await crawlShop(shop, {
+    fetchPage, fetchSitemap, robots, previous, checked, limit, delayMs, log: console.log, onProgress: record
   });
-  await record(entries, stats);
+  await record(entries, stats, checkedPages);
   console.log(`${shop.shop}: ${stats.priced} of ${stats.read} pages priced (${stats.listed} listed), ${entries.length} prices kept`);
 }));
 await saving;

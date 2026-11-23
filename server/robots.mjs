@@ -70,15 +70,26 @@ export function createRobots(fetchPage, now = Date.now) {
     }
   }
 
+  async function resolveRules(url) {
+    const { origin } = new URL(url);
+    let entry = cache.get(origin);
+    if (!entry || now() - entry.at > TTL_MS) {
+      entry = { at: now(), rules: rulesFor(origin) };
+      cache.set(origin, entry);
+    }
+    const rules = await entry.rules;
+    if (rules === null && cache.get(origin) === entry) cache.delete(origin);
+    return rules;
+  }
+
   return {
+    async status(url) {
+      const rules = await resolveRules(url);
+      if (rules === null) return 'unreachable';
+      return isAllowed(rules, url) ? 'allowed' : 'blocked';
+    },
     async allows(url) {
-      const { origin } = new URL(url);
-      let entry = cache.get(origin);
-      if (!entry || now() - entry.at > TTL_MS) {
-        entry = { at: now(), rules: rulesFor(origin) };
-        cache.set(origin, entry);
-      }
-      const rules = await entry.rules;
+      const rules = await resolveRules(url);
       return rules !== null && isAllowed(rules, url);
     }
   };

@@ -156,7 +156,7 @@ export const STORES: Shop[] = [
     blurb: 'Brand-authorised mobile and appliance retailer with counters in malls across the country.'
   },
   {
-    id: 'trusttech', name: 'TrustTech', bn: 'ট্রাস্টটেক', monogram: 'TT', accent: '#065F46',
+    id: 'trusttech', name: 'TrustTech', bn: 'ট্রাস্টটেক', monogram: 'TR', accent: '#065F46',
     url: 'trusttechbd.com', kind: 'retailer', since: 2018,
     categories: ['computers', 'accessories'],
     cod: true, payments: ['Card', 'bKash', 'Nagad'], returnsDays: 3,
@@ -210,7 +210,7 @@ export const STORES: Shop[] = [
     blurb: 'Premium smartphone retailer; grey-import stock is common, so check warranty coverage.'
   },
   {
-    id: 'dizmo', name: 'Dizmo', bn: 'ডিজমো', monogram: 'DZ', accent: '#334155',
+    id: 'dizmo', name: 'Dizmo', bn: 'ডিজমো', monogram: 'DM', accent: '#334155',
     url: 'dizmo.com.bd', kind: 'retailer', since: 2020,
     categories: ['phones', 'accessories'],
     cod: true, payments: ['Card', 'bKash', 'Nagad'], returnsDays: 3,

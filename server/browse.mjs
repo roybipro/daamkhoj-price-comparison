@@ -16,7 +16,7 @@ export const CATEGORY_RULES = [
   { id: 'more', label: 'More', test: /./ }
 ];
 
-const COLOURS = /\b(black|white|blue|red|green|gold|silver|gray|grey|pink|purple|orange|yellow|titanium|natural|desert|midnight|starlight|graphite|space|cosmic|deep|light|dark|mint|lavender|cream|ultramarine|teal|sage|jet|navy|beige|brown|violet|coral|rose|phantom|awesome|icy|iceblue|onyx|mist|sky|cloud|sand|olive|peach|lilac|aqua|ocean|forest|arctic|polar|frost|mocha|burgundy|champagne|ivory|charcoal|steel|copper|bronze|crimson|amber|emerald|sapphire|ruby|pearl|glacier|moonlight|sunset|aurora|cyan|turquoise|magenta|lime|khaki|marble|obsidian|porcelain|hazel|jade|denim|smoke|shadow|storm|thunder|blush)\b/g;
+const COLOURS = /\b(black|white|blue|red|green|gold|silver|gray|grey|pink|purple|orange|yellow|titanium|natural|desert|midnight|starlight|graphite|space|cosmic|deep|light|dark|mint|lavender|cream|ultramarine|teal|sage|jet|navy|beige|brown|violet|coral|rose|phantom|awesome|icy|iceblue|onyx|mist|sky|cloud|sand|olive|peach|lilac|aqua|ocean|forest|arctic|polar|frost|mocha|burgundy|champagne|ivory|charcoal|steel|copper|bronze|crimson|amber|emerald|sapphire|ruby|pearl|glacier|moonlight|sunset|aurora|cyan|turquoise|magenta|lime|khaki|marble|obsidian|porcelain|hazel|jade|denim|smoke|shadow|storm|thunder|blush|lake|stone|plum|slate|winter|lunar|alpine|trail|milanese)\b/g;
 const SIZE = /\b\d+(\.\d+)?[\s-]*(gb|tb|mah|w|mm|inch|inches|hz|"|”)(?![a-z0-9])/;
 const SIZE_ON = new RegExp(`${SIZE.source}.*$`);
 /* "Samsung Galaxy A16" and "Galaxy A16" are one phone: a brand before its own line is dropped. */
@@ -30,8 +30,11 @@ export function productKey(name) {
     .replace(/\(.*?\)|\[.*?\]/g, ' ')
     .split(/\s[-|–]\s|,|\swith\s|\sfor\s/)[0]
     .replace(COLOURS, ' ')
+    .replace(/\b\d+(\.\d+)?[\s-]*(inch|inches|"|”)(?![a-z0-9])/g, ' ')
+    .replace(/\b\d+[\s-]*core\s*(cpu|gpu)\b/g, ' ')
     .replace(/\s+/g, ' ').trim()
     .replace(BRAND_LINE, '')
+    .replace(/\b\d+\/\d+.*$/, ' ')
     /* From the first size on is detail (256GB, 13.6-inch, 15", 5000mAh), unless the size comes
        before the model, as in "Samsung 55 inch Crystal UHD TV": then only the size goes. */
     .replace(SIZE_ON, (...found) => {
@@ -39,7 +42,6 @@ export function productKey(name) {
       const before = found.at(-1).slice(0, found.at(-2)).trim();
       return before.split(/\s+/).length >= 2 ? ' ' : match.replace(SIZE, ' ');
     })
-    .replace(/\d+\s*\/\s*\d+.*$/, ' ')
     .replace(FILLER, ' ')
     .replace(/[^a-z0-9+ ]+/g, ' ')
     .replace(/\s+/g, ' ').trim()
@@ -100,7 +102,9 @@ export function buildBrowse(search, shopCounts, categories) {
       } catch {
         continue;
       }
-      const offers = answer.groups.flatMap(group => group.offers);
+      const key = productKey(name);
+      const offers = answer.groups.flatMap(group => group.offers)
+        .filter(offer => (offer.product ?? productKey(offer.title ?? '')) === key);
       const shops = new Set(offers.map(offer => offer.shop));
       if (shops.size < 2) continue;
       const signature = offers.map(offer => offer.url).sort().join(' ');

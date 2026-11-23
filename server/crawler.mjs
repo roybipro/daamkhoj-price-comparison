@@ -24,7 +24,10 @@ export function readShopifyProduct(json, pageUrl) {
   return product.variants
     .filter(variant => Number(variant.price) > 0)
     .map(variant => {
-      const version = String(variant.title ?? '').trim();
+      const rawVersion = String(variant.title ?? '').trim();
+      const version = rawVersion.toLowerCase().startsWith(title.toLowerCase())
+        ? rawVersion.slice(title.length).replace(/^[\s/-]+/, '').trim()
+        : rawVersion;
       const named = version && version !== 'Default Title';
       return {
         url: many ? `${pageUrl}?variant=${variant.id}` : pageUrl,
@@ -53,7 +56,7 @@ function readOne(shop, text, url) {
  */
 export async function crawlShop(shop, deps) {
   const {
-    fetchPage, fetchSitemap = fetchPage, robots, previous = [], limit = Infinity,
+    fetchPage, fetchSitemap = fetchPage, robots, previous = [], checked = {}, limit = Infinity,
     delayMs = 1000, sleep = pause, now = Date.now, log = () => {}, onProgress = () => {}, progressEvery = 100
   } = deps;
 
@@ -73,8 +76,14 @@ export async function crawlShop(shop, deps) {
     const page = pageOf(entry.url);
     byPage.set(page, [...(byPage.get(page) ?? []), entry]);
   }
-  const lastRead = page => Math.min(...(byPage.get(page) ?? []).map(entry => Date.parse(entry.checkedAt)), Infinity);
-  const seen = page => byPage.has(page);
+  const listedSet = new Set(listed.map(page => page.url));
+  const checkedMap = new Map(Object.entries(checked).filter(([url]) => listedSet.has(url)));
+  const lastRead = page => {
+    const entryMin = Math.min(...(byPage.get(page) ?? []).map(entry => Date.parse(entry.checkedAt)), Infinity);
+    const checkedAt = checkedMap.has(page) ? Date.parse(checkedMap.get(page)) : Infinity;
+    return Math.min(entryMin, checkedAt);
+  };
+  const seen = page => byPage.has(page) || checkedMap.has(page);
   const order = listed.map(page => page.url)
     .sort((a, b) => Number(seen(a)) - Number(seen(b)) || lastRead(a) - lastRead(b));
 
@@ -89,9 +98,15 @@ export async function crawlShop(shop, deps) {
       /* robots.txt is asked about the address actually fetched, which differs for Shopify. */
       /* "/products/phone/" has its JSON at "/products/phone.js", not "/products/phone/.js". */
       const target = shop.kind === 'shopify' ? `${page.replace(/\/+$/, '')}.js` : page;
-      if (!(await robots.allows(target))) {
+      const robotState = robots.status ? await robots.status(target) : ((await robots.allows(target)) ? 'allowed' : 'blocked');
+      if (robotState === 'unreachable') {
+        stats.failed++;
+        continue;
+      }
+      if (robotState === 'blocked') {
         stats.blocked++;
         kept.delete(page);
+        checkedMap.delete(page);
         continue;
       }
       const response = await fetchPage(target);
@@ -105,17 +120,19 @@ export async function crawlShop(shop, deps) {
       if (found.length) {
         stats.priced++;
         kept.set(page, found);
+        checkedMap.delete(page);
       } else {
         stats.noPrice++;
         kept.delete(page);
+        checkedMap.set(page, checkedAt);
       }
     } catch {
       stats.failed++;
     }
     if (stats.read % progressEvery === 0) {
       log(`${shop.shop}: ${stats.read} of ${Math.min(order.length, limit)} pages read`);
-      await onProgress(snapshot(), stats);
+      await onProgress(snapshot(), stats, Object.fromEntries(checkedMap));
     }
   }
-  return { entries: snapshot(), stats };
+  return { entries: snapshot(), stats, checked: Object.fromEntries(checkedMap) };
 }

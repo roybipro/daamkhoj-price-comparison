@@ -147,7 +147,11 @@ function summaryStrip(cards: ResultCard[]): string {
 /** One product's page: its versions compared across shops, from the same answer. */
 function productDetail(result: LiveResult, card: ResultCard, many: boolean): string {
   const groups = result.groups
-    .map(group => ({ ...group, offers: group.offers.filter(offer => keyOf(offer) === card.key) }))
+    .map(group => {
+      const offers = group.offers.filter(offer => keyOf(offer) === card.key);
+      const buyable = offers.filter(offer => offer.inStock !== false);
+      return { ...group, offers, lowest: group.comparable && buyable.length > 1 ? buyable[0].url : null };
+    })
     .filter(group => group.offers.length);
   return `${many ? `<button class="link back" data-act="allResults">All results for “${escapeHtml(result.query)}”</button>` : ''}
     <div class="detail-head">
@@ -178,11 +182,12 @@ export function liveView(live: LiveState, view: { product: string; limit: number
     ? `${pluralCount(result.priced, 'price')} from our price list of shops' own pages.${leftOut(result)}`
     : `The web search returned ${pluralCount(result.found, 'result')}, and ${pluralCount(result.priced, 'price')} could be read from shop pages${
       result.indexed ? `, including ${result.indexed} from our price list` : ''}.${leftOut(result)}`;
+  const typed = live.typed ?? result.correctedFrom;
   const corrected = result.broadenedFrom
     ? `<div class="note" role="status">No exact match for “${escapeHtml(result.broadenedFrom)}” in our price list yet. Showing the closest: <b>“${escapeHtml(result.query)}”</b>.${
       live.instant ? ' <button class="link" data-act="searchWeb">Search the web for it</button>' : ''}</div>`
-    : live.typed
-      ? `<div class="note" role="status">Showing results for <b>“${escapeHtml(result.query)}”</b>. You typed “${escapeHtml(live.typed)}”.</div>`
+    : typed
+      ? `<div class="note" role="status">Showing results for <b>“${escapeHtml(result.query)}”</b>. You typed “${escapeHtml(typed)}”.</div>`
       : '';
   const checking = live.checking
     ? '<p class="checking" role="status"><i aria-hidden="true"></i>Checking these prices on the shops\' own sites…</p>'
@@ -197,7 +202,7 @@ export function liveView(live: LiveState, view: { product: string; limit: number
       <button class="btn-primary" data-act="searchWeb">Search the web</button></div>`;
   }
   if (!result.groups.length) {
-    return `${corrected}<div class="empty"><h3>No clear prices found for “${escapeHtml(result.query)}”</h3>
+    return `${corrected}${status}<div class="empty"><h3>No clear prices found for “${escapeHtml(result.query)}”</h3>
       <p>${escapeHtml(summary)} Try the full product name, such as “iPhone 15” or “HP 250 G9”.</p></div>`;
   }
 

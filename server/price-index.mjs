@@ -193,16 +193,23 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
     if (answer.found) return answer;
     const words = respace(answer.query).split(/\s+/);
     if (words.length < 2) return answer;
-    let best = null;
-    for (let skip = 0; skip < words.length; skip++) {
-      let broader;
-      try {
-        broader = searchCorrecting(words.filter((_, i) => i !== skip).join(' '));
-      } catch {
-        continue;
+    const pickBest = indices => {
+      let best = null;
+      for (const skip of indices) {
+        let broader;
+        try {
+          broader = searchCorrecting(words.filter((_, i) => i !== skip).join(' '));
+        } catch {
+          continue;
+        }
+        if (broader.found && (!best || broader.found < best.found)) best = broader;
       }
-      if (broader.found && (!best || broader.found < best.found)) best = broader;
-    }
+      return best;
+    };
+    const all = words.map((_, i) => i);
+    const sizes = all.filter(i => /^\d+(?:\.\d+)?(?:gb|tb|mah|w|mm|inch)$/i.test(words[i]));
+    const rest = all.filter(i => i > 0 && !sizes.includes(i));
+    const best = (sizes.length && pickBest(sizes)) || (rest.length && pickBest(rest)) || pickBest([0]);
     return best ? { ...best, broadenedFrom: answer.query } : answer;
   }
 
@@ -342,11 +349,13 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
         shelvedAt = now();
         shelvesStale = false;
       }
-      const fresh = now() - maxAgeMs;
-      const counts = Object.fromEntries(Object.entries(data?.shops ?? {}).map(([shop, { entries: listed = [] }]) =>
-        [shop, listed.filter(entry => Date.parse(entry.checkedAt) >= fresh).length]));
-      shelves ??= buildBrowse(query => searchExactly(query), counts,
-        discoverCategories(entries.filter(entry => Date.parse(entry.checkedAt) >= fresh)));
+      if (!shelves) {
+        const fresh = now() - maxAgeMs;
+        const counts = Object.fromEntries(Object.entries(data?.shops ?? {}).map(([shop, { entries: listed = [] }]) =>
+          [shop, listed.filter(entry => Date.parse(entry.checkedAt) >= fresh).length]));
+        shelves = buildBrowse(query => searchExactly(query), counts,
+          discoverCategories(entries.filter(entry => Date.parse(entry.checkedAt) >= fresh)));
+      }
       return shelves;
     }
   };
@@ -361,9 +370,9 @@ export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, lo
   let index = createPriceIndex(null, { now, ...options });
   let loadedVersion = null;
   let checkedAt = -Infinity;
+  let refreshing = null;
 
-  async function refresh() {
-    if (now() - checkedAt < checkEveryMs) return;
+  async function doRefresh() {
     checkedAt = now();
     const version = await stat(file).then(info => `${info.mtimeMs}:${info.size}`, () => 'none');
     if (version === loadedVersion) return;
@@ -385,6 +394,13 @@ export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, lo
     } catch (error) {
       log(`price list not reloaded: ${error.message}`);
     }
+  }
+
+  function refresh() {
+    if (refreshing) return refreshing;
+    if (now() - checkedAt < checkEveryMs) return Promise.resolve();
+    refreshing = doRefresh().finally(() => { refreshing = null; });
+    return refreshing;
   }
 
   const search = async (rawQuery, options) => {
