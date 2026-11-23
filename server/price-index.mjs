@@ -26,8 +26,13 @@ export async function loadIndexFile(file) {
   return data;
 }
 
+/** How new a list is: its last save, or failing that its latest crawl. ISO times sort as text. */
+export const listVersion = data => [data?.updatedAt ?? '', ...Object.values(data?.shops ?? {}).map(shop => shop.crawledAt ?? '')]
+  .reduce((latest, time) => (time > latest ? time : latest), '');
+
 /** Written beside the real file and then swapped in, so a crash never leaves half a list. */
 export async function saveIndexFile(file, data) {
+  data.updatedAt = new Date().toISOString();
   const temporary = `${file}.${process.pid}.tmp`;
   await writeFile(temporary, JSON.stringify(data));
   await rename(temporary, file);
@@ -35,8 +40,9 @@ export async function saveIndexFile(file, data) {
 
 /**
  * Fetches a published copy of the list (the one the nightly crawl commits) and saves it over the
- * local file, so a server that is never redeployed still gets each night's prices. A download
- * that is not a price list is refused and the last good file stays. Says whether it changed.
+ * local file when it is newer, so a server that is never redeployed still gets each night's
+ * prices. A download that is not a price list, or not newer, leaves the file alone. Says whether
+ * it changed.
  */
 export async function pullIndexFile(url, file, { fetchImpl = fetch, timeoutMs = 60_000, maxBytes = 100_000_000 } = {}) {
   const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
@@ -45,8 +51,10 @@ export async function pullIndexFile(url, file, { fetchImpl = fetch, timeoutMs = 
   if (text.length > maxBytes) throw new Error('price list download is too large');
   const data = JSON.parse(text);
   if (data?.version !== 1 || typeof data.shops !== 'object' || data.shops === null) throw new Error('the download is not a price list');
-  const current = await readFile(file, 'utf8').catch(() => '');
-  if (current === text) return false;
+  /* Only ever forward: a cache can hand back yesterday's copy, which must not replace a newer
+     list deployed with the site. */
+  const current = await readFile(file, 'utf8').then(JSON.parse).catch(() => null);
+  if (current && listVersion(data) <= listVersion(current)) return false;
   const temporary = `${file}.${process.pid}.pull.tmp`;
   await writeFile(temporary, text);
   await rename(temporary, file);

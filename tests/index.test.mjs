@@ -318,7 +318,7 @@ test('the browse endpoint serves the shelves, and says so when there is no price
 test('a published list is pulled over the local one, and a bad download never replaces it', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'pull-'));
   const file = path.join(dir, 'price-index.json');
-  const good = JSON.stringify({ version: 1, shops: { 'a.bd': { entries: [entry('a.bd', 'Galaxy A16', 20000)] } } });
+  const good = JSON.stringify({ version: 1, shops: { 'a.bd': { crawledAt: '2026-11-21T00:00:00.000Z', entries: [entry('a.bd', 'Galaxy A16', 20000)] } } });
   const serve = (body, status = 200) => async () => new Response(body, { status });
 
   assert.equal(await pullIndexFile('https://x/list.json', file, { fetchImpl: serve(good) }), true);
@@ -329,6 +329,16 @@ test('a published list is pulled over the local one, and a bad download never re
   await assert.rejects(pullIndexFile('https://x/list.json', file, { fetchImpl: serve(JSON.stringify({ version: 2 })) }), /not a price list/);
   await assert.rejects(pullIndexFile('https://x/list.json', file, { fetchImpl: serve('', 404) }), /404/);
   assert.equal((await loadIndexFile(file)).shops['a.bd'].entries.length, 1, 'the last good list stays');
+
+  /* A cached copy from before the local list was updated is older, so it is ignored. */
+  const newer = { version: 1, updatedAt: '2026-11-23T16:00:00.000Z', shops: { 'a.bd': { crawledAt: '2026-11-21T00:00:00.000Z', entries: [entry('a.bd', 'Galaxy A16', 20000, { image: 'https://a.bd/p.jpg' })] } } };
+  await writeFile(file, JSON.stringify(newer));
+  assert.equal(await pullIndexFile('https://x/list.json', file, { fetchImpl: serve(good) }), false, 'an older copy never replaces a newer list');
+  assert.equal((await loadIndexFile(file)).shops['a.bd'].entries[0].image, 'https://a.bd/p.jpg');
+
+  const crawled = JSON.stringify({ version: 1, shops: { 'a.bd': { crawledAt: '2026-11-24T00:00:00.000Z', entries: [entry('a.bd', 'Galaxy A16', 19000)] } } });
+  assert.equal(await pullIndexFile('https://x/list.json', file, { fetchImpl: serve(crawled) }), true, 'a newer crawl is taken');
+  assert.equal((await loadIndexFile(file)).shops['a.bd'].entries[0].price, 19000);
 });
 
 test('shelves are rebuilt as prices age, so a card never offers a price its search leaves out', () => {
