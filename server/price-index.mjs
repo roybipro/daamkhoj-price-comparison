@@ -8,7 +8,7 @@
 import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dropSuspiciousPrices, groupOffers, validQuery } from './live-search.mjs';
 import { buildBrowse } from './browse.mjs';
-import { matchesQuery, mentionsInTokens, variantOf, wordSet } from './matching.mjs';
+import { createSpeller, matchesQuery, mentionsInTokens, variantOf, wordSet } from './matching.mjs';
 
 const EMPTY = { version: 1, shops: {} };
 
@@ -63,47 +63,63 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
   let shelvedAt = -Infinity;
   /* Each entry's words, split once: a search then only checks those words. */
   let words = null;
+  let speller = null;
+
+  /** Prices whose names hold every word of the query, freshest list only. */
+  function searchExactly(rawQuery) {
+    const query = validQuery(rawQuery);
+    const oldest = now() - maxAgeMs;
+    words ??= entries.map(entry => wordSet(`${entry.name} ${entry.url}`));
+    const matched = entries.filter((entry, i) =>
+      mentionsInTokens(words[i], query)
+      && Date.parse(entry.checkedAt) >= oldest
+      && matchesQuery(entry.name, query));
+
+    const offers = matched.map(entry => ({
+      shop: entry.shop,
+      url: entry.url,
+      title: entry.name,
+      price: entry.price,
+      inStock: entry.inStock,
+      checkedAt: entry.checkedAt,
+      image: entry.image,
+      variant: variantOf(entry.name, query)
+    }));
+    const { kept, dropped } = dropSuspiciousPrices(offers);
+    const shown = kept.sort((a, b) => a.price - b.price).slice(0, maxOffers);
+    const groups = groupOffers(shown);
+    const listed = groups.flatMap(group => group.offers);
+    const newest = listed.reduce((latest, offer) => (offer.checkedAt > latest ? offer.checkedAt : latest), '');
+
+    return {
+      query,
+      source: 'index',
+      checkedAt: newest || new Date(now()).toISOString(),
+      cached: true,
+      found: matched.length,
+      priced: listed.length,
+      skipped: { notShop: 0, blocked: 0, noPrice: dropped, otherProduct: 0, failed: 0 },
+      groups
+    };
+  }
+
+  /* A search that finds nothing is tried again with its spelling corrected from the names in
+     the list, and says so. A search that finds something is never "corrected". */
+  function searchCorrecting(rawQuery) {
+    const answer = searchExactly(rawQuery);
+    if (answer.found) return answer;
+    speller ??= createSpeller(entries.map(entry => entry.name));
+    const corrected = speller(answer.query);
+    if (corrected.toLowerCase() === answer.query.toLowerCase()) return answer;
+    const retried = searchExactly(corrected);
+    return retried.found ? { ...retried, correctedFrom: answer.query } : answer;
+  }
 
   const index = {
     size: entries.length,
     shops: Object.keys(data?.shops ?? {}).length,
 
-    search(rawQuery) {
-      const query = validQuery(rawQuery);
-      const oldest = now() - maxAgeMs;
-      words ??= entries.map(entry => wordSet(`${entry.name} ${entry.url}`));
-      const matched = entries.filter((entry, i) =>
-        mentionsInTokens(words[i], query)
-        && Date.parse(entry.checkedAt) >= oldest
-        && matchesQuery(entry.name, query));
-
-      const offers = matched.map(entry => ({
-        shop: entry.shop,
-        url: entry.url,
-        title: entry.name,
-        price: entry.price,
-        inStock: entry.inStock,
-        checkedAt: entry.checkedAt,
-        image: entry.image,
-        variant: variantOf(entry.name, query)
-      }));
-      const { kept, dropped } = dropSuspiciousPrices(offers);
-      const shown = kept.sort((a, b) => a.price - b.price).slice(0, maxOffers);
-      const groups = groupOffers(shown);
-      const listed = groups.flatMap(group => group.offers);
-      const newest = listed.reduce((latest, offer) => (offer.checkedAt > latest ? offer.checkedAt : latest), '');
-
-      return {
-        query,
-        source: 'index',
-        checkedAt: newest || new Date(now()).toISOString(),
-        cached: true,
-        found: matched.length,
-        priced: listed.length,
-        skipped: { notShop: 0, blocked: 0, noPrice: dropped, otherProduct: 0, failed: 0 },
-        groups
-      };
-    },
+    search: rawQuery => searchCorrecting(rawQuery),
 
     /** The home page's shelves. Rebuilt hourly: the list doesn't change, but prices age out of it,
         and a card must never offer a price its own search would leave out. */

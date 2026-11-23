@@ -127,3 +127,66 @@ export function variantOf(name, query) {
   if (/\b5g\b/i.test(name)) parts.push('5G');
   return { key: parts.join('|').toLowerCase(), label: parts.join(' · '), clear: true };
 }
+
+/** Edit distance where swapping two neighbouring letters counts as one slip. */
+function editDistance(a, b, limit) {
+  if (Math.abs(a.length - b.length) > limit) return limit + 1;
+  let before = null;
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      let cost = Math.min(previous[j] + 1, row[j - 1] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (before && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) cost = Math.min(cost, before[j - 2] + 1);
+      row.push(cost);
+      best = Math.min(best, cost);
+    }
+    if (best > limit) return limit + 1;
+    before = previous;
+    previous = row;
+  }
+  return previous[b.length];
+}
+
+/**
+ * A spelling corrector for searches, learned from the product names it will search: a word the
+ * names never use is swapped for the closest one they do ("onplus" → "oneplus"), the commonest
+ * when several are as close. Words with digits are model numbers and sizes, and stay as typed.
+ */
+export function createSpeller(names) {
+  const counts = new Map();
+  for (const name of names) {
+    for (const token of tokensOf(name)) {
+      if (/^\p{L}{3,}$/u.test(token)) counts.set(token, (counts.get(token) ?? 0) + 1);
+    }
+  }
+  const known = [...counts].sort((a, b) => b[1] - a[1]).map(([token]) => token);
+
+  const fix = token => {
+    if (counts.has(token) || NOISE.has(token) || token.length < 4 || !/^\p{L}+$/u.test(token)) return token;
+    const limit = token.length >= 8 ? 2 : 1;
+    let best = token;
+    let bestDistance = limit + 1;
+    for (const word of known) {
+      const distance = editDistance(token, word, Math.min(limit, bestDistance - 1));
+      if (distance < bestDistance) {
+        best = word;
+        bestDistance = distance;
+        if (distance === 1) break;
+      }
+    }
+    return best;
+  };
+
+  /** The query with its misspelt words corrected, or the query itself when nothing needed it. */
+  return query => {
+    const words = String(query).trim().split(/\s+/);
+    const fixed = words.map(word => {
+      const lower = word.toLowerCase();
+      const corrected = fix(lower);
+      return corrected === lower ? word : corrected;
+    });
+    return fixed.join(' ');
+  };
+}

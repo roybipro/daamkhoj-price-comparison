@@ -97,6 +97,9 @@ export function liveView(live: LiveState): string {
     ? `${pluralCount(result.priced, 'price')} from our price list of shops' own pages.${leftOut(result)}`
     : `The web search returned ${pluralCount(result.found, 'result')}, and ${pluralCount(result.priced, 'price')} could be read from shop pages${
       result.indexed ? `, including ${result.indexed} from our price list` : ''}.${leftOut(result)}`;
+  const corrected = live.typed
+    ? `<div class="note" role="status">Showing results for <b>“${escapeHtml(result.query)}”</b>. You typed “${escapeHtml(live.typed)}”.</div>`
+    : '';
   const status = live.pending
     ? '<div class="note" role="status">Checking more shops on the web. This can take a minute, and their prices will be added here.</div>'
     : live.note ? `<div class="note" role="status">${escapeHtml(live.note)}</div>` : '';
@@ -105,13 +108,13 @@ export function liveView(live: LiveState): string {
     : `Read from each shop's own page, ${escapeHtml(clock(result.checkedAt))}.`;
 
   if (!result.groups.length) {
-    return `<div class="empty"><h3>No clear prices found for “${escapeHtml(result.query)}”</h3>
+    return `${corrected}<div class="empty"><h3>No clear prices found for “${escapeHtml(result.query)}”</h3>
       <p>${escapeHtml(summary)} Try the full product name, such as “iPhone 15” or “HP 250 G9”.</p></div>`;
   }
 
   return `<div class="lead"><h2>Live prices for “${escapeHtml(result.query)}”</h2>
       <p>${when} Only the same version is compared. Prices can change, so confirm on the shop's site before you pay.</p></div>
-    ${status}
+    ${corrected}${status}
     <div class="note">${escapeHtml(summary)}</div>
     ${result.groups.map(group => liveGroup(group, result.checkedAt, result.query)).join('')}`;
 }
