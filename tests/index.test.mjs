@@ -444,6 +444,27 @@ test('prices too old to show are not kept in memory', () => {
   assert.equal(index.size, 1);
 });
 
+test('two copies of the list merge shop by shop, the later crawl of each shop winning whole', async () => {
+  const { mergeLists } = await import('../server/merge-lists.mjs');
+  const shop = (crawledAt, ...names) => ({ crawledAt, entries: names.map(name => entry('x.bd', name, 1000)) });
+  /* main: a local crawl refreshed sumash and added a new shop while the nightly crawl ran. */
+  const main = { version: 1, shops: {
+    'sumash.bd': shop('2026-11-23T23:00:00Z', 'Fresh A', 'Fresh B'),
+    'new.bd': shop('2026-11-23T23:10:00Z', 'Only on main'),
+    'big.bd': shop('2026-11-22T01:00:00Z', 'Old big', 'Gone from big')
+  } };
+  /* the nightly crawl: re-read big (and dropped a page), failed on sumash (kept its old record). */
+  const crawl = { version: 1, shops: {
+    'sumash.bd': shop('2026-11-21T17:00:00Z', 'Stale A'),
+    'big.bd': shop('2026-11-24T01:00:00Z', 'New big')
+  } };
+  const { list, taken } = mergeLists(main, crawl);
+  assert.deepEqual(taken, ['big.bd']);
+  assert.deepEqual(list.shops['big.bd'].entries.map(e => e.name), ['New big'], 'a page the newer crawl dropped stays dropped');
+  assert.deepEqual(list.shops['sumash.bd'].entries.map(e => e.name), ['Fresh A', 'Fresh B'], 'an older crawl never overwrites a newer one');
+  assert.deepEqual(list.shops['new.bd'].entries.map(e => e.name), ['Only on main']);
+});
+
 test('a misspelt search is corrected from the list\'s own words, and says so; a good one never is', () => {
   const index = createPriceIndex({ version: 1, shops: {
     'a.bd': { entries: [entry('a.bd', 'OnePlus Buds 3 TWS Earbuds', 6500), entry('a.bd', 'Samsung Galaxy A16 5G 8/256GB', 30000)] },
