@@ -25,7 +25,7 @@ const icon = (id: string, size?: number): string =>
 
 const QUICK = [
   { act: 'focusSearch', view: '', title: 'Compare prices', text: 'Search any product across shops', icon: stroke('<path d="M3.5 12.2 11.3 4.4a1.5 1.5 0 0 1 1.1-.4H19a1 1 0 0 1 1 1v6.6a1.5 1.5 0 0 1-.4 1.1l-7.8 7.8a1.4 1.4 0 0 1-2 0l-6.3-6.3a1.4 1.4 0 0 1 0-2z"/><circle cx="16" cy="8" r="1.4" fill="currentColor"/>') },
-  { act: 'view', view: 'compare', title: 'Side by side', text: 'Put up to four shops in one table', icon: stroke('<path d="M12 4v16M5 8h14M5 8 3 13h4zM19 8l-2 5h4z"/>') },
+  { act: 'shelf', view: '', id: 'phones', title: 'Phones', text: 'Compare the latest phones', icon: stroke('<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>') },
   { act: 'view', view: 'stores', title: 'Shops', text: 'Who we read prices from', icon: stroke('<path d="M4 9.5 5.5 4h13L20 9.5M4 9.5h16v10.5H4zM4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0M10 20v-5h4v5"/>') },
   { act: 'view', view: 'how', title: 'How it works', text: 'Where every price comes from', icon: stroke('<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.4c-.7.3-1 .8-1 1.5v.6M12 17h.01"/>') }
 ];
@@ -77,7 +77,7 @@ export function browseView(ctx: RenderContext, data: BrowseData): string {
   const tabs = [{ id: '', label: 'All', count: total }, ...data.shelves.map(item => ({ id: item.id, label: item.label, count: item.cards.length }))];
 
   return `<nav class="quick" aria-label="What you can do here">${QUICK.map(item =>
-      `<button class="quick-tile" data-act="${item.act}"${item.view ? ` data-view="${item.view}"` : ''}>
+      `<button class="quick-tile" data-act="${item.act}"${item.view ? ` data-view="${item.view}"` : ''}${'id' in item ? ` data-id="${item.id}"` : ''}>
         <span class="qt-icon">${item.icon}</span><span><b>${item.title}</b><span>${item.text}</span></span></button>`).join('')}</nav>
 
     <div class="cat-tabs" role="tablist" aria-label="Categories">${tabs.map(tab =>

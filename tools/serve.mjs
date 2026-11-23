@@ -5,7 +5,7 @@ import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApi, createDefaultLiveSearch, startWarming } from '../server/api.mjs';
-import { watchIndexFile } from '../server/price-index.mjs';
+import { pullIndexFile, watchIndexFile } from '../server/price-index.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'dist');
@@ -18,7 +18,19 @@ try {
 
 const liveSearch = createDefaultLiveSearch(process.env);
 /* The price list from `npm run crawl`; a new crawl is picked up without a restart. */
-const searchIndex = watchIndexFile(process.env.PRICE_INDEX_FILE || path.join(root, 'data', 'price-index.json'), { log: console.log });
+const indexFile = process.env.PRICE_INDEX_FILE || path.join(root, 'data', 'price-index.json');
+const searchIndex = watchIndexFile(indexFile, { log: console.log });
+
+/* PRICE_INDEX_URL pulls the list the nightly crawl publishes, on start and every
+   PRICE_INDEX_PULL_HOURS (6 by default), so the site stays current without a redeploy. */
+if (process.env.PRICE_INDEX_URL) {
+  const pull = () => pullIndexFile(process.env.PRICE_INDEX_URL, indexFile).then(
+    changed => console.log(`price list: ${changed ? 'downloaded a newer list' : 'already current'}`),
+    error => console.log(`price list: download failed (${error.message}); keeping the last one`)
+  );
+  void pull();
+  setInterval(pull, (Number(process.env.PRICE_INDEX_PULL_HOURS) || 6) * 60 * 60 * 1000).unref();
+}
 const api = createApi({ liveSearch, searchIndex });
 
 /* PRICE_INDEX_REFRESH_HOURS runs the crawl from here, in its own process so a long crawl never
@@ -26,7 +38,6 @@ const api = createApi({ liveSearch, searchIndex });
    Off unless set, because every crawl reads thousands of shop pages. */
 const refreshHours = Number(process.env.PRICE_INDEX_REFRESH_HOURS);
 if (refreshHours > 0) {
-  const indexFile = process.env.PRICE_INDEX_FILE || path.join(root, 'data', 'price-index.json');
   let child = null;
   const crawl = () => {
     if (child) return;
