@@ -2,7 +2,7 @@
    price. Only prices read from a page, for the product asked about, ever reach a customer. */
 
 import { matchesQuery, mentionsProduct, queryTokens, variantOf } from './matching.mjs';
-import { readPage } from './page-price.mjs';
+import { absoluteImage, readPage } from './page-price.mjs';
 
 /* Social sites, and price guides whose figures are not a shop's offer. */
 const NOT_SHOPS = /(^|\.)((youtube|facebook|tiktok|instagram|reddit|wikipedia|x|twitter|pinterest|quora|gsmarena|mobiledokan|mobilebd|mobileinto|mobilekotha|mrp)\.[a-z.]+|mobile\.bd)$/i;
@@ -70,8 +70,9 @@ function finishGroups(groups) {
   return groups.sort((a, b) => Number(b.comparable) - Number(a.comparable) || lead(a) - lead(b));
 }
 
-const shown = ({ shop, url, title, price, inStock, checkedAt }) =>
-  (checkedAt ? { shop, url, title, price, inStock, checkedAt } : { shop, url, title, price, inStock });
+const shown = ({ shop, url, title, price, inStock, checkedAt, image }) => ({
+  shop, url, title, price, inStock, ...(checkedAt && { checkedAt }), ...(image && { image })
+});
 
 /** Same version together. */
 export function groupOffers(offers) {
@@ -135,6 +136,7 @@ export function createLiveSearch(deps) {
           title,
           price: read.price,
           inStock: read.inStock,
+          image: absoluteImage(read.image, page.url),
           variant: variantOf(title, query)
         }
       };

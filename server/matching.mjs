@@ -33,7 +33,14 @@ export function queryTokens(query) {
 /** A cheap check on a search result, so pages about something else are never opened. Sizes and
     model numbers are left to the page itself, as results often leave them out. */
 export function mentionsProduct(text, query) {
-  const tokens = new Set(tokensOf(text));
+  return mentionsInTokens(wordSet(text), query);
+}
+
+/** The words of a text, worked out once so a long list can be checked against many searches. */
+export const wordSet = text => new Set(tokensOf(text));
+
+/** mentionsProduct, for words already split by wordSet. */
+export function mentionsInTokens(tokens, query) {
   return queryTokens(query).filter(token => !/\d/.test(token)).every(token => tokens.has(token));
 }
 

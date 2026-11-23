@@ -1,7 +1,7 @@
 {
   "name": "daamkhoj-price-comparison",
   "version": "1.0.0",
-  "description": "Price and trust comparison across Bangladeshi online shops — search a product, see every retailer's price side by side with a transparent trust score.",
+  "description": "Price and trust comparison across Bangladeshi online shops \u2014 search a product, see every retailer's price side by side with a transparent trust score.",
   "type": "module",
   "private": true,
   "scripts": {
@@ -12,7 +12,8 @@
     "check": "node tools/build.mjs && node tools/check.mjs",
     "start": "node tools/serve.mjs",
     "test": "node tools/build.mjs && node --test tests/core.test.mjs tests/live.test.mjs tests/index.test.mjs",
-    "crawl": "node tools/crawl.mjs"
+    "crawl": "node tools/crawl.mjs",
+    "backfill-images": "node tools/backfill-images.mjs"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

@@ -88,6 +88,15 @@ function quotesOf(offer) {
     .map(spec => ({ price: spec.price, currency: spec.priceCurrency ?? offer.priceCurrency }));
 }
 
+/** The first usable photo address in a schema.org image field: a string, a list, or an object. */
+function firstImage(value) {
+  for (const item of [].concat(value ?? [])) {
+    const url = typeof item === 'string' ? item : item?.url ?? item?.contentUrl;
+    if (typeof url === 'string' && url.trim()) return url.trim();
+  }
+  return '';
+}
+
 const sameName = name => decodeEntities(name ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
 
 function readJsonLd(html) {
@@ -122,27 +131,55 @@ function readJsonLd(html) {
     price: [...prices][0],
     currency: [...currencies][0],
     name: decodeEntities(products[0].name ?? ''),
+    image: firstImage(products.flatMap(product => [].concat(product.image ?? []))),
     inStock: stock.size === 1 ? [...stock][0] : null
   };
 }
 
+function metaContent(html, name) {
+  const before = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${name}["'][^>]+content=["']([^"']+)["']`, 'i'));
+  const after = html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${name}["']`, 'i'));
+  return (before ?? after)?.[1];
+}
+
+/** A photo address made absolute against its page, or '' when it is not an ordinary web address. */
+export function absoluteImage(image, pageUrl) {
+  if (!image) return '';
+  try {
+    const url = new URL(image.startsWith('//') ? `https:${image}` : image, pageUrl);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
 function readMeta(html) {
-  const tag = name => {
-    const before = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${name}["'][^>]+content=["']([^"']+)["']`, 'i'));
-    const after = html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${name}["']`, 'i'));
-    return (before ?? after)?.[1];
-  };
+  const tag = name => metaContent(html, name);
   const price = tag('product:price:amount') ?? tag('og:price:amount');
   if (!price) return null;
   const currency = tag('product:price:currency') ?? tag('og:price:currency') ?? '';
-  return { source: 'meta', price: toNumber(price), currency: currency.toUpperCase(), name: '', inStock: stockOf(tag('product:availability')) };
+  return { source: 'meta', price: toNumber(price), currency: currency.toUpperCase(), name: '', image: '', inStock: stockOf(tag('product:availability')) };
 }
 
 function readMicrodata(html) {
   const prices = [...html.matchAll(/itemprop=["']price["'][^>]*content=["']([\d.,]+)["']/gi)];
   if (prices.length !== 1) return prices.length ? { ambiguous: true } : null;
   const currency = html.match(/itemprop=["']priceCurrency["'][^>]*content=["'](\w+)["']/i)?.[1] ?? '';
-  return { source: 'microdata', price: toNumber(prices[0][1]), currency: currency.toUpperCase(), name: '', inStock: null };
+  return { source: 'microdata', price: toNumber(prices[0][1]), currency: currency.toUpperCase(), name: '', image: '', inStock: null };
+}
+
+/** A page's product photo, as written: its structured data's image, else its sharing image. */
+export function readImage(html) {
+  const products = [];
+  for (const match of html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      findProducts(JSON.parse(match[1].trim()), products);
+    } catch {
+      /* A malformed block has no photo to give. */
+    }
+  }
+  findProducts(embeddedBlocks(html), products);
+  return decodeEntities(firstImage(products.flatMap(product => [].concat(product.image ?? []))) || metaContent(html, 'og:image') || '');
 }
 
 /** The page's clear taka price, or null with the reason it could not be trusted. */
@@ -158,5 +195,7 @@ export function readPage(html) {
 
   /* Some shops write their own marketing around the name: "Shop X at Shop.com". */
   const name = found.name.replace(/\s+/g, ' ').trim().replace(/^shop\s+/i, '').replace(/\s+at\s+\S+\.[a-z]+$/i, '');
-  return { title, name, price: found.price, inStock: found.inStock, source: found.source };
+  /* The product photo: the structured data's own, else the page's sharing image. */
+  const image = decodeEntities(found.image || metaContent(html, 'og:image') || '');
+  return { title, name, price: found.price, inStock: found.inStock, source: found.source, image };
 }

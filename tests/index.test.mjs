@@ -267,3 +267,50 @@ test('a shop counts once per version: its cheapest price in stock, or its cheape
   assert.deepEqual(small.offers.map(offer => [offer.shop, offer.price]), [['s.bd', 68000], ['t.bd', 70000]]);
   assert.deepEqual(large.offers.map(offer => offer.price), [110000]);
 });
+
+test('a product page\'s photo is read from its structured data, its sharing image, or Shopify\'s JSON', async () => {
+  const { readImage, absoluteImage, readPage } = await import('../server/page-price.mjs');
+  const ld = image => `<script type="application/ld+json">${JSON.stringify({ '@type': 'Product', name: 'Phone', image, offers: { price: 100, priceCurrency: 'BDT' } })}</script>`;
+  assert.equal(readImage(ld('https://a.bd/p.jpg')), 'https://a.bd/p.jpg');
+  assert.equal(readImage(ld(['/one.jpg', '/two.jpg'])), '/one.jpg');
+  assert.equal(readImage(ld({ '@type': 'ImageObject', url: '/obj.png' })), '/obj.png');
+  assert.equal(readImage('<meta property="og:image" content="https://a.bd/og.jpg?a=1&amp;b=2">'), 'https://a.bd/og.jpg?a=1&b=2');
+  assert.equal(readPage(ld('/p.jpg')).image, '/p.jpg');
+  assert.equal(absoluteImage('/p.jpg', 'https://a.bd/product/x'), 'https://a.bd/p.jpg');
+  assert.equal(absoluteImage('//cdn.shopify.com/x.png', 'https://s.bd/products/x'), 'https://cdn.shopify.com/x.png');
+  assert.equal(absoluteImage('javascript:alert(1)', 'https://a.bd/'), '');
+
+  const [variant] = readShopifyProduct({ title: 'Phone', featured_image: '//cdn.shopify.com/p.png', variants: [{ id: 1, title: 'Default Title', price: 100000, available: true }] }, 'https://s.bd/products/phone');
+  assert.equal(variant.image, 'https://cdn.shopify.com/p.png');
+});
+
+test('shelves show products at least two shops sell, priced from their cheapest version', async () => {
+  const { buildBrowse } = await import('../server/browse.mjs');
+  const index = createPriceIndex({ version: 1, shops: {
+    'a.bd': { entries: [entry('a.bd', 'Galaxy A16 5G 8/256GB Official', 30000, { image: 'https://a.bd/a16.jpg' }), entry('a.bd', 'Pixel 10 128GB', 80000)] },
+    'b.bd': { entries: [entry('b.bd', 'Galaxy A16 4G 6/128GB Official', 21000)] }
+  } }, { now: () => NOW });
+  const shelves = buildBrowse(query => index.search(query), { 'a.bd': 2, 'b.bd': 1 }, [
+    { id: 'phones', label: 'Phones', products: ['Galaxy A16', 'Pixel 10'] },
+    { id: 'empty', label: 'Nothing', products: ['Pixel 10'] }
+  ]);
+  assert.deepEqual(shelves.shelves.map(shelf => shelf.id), ['phones'], 'a shelf with no comparison is left out');
+  const [card] = shelves.shelves[0].cards;
+  assert.equal(shelves.shelves[0].cards.length, 1, 'one shop is not a comparison');
+  assert.equal(card.name, 'Galaxy A16');
+  assert.equal(card.from, 21000);
+  assert.equal(card.shop, 'b.bd');
+  assert.equal(card.shops, 2);
+  assert.equal(card.versions, 2);
+  assert.equal(card.image, 'https://a.bd/a16.jpg', 'a photo from any shop stands in when the cheapest has none');
+  assert.deepEqual(shelves.shops, [{ shop: 'a.bd', prices: 2 }, { shop: 'b.bd', prices: 1 }]);
+  assert.equal(shelves.prices, 3);
+});
+
+test('the browse endpoint serves the shelves, and says so when there is no price list', async () => {
+  const shelves = { shelves: [], shops: [], prices: 0 };
+  const search = async () => ({});
+  search.browse = async () => shelves;
+  assert.deepEqual((await call(createApi({ liveSearch: null, searchIndex: search }), '/api/browse')).body, shelves);
+  assert.equal((await call(createApi({ liveSearch: null }), '/api/browse')).status, 503);
+});

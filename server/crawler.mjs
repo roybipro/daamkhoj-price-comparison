@@ -2,7 +2,7 @@
    each page's own price, slowly and only where robots.txt allows. Searches then read the list,
    so they answer at once instead of waiting a minute for a web search. */
 
-import { readPage } from './page-price.mjs';
+import { absoluteImage, readPage } from './page-price.mjs';
 import { productPages } from './sitemap.mjs';
 
 const pause = ms => new Promise(done => setTimeout(done, ms));
@@ -20,6 +20,7 @@ export function readShopifyProduct(json, pageUrl) {
   if (!title) return [];
 
   const many = product.variants.length > 1;
+  const photo = absoluteImage(String(product.featured_image ?? product.images?.[0] ?? ''), pageUrl);
   return product.variants
     .filter(variant => Number(variant.price) > 0)
     .map(variant => {
@@ -29,7 +30,8 @@ export function readShopifyProduct(json, pageUrl) {
         url: many ? `${pageUrl}?variant=${variant.id}` : pageUrl,
         name: named ? `${title} ${version}` : title,
         price: Math.round(Number(variant.price)) / 100,
-        inStock: typeof variant.available === 'boolean' ? variant.available : null
+        inStock: typeof variant.available === 'boolean' ? variant.available : null,
+        ...(photo && { image: photo })
       };
     });
 }
@@ -39,7 +41,8 @@ function readOne(shop, text, url) {
   const read = readPage(text);
   if (read.price === null) return [];
   const name = read.name || read.title;
-  return name ? [{ url, name, price: read.price, inStock: read.inStock }] : [];
+  const image = absoluteImage(read.image, url);
+  return name ? [{ url, name, price: read.price, inStock: read.inStock, ...(image && { image }) }] : [];
 }
 
 /**

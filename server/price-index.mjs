@@ -7,7 +7,8 @@
 
 import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dropSuspiciousPrices, groupOffers, validQuery } from './live-search.mjs';
-import { matchesQuery, mentionsProduct, variantOf } from './matching.mjs';
+import { buildBrowse } from './browse.mjs';
+import { matchesQuery, mentionsInTokens, variantOf, wordSet } from './matching.mjs';
 
 const EMPTY = { version: 1, shops: {} };
 
@@ -38,17 +39,21 @@ export async function saveIndexFile(file, data) {
  */
 export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 * 60 * 1000, maxOffers = 120 } = {}) {
   const entries = Object.values(data?.shops ?? {}).flatMap(shop => shop.entries ?? []);
+  let shelves = null;
+  /* Each entry's words, split once: a search then only checks those words. */
+  let words = null;
 
-  return {
+  const index = {
     size: entries.length,
     shops: Object.keys(data?.shops ?? {}).length,
 
     search(rawQuery) {
       const query = validQuery(rawQuery);
       const oldest = now() - maxAgeMs;
-      const matched = entries.filter(entry =>
-        Date.parse(entry.checkedAt) >= oldest
-        && mentionsProduct(`${entry.name} ${entry.url}`, query)
+      words ??= entries.map(entry => wordSet(`${entry.name} ${entry.url}`));
+      const matched = entries.filter((entry, i) =>
+        mentionsInTokens(words[i], query)
+        && Date.parse(entry.checkedAt) >= oldest
         && matchesQuery(entry.name, query));
 
       const offers = matched.map(entry => ({
@@ -58,6 +63,7 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
         price: entry.price,
         inStock: entry.inStock,
         checkedAt: entry.checkedAt,
+        image: entry.image,
         variant: variantOf(entry.name, query)
       }));
       const { kept, dropped } = dropSuspiciousPrices(offers);
@@ -76,8 +82,18 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
         skipped: { notShop: 0, blocked: 0, noPrice: dropped, otherProduct: 0, failed: 0 },
         groups
       };
+    },
+
+    /** The home page's shelves. Worked out once per list, since a list never changes. */
+    browse() {
+      const fresh = now() - maxAgeMs;
+      const counts = Object.fromEntries(Object.entries(data?.shops ?? {}).map(([shop, { entries: listed = [] }]) =>
+        [shop, listed.filter(entry => Date.parse(entry.checkedAt) >= fresh).length]));
+      shelves ??= buildBrowse(query => index.search(query), counts);
+      return shelves;
     }
   };
+  return index;
 }
 
 /**
@@ -98,13 +114,21 @@ export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, lo
       index = createPriceIndex(await loadIndexFile(file), { now, ...options });
       loadedVersion = version;
       log(`price list: ${index.size} prices from ${index.shops} shops`);
+      /* Shelve now, in the background, so the first visitor's home page doesn't wait for it. */
+      const loaded = index;
+      setTimeout(() => { try { loaded.browse(); } catch { /* reported when asked for */ } }, 0).unref?.();
     } catch (error) {
       log(`price list not reloaded: ${error.message}`);
     }
   }
 
-  return async rawQuery => {
+  const search = async rawQuery => {
     await refresh();
     return index.search(rawQuery);
   };
+  search.browse = async () => {
+    await refresh();
+    return index.browse();
+  };
+  return search;
 }

@@ -45,6 +45,7 @@ footer .fine { flex: 1 1 340px; max-width: 70ch; line-height: 1.6; }
 /* ---------- tablets ---------- */
 
 @media (max-width: 960px) {
+  .quick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .offer { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 16px; padding: 15px 18px; }
   .offer.live { grid-template-columns: minmax(0, 1fr) auto; }
   .offer .seller { grid-column: 1; grid-row: 1; }
@@ -88,6 +89,20 @@ footer .fine { flex: 1 1 340px; max-width: 70ch; line-height: 1.6; }
   }
   .chips::-webkit-scrollbar, .controls::-webkit-scrollbar { display: none; }
   .empty .chips { flex-wrap: wrap; margin: 0; padding: 0; }
+  /* One row of app-style shortcuts, so products start on the first screen. */
+  .quick { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 18px 0 18px; }
+  .quick-tile { flex-direction: column; justify-content: flex-start; text-align: center; gap: 6px; padding: 10px 4px; border-color: transparent; background: none; }
+  .quick-tile b { font-size: 13.5px; line-height: 1.2; font-weight: 600; }
+  .quick-tile span span { display: none; }
+  .qt-icon { width: 48px; height: 48px; border-radius: 14px; }
+  .cat-tabs { margin: 0 -16px 8px; padding: 0 16px 4px; }
+  .cards.row { grid-auto-columns: 158px; gap: 10px; margin: 0 -16px; padding: 2px 16px 10px; scroll-padding-inline: 16px; }
+  .grid-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .pc-body { padding: 10px 11px 12px; }
+  .pc-name { font-size: 15px; }
+  .pc-body .pricetag { font-size: 14px; }
+  .shop-strip { padding: 16px; }
+  .gh-img { width: 64px; height: 64px; }
   /* On a phone, once a search runs, its results matter more than other suggestions. */
   body[data-mode="search"] .search-zone .chips { display: none; }
   .lead { margin-top: 24px; }

@@ -3,6 +3,7 @@ import { escapeHtml, money, pluralCount, pluralNoun } from '../core/format.js';
 import { homeUrl } from '../core/links.js';
 import { UNDER_MARKET_RULE } from '../core/trust.js';
 import { groupCard, logo, OUT_ICON, shopLink } from './fragments.js';
+import { browseView } from './browse.js';
 import { liveUnavailableNote, liveView } from './live.js';
 
 const TRENDING = ['iPhone 15', 'Galaxy A16', 'HP 250 G9', 'Miniket rice 5kg', 'Soybean oil 5 litre', 'TP-Link Archer C6', 'Casio F91W', 'Romoss power bank 20000'];
@@ -12,6 +13,7 @@ const showsLive = (ctx: RenderContext): boolean => ctx.state.live.status !== 'id
 export function resultsView(ctx: RenderContext): string {
   const { state, catalog, groups } = ctx;
   if (showsLive(ctx)) return liveView(state.live);
+  if (!state.q && state.browse.status === 'ready') return browseView(ctx, state.browse.data);
   const priceCount = groups.reduce((n, g) => n + g.live.length + g.dropped.length, 0);
   const shopFilter = state.storeId ? catalog.stores.find(s => s.id === state.storeId) : undefined;
   const shopHints = state.q ? ctx.search.stores(state.q) : [];
@@ -185,7 +187,7 @@ export function howView(ctx: RenderContext): string {
 
 export function toolbarView(ctx: RenderContext): string {
   const { state, catalog } = ctx;
-  if (state.view !== 'results' || showsLive(ctx)) return '';
+  if (state.view !== 'results' || showsLive(ctx) || (!state.q && state.browse.status === 'ready')) return '';
   return `<div class="toolbar">
     <p class="count" aria-live="polite"><b class="num">${catalog.totals.offers}</b> sample prices from <b class="num">${catalog.totals.stores}</b> shops for <b class="num">${catalog.totals.products}</b> products</p>
     <div class="controls">
