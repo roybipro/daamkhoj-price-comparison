@@ -8,6 +8,7 @@ export const SHOP_LOGOS: Readonly<Record<string, string>> = {
   'gadgetandgear.com': 'assets/shops/gadgetandgear.com.ico',
   'gadgetbreeze.com.bd': 'assets/shops/gadgetbreeze.com.bd.png',
   'gadgetmart.com.bd': 'assets/shops/gadgetmart.com.bd.png',
+  'gadgetz.com.bd': 'assets/shops/gadgetz.com.bd.png',
   'globalbrand.com.bd': 'assets/shops/globalbrand.com.bd.png',
   'istockbd.com': 'assets/shops/istockbd.com.png',
   'kryinternational.com': 'assets/shops/kryinternational.com.png',
