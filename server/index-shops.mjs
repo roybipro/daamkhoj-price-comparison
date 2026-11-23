@@ -45,5 +45,11 @@ export const INDEX_SHOPS = [
   { shop: 'kryinternational.com', sitemap: 'https://kryinternational.com/sitemap.xml', product: /\/products\/[^/]+\/?$/, kind: 'page' },
   { shop: 'diamu.com.bd', sitemap: 'https://diamu.com.bd/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
   { shop: 'gadgetmart.com.bd', sitemap: 'https://gadgetmart.com.bd/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
-  { shop: 'transcomdigital.com', sitemap: 'https://transcomdigital.com/sitemap.xml', product: ONE_LEVEL, kind: 'page' }
+  { shop: 'transcomdigital.com', sitemap: 'https://transcomdigital.com/sitemap.xml', product: ONE_LEVEL, kind: 'page' },
+
+  /* Added 2026-11-23, found by the live web search (they priced "Baseus Bowie MA10"), after the
+     same check: T-Tech 12/12 and 20/20 (earphones and gadgets; many out of stock, shown as such),
+     Shopz 12/12 and 20/20 (gadgets and lifestyle: fans, bags, umbrellas). Both have a cart. */
+  { shop: 't-tech.com.bd', sitemap: 'https://t-tech.com.bd/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
+  { shop: 'shopz.com.bd', sitemap: 'https://www.shopz.com.bd/sitemap.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' }
 ];
