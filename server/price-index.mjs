@@ -303,6 +303,12 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
        finds prices wins; if none does, the search runs as typed. */
     const suggestions = suggested.map(({ name, shops }) => ({ name, shops }));
     if (!/^[\p{L}\p{N}]+$/u.test(last) || (last.length < 2 && !before.length)) return { ...fallback(typed), suggestions };
+    /* A last word the list knows in full ("5600", "pro") is what the shopper meant: when it finds
+       prices as typed, it is not stretched into a longer word ("5600" → "5600gt", another CPU). */
+    if (last.length >= 3 && countOf(last) >= 2) {
+      const asTyped = searchCorrecting(typed);
+      if (asTyped.found) return { ...asTyped, suggestions };
+    }
     const options = [
       suggested[0]?.words.find(word => word.startsWith(last) && !before.includes(word)),
       completeWord(last, before)
