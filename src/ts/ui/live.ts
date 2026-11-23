@@ -161,8 +161,8 @@ function productDetail(result: LiveResult, card: ResultCard, many: boolean): str
 
 export function liveView(live: LiveState, view: { product: string; limit: number } = { product: '', limit: 40 }): string {
   if (live.status === 'loading') {
-    return `<div class="lead loading" role="status"><h2>Checking prices for “${escapeHtml(live.query)}”</h2>
-      <p>Searching the web and reading each shop's own page. A new search can take a minute or more. Popular searches are usually instant.</p>
+    return `<div class="lead loading" role="status"><h2>Searching other shops for “${escapeHtml(live.query)}”</h2>
+      <p>It isn't in our price list yet, so we're searching the web and reading each shop's own page. This takes about a minute; you can keep browsing meanwhile.</p>
       <div class="progress" aria-hidden="true"><i></i></div></div>`;
   }
   if (live.status === 'error') {
@@ -178,9 +178,12 @@ export function liveView(live: LiveState, view: { product: string; limit: number
     ? `${pluralCount(result.priced, 'price')} from our price list of shops' own pages.${leftOut(result)}`
     : `The web search returned ${pluralCount(result.found, 'result')}, and ${pluralCount(result.priced, 'price')} could be read from shop pages${
       result.indexed ? `, including ${result.indexed} from our price list` : ''}.${leftOut(result)}`;
-  const corrected = live.typed
-    ? `<div class="note" role="status">Showing results for <b>“${escapeHtml(result.query)}”</b>. You typed “${escapeHtml(live.typed)}”.</div>`
-    : '';
+  const corrected = result.broadenedFrom
+    ? `<div class="note" role="status">No exact match for “${escapeHtml(result.broadenedFrom)}” in our price list yet. Showing the closest: <b>“${escapeHtml(result.query)}”</b>.${
+      live.instant ? ' <button class="link" data-act="searchWeb">Search the web for it</button>' : ''}</div>`
+    : live.typed
+      ? `<div class="note" role="status">Showing results for <b>“${escapeHtml(result.query)}”</b>. You typed “${escapeHtml(live.typed)}”.</div>`
+      : '';
   const checking = live.checking
     ? '<p class="checking" role="status"><i aria-hidden="true"></i>Checking these prices on the shops\' own sites…</p>'
     : result.rechecked ? `<p class="checking done" role="status">Prices checked on the shops' sites just now.</p>` : '';

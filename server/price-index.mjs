@@ -129,16 +129,81 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
     };
   }
 
-  /* A search that finds nothing is tried again with its spelling corrected from the names in
-     the list, and says so. A search that finds something is never "corrected". */
+  /* How many product names use each word, for telling known words from slips. */
+  let wordCounts = null;
+  const countOf = word => {
+    if (!wordCounts) {
+      wordCounts = new Map();
+      for (let i = 0; i < entries.length; i++) for (const name of namesOf(i)) wordCounts.set(name, (wordCounts.get(name) ?? 0) + 1);
+    }
+    return wordCounts.get(word) ?? 0;
+  };
+
+  /** Words shops write both joined and apart, written the other way: "powerbank" → "power bank",
+      "ear buds" → "earbuds". Only words the list's names use count. */
+  function respace(query) {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const out = [];
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const next = words[i + 1];
+      if (next && countOf(word + next) >= 2) {
+        out.push(word + next);
+        i++;
+        continue;
+      }
+      let best = null;
+      /* Tried even when the joined word is known: this runs only when the search found nothing,
+         and one shop's "Powerbank" is another's "Power Bank". */
+      if (word.length >= 6 && /^\p{L}+$/u.test(word)) {
+        for (let cut = 3; cut <= word.length - 3; cut++) {
+          const score = Math.min(countOf(word.slice(0, cut)), countOf(word.slice(cut)));
+          if (score >= 2 && (!best || score > best.score)) best = { score, words: [word.slice(0, cut), word.slice(cut)] };
+        }
+      }
+      out.push(...(best?.words ?? [word]));
+    }
+    return out.join(' ');
+  }
+
+  /* A search that finds nothing is tried again with words joined or split the way the list's
+     names write them, then with its spelling corrected, and says so. A search that finds
+     something is never "corrected". */
   function searchCorrecting(rawQuery) {
     const answer = searchExactly(rawQuery);
     if (answer.found) return answer;
+    const respaced = respace(answer.query);
+    if (respaced !== answer.query.toLowerCase()) {
+      const retried = searchExactly(respaced);
+      if (retried.found) return { ...retried, correctedFrom: answer.query };
+    }
     speller ??= createSpeller(entries.map(entry => entry.name));
     const corrected = speller(answer.query);
     if (corrected.toLowerCase() === answer.query.toLowerCase()) return answer;
     const retried = searchExactly(corrected);
     return retried.found ? { ...retried, correctedFrom: answer.query } : answer;
+  }
+
+  /* When nothing matches, the closest thing the list has: the search with one word left out,
+     keeping the narrowest that still finds something ("apple smartwatch" → "apple watch", not
+     every smart watch). The answer says it is a broader search, so the page can say so while the
+     web search looks for the real thing. */
+  function searchClosest(rawQuery) {
+    const answer = searchCorrecting(rawQuery);
+    if (answer.found) return answer;
+    const words = respace(answer.query).split(/\s+/);
+    if (words.length < 2) return answer;
+    let best = null;
+    for (let skip = 0; skip < words.length; skip++) {
+      let broader;
+      try {
+        broader = searchCorrecting(words.filter((_, i) => i !== skip).join(' '));
+      } catch {
+        continue;
+      }
+      if (broader.found && (!best || broader.found < best.found)) best = broader;
+    }
+    return best ? { ...best, broadenedFrom: answer.query } : answer;
   }
 
   /* Each listing's words as its name uses them (URLs left out, so "prod" never becomes "product"
@@ -206,7 +271,8 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
 
   /* While a word is still being typed, it is completed to the commonest word that starts that
      way ("iph" → "iphone", "galaxy a1" → "galaxy a16"), and the answer says what was typed. */
-  function searchAsTyped(rawQuery) {
+  function searchAsTyped(rawQuery, closest) {
+    const fallback = closest ? searchClosest : searchCorrecting;
     const typed = String(rawQuery ?? '').trim();
     const words = typed.split(/\s+/);
     const last = words.at(-1).toLowerCase();
@@ -216,7 +282,7 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
        with the list under the box, then the commonest word that starts that way. The first that
        finds prices wins; if none does, the search runs as typed. */
     const suggestions = suggested.map(({ name, shops }) => ({ name, shops }));
-    if (!/^[\p{L}\p{N}]+$/u.test(last) || (last.length < 2 && !before.length)) return { ...searchCorrecting(typed), suggestions };
+    if (!/^[\p{L}\p{N}]+$/u.test(last) || (last.length < 2 && !before.length)) return { ...fallback(typed), suggestions };
     const options = [
       suggested[0]?.words.find(word => word.startsWith(last) && !before.includes(word)),
       completeWord(last, before)
@@ -226,7 +292,7 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
       const answer = searchCorrecting(completed);
       if (answer.found) return { ...answer, completedFrom: typed, suggestions };
     }
-    return { ...searchCorrecting(typed), suggestions };
+    return { ...fallback(typed), suggestions };
   }
 
   /* Prices re-read from the shops' pages, applied to the list in memory until the next one loads. */
@@ -234,6 +300,7 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
   function update(fresh) {
     byUrl ??= new Map(entries.map(entry => [entry.url, entry]));
     let changed = 0;
+    let pictured = 0;
     for (const item of fresh) {
       const entry = byUrl.get(item.url);
       if (!entry || !(item.price > 0)) continue;
@@ -241,9 +308,12 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
       entry.price = item.price;
       entry.inStock = item.inStock ?? null;
       entry.checkedAt = item.checkedAt;
-      if (item.image && !entry.image) entry.image = item.image;
+      if (item.image && !entry.image) {
+        entry.image = item.image;
+        pictured++;
+      }
     }
-    if (changed) shelvesStale = true;
+    if (changed || pictured) shelvesStale = true;
     return changed;
   }
 
@@ -251,9 +321,18 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
     size: entries.length,
     shops: Object.keys(data?.shops ?? {}).length,
 
-    /** `partial` while the last word may still be half typed. */
-    search: (rawQuery, { partial = false } = {}) => (partial ? searchAsTyped(rawQuery) : searchCorrecting(rawQuery)),
+    /** `partial` while the last word may still be half typed; `closest` to fall back to a broader
+        search rather than nothing, for a shopper (never for merging with a web search). */
+    search: (rawQuery, { partial = false, closest = false } = {}) =>
+      (partial ? searchAsTyped(rawQuery, closest) : closest ? searchClosest(rawQuery) : searchCorrecting(rawQuery)),
     update,
+
+    /** Builds the shelves again at the next ask, as after a batch of photos arrives. */
+    reshelve() {
+      shelves = null;
+      shelvedAt = now();
+      shelvesStale = false;
+    },
 
     /** The home page's shelves. Rebuilt hourly: the list doesn't change, but prices age out of it,
         and a card must never offer a price its own search would leave out. */
@@ -278,7 +357,7 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
  * Search over the saved list that follows new crawls without a restart. The file is checked at
  * most once per `checkEveryMs`, and a damaged one is skipped: the last good list keeps serving.
  */
-export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, log = () => {}, ...options } = {}) {
+export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, log = () => {}, onLoad = () => {}, ...options } = {}) {
   let index = createPriceIndex(null, { now, ...options });
   let loadedVersion = null;
   let checkedAt = -Infinity;
@@ -294,7 +373,15 @@ export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, lo
       log(`price list: ${index.size} prices from ${index.shops} shops`);
       /* Shelve now, in the background, so the first visitor's home page doesn't wait for it. */
       const loaded = index;
-      setTimeout(() => { try { loaded.browse(); } catch { /* reported when asked for */ } }, 0).unref?.();
+      setTimeout(() => {
+        try {
+          loaded.browse();
+        } catch {
+          /* Reported when asked for. */
+        }
+        /* Then whatever should follow a new list, such as finding photos its cards lack. */
+        Promise.resolve().then(() => onLoad(loaded)).catch(error => log(`after loading the price list: ${error.message}`));
+      }, 0).unref?.();
     } catch (error) {
       log(`price list not reloaded: ${error.message}`);
     }

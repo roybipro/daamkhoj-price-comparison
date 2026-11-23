@@ -213,8 +213,11 @@ async function startLive(): Promise<void> {
 
   const web = await fetchLive(searched, request.signal, 'web');
   if (request.signal.aborted) return;
-  if (web.status === 'done') {
+  if (web.status === 'done' && (web.result.groups.length || !hasPrices(listed))) {
     state.live = { ...web, typed };
+  } else if (web.status === 'done' && hasPrices(listed)) {
+    /* The web found nothing more: the list's closest prices stay, and the page says so. */
+    state.live = { ...listed, typed, note: `The web search found no other shop prices for “${searched}”.` };
   } else {
     state.live = hasPrices(listed)
       ? { ...listed, typed, ...(web.status === 'error' && { note: `Other shops could not be checked: ${web.message}` }) }

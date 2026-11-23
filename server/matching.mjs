@@ -47,6 +47,8 @@ export function mentionsInTokens(tokens, query) {
   return queryTokens(query).filter(token => !/\d/.test(token)).every(token => tokens.has(token));
 }
 
+const UNIT_AFTER = /^(mah|w|gb|tb|mm|hz|kg|g|l|ml|inch|in)$/;
+
 export function matchesQuery(name, query) {
   const wanted = queryTokens(query);
   if (!wanted.length) return false;
@@ -56,7 +58,9 @@ export function matchesQuery(name, query) {
 
   /* Model codes get written apart ("F-91W" for "f91w"), but a bare number must match
      whole: "15" is not in "2015". */
-  const found = wanted.every(token => tokens.has(token) || (/\p{L}/u.test(token) && /\d/.test(token) && token.length >= 4 && compact.includes(token)));
+  /* A bare number also matches the same number with its unit: "20000" is "20000mah", "65" is "65w". */
+  const withUnit = token => /^\d+$/.test(token) && [...tokens].some(word => word.startsWith(token) && UNIT_AFTER.test(word.slice(token.length)));
+  const found = wanted.every(token => tokens.has(token) || withUnit(token) || (/\p{L}/u.test(token) && /\d/.test(token) && token.length >= 4 && compact.includes(token)));
   if (!found) return false;
   return ![...tokens].some(token => OTHER_PRODUCT.has(token) && !asked.has(token));
 }

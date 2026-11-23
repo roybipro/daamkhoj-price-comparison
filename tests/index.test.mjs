@@ -476,3 +476,50 @@ test('the re-check endpoint runs the server\'s re-check, and says so when there 
   assert.equal((await call(createApi({ liveSearch: null }), '/api/recheck')).status, 503);
   assert.equal((await call(createApi({ liveSearch: null }), '/api/nothing')).status, 404);
 });
+
+test('words shops write joined or apart are found either way, and nothing found falls back to the closest', () => {
+  const index = createPriceIndex({ version: 1, shops: {
+    'a.bd': { entries: [entry('a.bd', 'Anker 335 Power Bank 20000mAh', 3500), entry('a.bd', 'JBL Tune Earbuds', 4000), entry('a.bd', 'Anker Nano Charger 30W', 1800), entry('a.bd', 'Apple Watch SE 3', 30000)] },
+    'b.bd': { entries: [entry('b.bd', 'Baseus Powerbank 10000mAh', 2000), entry('b.bd', 'Xiaomi Powerbank 20000mAh', 2600), entry('b.bd', 'Apple Watch SE 3 GPS', 31000), entry('b.bd', 'Amazfit Smart Watch', 9000), entry('b.bd', 'Romoss Power Bank 30000mAh', 3900), entry('b.bd', 'QCY T13 Earbuds', 1900), entry('b.bd', 'Kieslect Smart Watch', 3000), entry('b.bd', 'Colmi Smart Watch', 2500)] }
+  } }, { now: () => NOW });
+
+  const split = index.search('anker powerbank');
+  assert.equal(split.query, 'anker power bank', 'one shop writes Powerbank, Anker writes Power Bank');
+  assert.equal(split.correctedFrom, 'anker powerbank');
+  assert.equal(index.search('jbl ear buds').query, 'jbl earbuds');
+  assert.equal(index.search('xiaomi powerbank 20000').priced, 1, 'a bare number matches it with its unit, 20000mAh');
+
+  assert.equal(index.search('anker zzzz').found, 0, 'a plain search never broadens: a web search merges with it');
+  const closest = index.search('anker zzzz', { closest: true });
+  assert.equal(closest.query, 'anker');
+  assert.equal(closest.broadenedFrom, 'anker zzzz');
+  assert.equal(index.search('apple smartwatch', { closest: true }).query, 'apple watch', 'the narrowest search that finds something');
+});
+
+test('home cards without a photo get one from a shop that answers, not one that keeps refusing', async () => {
+  const { createRechecker } = await import('../server/recheck.mjs');
+  const index = createPriceIndex({ version: 1, shops: {
+    'no.bd': { entries: [entry('no.bd', 'Galaxy A16 5G', 21000), entry('no.bd', 'Galaxy A17 5G', 26000), entry('no.bd', 'Redmi Note 14', 24000)] },
+    'ok.bd': { entries: [entry('ok.bd', 'Galaxy A16 5G', 22000), entry('ok.bd', 'Galaxy A17 5G', 27000), entry('ok.bd', 'Redmi Note 14', 25000)] }
+  } }, { now: () => NOW });
+  const page = (name, price) => `<script type="application/ld+json">${JSON.stringify({ '@type': 'Product', name, image: `https://ok.bd/${name.replace(/\W+/g, '-')}.jpg`, offers: { price, priceCurrency: 'BDT' } })}</script>`;
+  const asked = [];
+  const recheck = createRechecker({
+    fetchPage: async url => {
+      asked.push(url);
+      if (url.includes('no.bd')) return { ok: false, status: 403, text: '' };
+      const name = url.includes('a16') ? 'Galaxy A16 5G' : url.includes('a17') ? 'Galaxy A17 5G' : 'Redmi Note 14';
+      return { ok: true, status: 200, text: page(name, 1000) };
+    },
+    robots: { allows: async () => true },
+    now: () => NOW
+  });
+  const cards = () => index.browse().shelves.flatMap(shelf => shelf.cards);
+  assert.ok(cards().length >= 3 && cards().every(card => !card.image));
+
+  const { filled, missing } = await recheck.fillPhotos(index);
+  assert.equal(missing, 0);
+  assert.equal(filled, cards().length);
+  assert.ok(cards().every(card => card.image?.startsWith('https://ok.bd/')));
+  assert.ok(asked.filter(url => url.includes('no.bd')).length <= 3, 'a shop that keeps refusing is left alone');
+});
