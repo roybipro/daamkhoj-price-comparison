@@ -2,7 +2,7 @@ import type { Offer, RenderContext, ShopProfile, TrustWeight } from '../types.js
 import { escapeHtml, money, pluralCount, pluralNoun } from '../core/format.js';
 import { homeUrl } from '../core/links.js';
 import { UNDER_MARKET_RULE } from '../core/trust.js';
-import { groupCard, logo, OUT_ICON } from './fragments.js';
+import { groupCard, logo, OUT_ICON, shopLink } from './fragments.js';
 import { liveUnavailableNote, liveView } from './live.js';
 
 const TRENDING = ['iPhone 15', 'Galaxy A16', 'HP 250 G9', 'Miniket rice 5kg', 'Soybean oil 5 litre', 'TP-Link Archer C6', 'Casio F91W', 'Romoss power bank 20000'];
@@ -87,7 +87,8 @@ export function storesView(ctx: RenderContext): string {
         `<span class="tag cat">${escapeHtml(catalog.categories.get(c)?.en ?? c)}</span>`).join('')}</div>
       <div class="panel-acts">
         <button class="cmp" data-act="shop" data-id="${store.id}">See this shop's prices</button>
-        ${store.closed ? '' : `<a class="shop-link" href="${homeUrl(store)}" target="_blank" rel="noopener noreferrer nofollow">Website ${OUT_ICON}</a>`}
+        ${store.closed ? '' : store.siteDown ? '<span class="tag warn">Website not reachable</span>'
+          : `<a class="shop-link" href="${homeUrl(store)}" target="_blank" rel="noopener noreferrer nofollow">Website ${OUT_ICON}</a>`}
       </div>
     </article>`).join('')}</div>`;
 }
@@ -142,7 +143,7 @@ export function compareView(ctx: RenderContext): string {
         ${row('Seller', o => o.seller ? escapeHtml(o.seller) : "Shop's own stock")}
         ${row('Seller rating', o => o.seller ? `${o.sellerRating.toFixed(1)}/5 (${o.sellerReviews})` : `${o.store.rating.toFixed(1)}/5`)}
         ${row('Risk flags', o => o.trust.flags.length ? o.trust.flags.map(escapeHtml).join('<br>') : '<span style="color:var(--brand-2)">No risk flagged</span>')}
-        ${row('', o => `<a class="cmp" style="text-decoration:none;display:inline-block" href="${escapeHtml(o.link)}" target="_blank" rel="noopener noreferrer nofollow">Find this product ↗</a>`)}
+        ${row('', o => shopLink(o))}
       </tbody>
     </table></div>
     <div class="note" style="margin-top:16px">${cheapest.id === safest.id
