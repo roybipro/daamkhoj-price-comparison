@@ -560,6 +560,39 @@ test('productKey keeps M4 after screen sizes, strips unbracketed RAM/ROM, and bu
   assert.equal(shelves.shelves.length, 0);
 });
 
+test('a model code ending in W is not a size, routers are not watches, and card names keep their hyphens', async () => {
+  const { discoverCategories, displayName, productKey } = await import('../server/browse.mjs');
+
+  /* B8: "F-91W" is a watch, not 91 watts; two models must not share a card. */
+  assert.notEqual(productKey('Casio Vintage F-91W-1DG Digital Resin Band Unisex Watch'), productKey('Casio Vintage F-105W-1ADF Digital Resin Band Unisex Watch'));
+  assert.equal(productKey('Micropack KM-205W Wireless Keyboard'), productKey('Micropack KM205W Wireless Keyboard'));
+  assert.notEqual(productKey('Micropack KM-205W Wireless Keyboard'), productKey('Micropack KM-270W Wireless Keyboard'));
+  /* A size written against a word is still a size. */
+  assert.equal(productKey('UGREEN S550 Universal Travel Power Adapter-65W'), 'ugreen s550 universal travel power adapter');
+
+  /* B6: "Dual Band" is a router; a Huawei Band is a watch. */
+  const listing = (shop, name) => ({ shop, name });
+  const shelves = discoverCategories([
+    listing('a.bd', 'Cudy M1500 AX1500 Dual Band Wi-Fi 6 Mesh Router'), listing('b.bd', 'Cudy M1500 AX1500 Dual Band Wi-Fi 6 Mesh Router'),
+    listing('a.bd', 'Huawei Band 11 Pro'), listing('b.bd', 'Huawei Band 11 Pro')
+  ]);
+  const shelfOf = name => shelves.find(shelf => shelf.products.some(product => product.startsWith(name)))?.id;
+  assert.equal(shelfOf('Cudy'), 'pc');
+  assert.equal(shelfOf('Huawei'), 'watches');
+
+  /* B7: names as the shops write them, and still the same search. */
+  for (const [name, shown] of [
+    ['Sony BRAVIA 7 K-75XR70 75-Inch Mini LED QLED 4K HDR Google TV', 'Sony BRAVIA 7 K-75XR70 Mini'],
+    ['T-Wolf G580 Wired Mouse with Grip Tape', 'T-Wolf G580 Wired Mouse'],
+    ['Apple USB-C to Lightning Cable (1m)', 'Apple USB-C to Lightning Cable'],
+    ['Micropack KM-205W Wireless Keyboard', 'Micropack KM-205W Wireless Keyboard']
+  ]) {
+    const key = productKey(name);
+    assert.equal(displayName(key, [name]), shown);
+    assert.equal(productKey(displayName(key, [name])), key);
+  }
+});
+
 test('crawlShop remembers unpriced pages so they do not starve priced pages, and keeps saved prices if robots.txt is unreachable', async () => {
   const { createRobots } = await import('../server/robots.mjs');
   const pages = {

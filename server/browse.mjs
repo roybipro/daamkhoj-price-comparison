@@ -6,13 +6,14 @@
 export const CATEGORY_RULES = [
   { id: 'power', label: 'Chargers & power', test: /\b(charger|chargers|adapter|cable|power ?bank|magsafe|hub|dock|wireless charging)\b/ },
   { id: 'audio', label: 'Earbuds & speakers', test: /\b(airpods|buds|earbuds|earphones?|headphones?|headset|speakers?|soundbar|neckband|tws|airdots|soundcore|marshall)\b/ },
-  { id: 'watches', label: 'Smartwatches', test: /\b(watch|band)\b/ },
+  /* "Dual Band" is a Wi-Fi router, not a fitness band. */
+  { id: 'watches', label: 'Smartwatches', test: /\b(watch|(?<!\b(single|dual|tri|quad) )band)\b/ },
   { id: 'tablets', label: 'Tablets', test: /\b(ipad|tab|pad|tablet)\b/ },
   { id: 'laptops', label: 'Laptops', test: /\b(macbook|laptop|notebook|vivobook|zenbook|ideapad|thinkpad|thinkbook|inspiron|vostro|latitude|pavilion|victus|omen|envy|elitebook|probook|aspire|nitro|swift|predator|legion|loq|tuf|rog|chromebook)\b/ },
   { id: 'gaming', label: 'Cameras & gaming', test: /\b(camera|cam|gimbal|insta360|gopro|osmo|drone|controller|gamepad|playstation|ps5|ps4|xbox|console|nintendo|switch 2)\b/ },
   { id: 'screens', label: 'Monitors & TVs', test: /\b(monitor|tv|television|projector)\b/ },
-  { id: 'pc', label: 'PC & accessories', test: /\b(ssd|hdd|nvme|ram|ddr4|ddr5|motherboard|processor|ryzen|graphics|rtx|gtx|radeon|psu|casing|cooler|keyboard|mouse|router|ups|webcam|printer|scanner|pendrive|flash drive|memory card)\b/ },
-  { id: 'phones', label: 'Phones', test: /\b(iphone|galaxy|redmi|poco|pixel|oneplus|honor|vivo|oppo|realme|infinix|tecno|motorola|moto|nokia|nothing phone|xiaomi \d+|symphony|walton primo|meizu|zte|nubia|huawei|itel|lava|tcl|blackview|ulefone|doogee|oukitel|cmf phone|galaxy [asmz]\\d+)\b/ },
+  { id: 'pc', label: 'PC & accessories', test: /\b(ssd|hdd|nvme|ram|ddr4|ddr5|motherboard|processor|ryzen|graphics|rtx|gtx|radeon|psu|casing|cooler|keyboard|mouse|router|mesh|access point|(dual|tri) band|wi fi|ups|webcam|printer|scanner|pendrive|flash drive|memory card)\b/ },
+  { id: 'phones', label: 'Phones', test: /\b(iphone|galaxy|redmi|poco|pixel|oneplus|honor|vivo|oppo|realme|infinix|tecno|motorola|moto|nokia|nothing phone|xiaomi \d+|symphony|walton primo|meizu|zte|nubia|huawei|itel|lava|tcl|blackview|ulefone|doogee|oukitel|cmf phone)\b/ },
   { id: 'more', label: 'More', test: /./ }
 ];
 
@@ -26,7 +27,12 @@ const FILLER = /\b(new|original|official|unofficial|global|version|edition|price
 
 /** The product a listing is for: its name up to the first detail, without colours or sizes. */
 export function productKey(name) {
-  return String(name).toLowerCase()
+  return String(name)
+    /* A model code's short capital prefix joins its number ("KM-205W", "F-91W" → "KM205W",
+       "F91W"), so the number is not mistaken for a size ("205W" watts) and cut, which would
+       put every Micropack KM-…W or Casio F-…W on one card. "Adapter-65W" is a size and stays. */
+    .replace(/\b([A-Z]{1,4})-(?=\d+(?:\.\d+)?(?:[wW]|GB|gb|TB|tb|mAh|MAH|mah|mm|MM|Hz|HZ|hz)(?![A-Za-z0-9]))/g, '$1')
+    .toLowerCase()
     .replace(/\(.*?\)|\[.*?\]/g, ' ')
     .split(/\s[-|–]\s|,|\swith\s|\sfor\s/)[0]
     .replace(COLOURS, ' ')
@@ -48,11 +54,34 @@ export function productKey(name) {
     .split(' ').slice(0, 6).join(' ');
 }
 
-/** A key written the way the shops write it: "apple airpods pro" → "Apple AirPods Pro". */
+/**
+ * A key written the way the shops write it: "apple airpods pro" → "Apple AirPods Pro",
+ * "sony bravia 7 k 75xr70" → "Sony BRAVIA 7 K-75XR70", "t wolf g580" → "T-Wolf G580". The name is
+ * also the card's search, so it must give back the same key; if it would not, each word is only
+ * re-cased instead.
+ */
 export function displayName(key, names) {
-  const words = names.flatMap(name => name.split(/[\s,()/|]+/));
-  return key.split(' ').map(token =>
-    words.find(word => word.toLowerCase().replace(/[^a-z0-9+]/g, '') === token) ?? token).join(' ');
+  const plain = text => text.toLowerCase().replace(/[^a-z0-9+]/g, '');
+  const words = names.flatMap(name => name.split(/[\s,()/|]+/)).filter(Boolean);
+  /* Whole words first ("KM-205W" for "km205w"), then the parts of hyphenated ones ("Type", "C"). */
+  const parts = words.flatMap(word => word.split('-').filter(Boolean).map((text, at, all) => ({ text, word, at, of: all.length })));
+  const tokens = key.split(' ');
+  const recased = tokens.map(token => words.find(word => plain(word) === token) ?? parts.find(part => plain(part.text) === token)?.text ?? token);
+
+  const shown = [];
+  for (let i = 0; i < tokens.length; i++) {
+    /* Consecutive tokens that are, in order, all the parts of one hyphenated word: write the word. */
+    const whole = parts.find(part => part.at === 0 && part.of > 1 && plain(part.text) === tokens[i] &&
+      part.word.split('-').filter(Boolean).every((piece, j) => plain(piece) === tokens[i + j]));
+    if (whole) {
+      shown.push(whole.word);
+      i += whole.of - 1;
+    } else {
+      shown.push(recased[i]);
+    }
+  }
+  const name = shown.join(' ');
+  return productKey(name) === key ? name : recased.join(' ');
 }
 
 /**
