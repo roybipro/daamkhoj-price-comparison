@@ -7,7 +7,7 @@
 
 import { readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dropSuspiciousPrices, groupOffers, validQuery } from './live-search.mjs';
-import { buildBrowse, discoverCategories } from './browse.mjs';
+import { buildBrowse, discoverCategories, displayName, productKey } from './browse.mjs';
 import { createSpeller, matchesQuery, mentionsInTokens, requiredWords, variantOf, wordSet } from './matching.mjs';
 
 const EMPTY = { version: 1, shops: {} };
@@ -69,6 +69,8 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
   const entries = Object.values(data?.shops ?? {}).flatMap(shop => shop.entries ?? []);
   let shelves = null;
   let shelvedAt = -Infinity;
+  /* Set when a re-check changed a price, so the shelves catch up within minutes, not an hour. */
+  let shelvesStale = false;
   /* Each entry's words, split once, and for each word the entries that use it: a search starts
      from its rarest word's entries instead of reading every name in the list. */
   let words = null;
@@ -139,18 +141,127 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
     return retried.found ? { ...retried, correctedFrom: answer.query } : answer;
   }
 
+  /* Each listing's words as its name uses them (URLs left out, so "prod" never becomes "product"
+     from every shop's web address), worked out when a half-typed word first needs them. */
+  let nameWords = null;
+  const namesOf = i => {
+    nameWords ??= new Array(entries.length);
+    return (nameWords[i] ??= wordSet(entries[i].name));
+  };
+
+  /** The commonest word that starts with `start` (itself included) among the listings holding
+      every word in `before`: "a1" after "galaxy" is "a16", while "ip" alone is "iphone". */
+  function completeWord(start, before) {
+    candidates('');
+    let pool = before.length
+      ? before.map(word => postings.get(word) ?? []).reduce((smallest, list) => (list.length < smallest.length ? list : smallest))
+      : null;
+    pool = pool?.filter(i => before.every(word => words[i].has(word)));
+    if (!pool?.length) pool = entries.map((_, i) => i);
+    const counts = new Map();
+    for (const i of pool) {
+      for (const word of namesOf(i)) {
+        if (word.startsWith(start) && !before.includes(word)) counts.set(word, (counts.get(word) ?? 0) + 1);
+      }
+    }
+    let best = start;
+    let bestCount = 0;
+    for (const [word, count] of counts) {
+      if (count > bestCount || (count === bestCount && word.length < best.length)) { best = word; bestCount = count; }
+    }
+    return best;
+  }
+
+  /* Every product in the list, for suggestions: its name as shops write it, its words, how many
+     shops sell it and how many listings it has. */
+  let products = null;
+  function suggest(typed) {
+    if (!products) {
+      const groups = new Map();
+      for (const entry of entries) {
+        const key = productKey(entry.name);
+        if (key.length < 3) continue;
+        const group = groups.get(key) ?? { key, names: [], shops: new Set(), count: 0 };
+        if (group.names.length < 3) group.names.push(entry.name);
+        group.shops.add(entry.shop);
+        group.count++;
+        groups.set(key, group);
+      }
+      products = [...groups.values()]
+        .map(group => ({ name: displayName(group.key, group.names), words: group.key.split(' '), shops: group.shops.size, count: group.count }))
+        .sort((a, b) => b.shops - a.shops || b.count - a.count);
+    }
+    const typedWords = String(typed).toLowerCase().split(/[^\p{L}\p{N}+]+/u).filter(Boolean);
+    if (!typedWords.length) return [];
+    const last = typedWords.pop();
+    const found = [];
+    for (const product of products) {
+      if (typedWords.every(word => product.words.includes(word)) && product.words.some(word => word.startsWith(last))) {
+        found.push(product);
+        if (found.length === 6) break;
+      }
+    }
+    return found;
+  }
+
+  /* While a word is still being typed, it is completed to the commonest word that starts that
+     way ("iph" → "iphone", "galaxy a1" → "galaxy a16"), and the answer says what was typed. */
+  function searchAsTyped(rawQuery) {
+    const typed = String(rawQuery ?? '').trim();
+    const words = typed.split(/\s+/);
+    const last = words.at(-1).toLowerCase();
+    const before = [...wordSet(words.slice(0, -1).join(' '))];
+    const suggested = suggest(typed);
+    /* Completions to try, best first: the word the top suggestion uses, so the results agree
+       with the list under the box, then the commonest word that starts that way. The first that
+       finds prices wins; if none does, the search runs as typed. */
+    const suggestions = suggested.map(({ name, shops }) => ({ name, shops }));
+    if (!/^[\p{L}\p{N}]+$/u.test(last) || (last.length < 2 && !before.length)) return { ...searchCorrecting(typed), suggestions };
+    const options = [
+      suggested[0]?.words.find(word => word.startsWith(last) && !before.includes(word)),
+      completeWord(last, before)
+    ].filter((word, i, all) => word && word !== last && all.indexOf(word) === i);
+    for (const word of options) {
+      const completed = [...words.slice(0, -1), word].join(' ');
+      const answer = searchCorrecting(completed);
+      if (answer.found) return { ...answer, completedFrom: typed, suggestions };
+    }
+    return { ...searchCorrecting(typed), suggestions };
+  }
+
+  /* Prices re-read from the shops' pages, applied to the list in memory until the next one loads. */
+  let byUrl = null;
+  function update(fresh) {
+    byUrl ??= new Map(entries.map(entry => [entry.url, entry]));
+    let changed = 0;
+    for (const item of fresh) {
+      const entry = byUrl.get(item.url);
+      if (!entry || !(item.price > 0)) continue;
+      if (entry.price !== item.price || entry.inStock !== item.inStock) changed++;
+      entry.price = item.price;
+      entry.inStock = item.inStock ?? null;
+      entry.checkedAt = item.checkedAt;
+      if (item.image && !entry.image) entry.image = item.image;
+    }
+    if (changed) shelvesStale = true;
+    return changed;
+  }
+
   const index = {
     size: entries.length,
     shops: Object.keys(data?.shops ?? {}).length,
 
-    search: rawQuery => searchCorrecting(rawQuery),
+    /** `partial` while the last word may still be half typed. */
+    search: (rawQuery, { partial = false } = {}) => (partial ? searchAsTyped(rawQuery) : searchCorrecting(rawQuery)),
+    update,
 
     /** The home page's shelves. Rebuilt hourly: the list doesn't change, but prices age out of it,
         and a card must never offer a price its own search would leave out. */
     browse() {
-      if (now() - shelvedAt >= 60 * 60 * 1000) {
+      if (now() - shelvedAt >= 60 * 60 * 1000 || (shelvesStale && now() - shelvedAt >= 5 * 60 * 1000)) {
         shelves = null;
         shelvedAt = now();
+        shelvesStale = false;
       }
       const fresh = now() - maxAgeMs;
       const counts = Object.fromEntries(Object.entries(data?.shops ?? {}).map(([shop, { entries: listed = [] }]) =>
@@ -189,13 +300,18 @@ export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, lo
     }
   }
 
-  const search = async rawQuery => {
+  const search = async (rawQuery, options) => {
     await refresh();
-    return index.search(rawQuery);
+    return index.search(rawQuery, options);
   };
   search.browse = async () => {
     await refresh();
     return index.browse();
+  };
+  /** The list being served, for work that changes it in memory, such as a price re-check. */
+  search.index = async () => {
+    await refresh();
+    return index;
   };
   return search;
 }

@@ -1,4 +1,5 @@
 /* GET /api/browse gives the home page's shelves of popular products, from the saved price list.
+   GET /api/recheck?q=… re-reads the shops' pages behind a search's first results and answers again.
    GET /api/search/quick?q=… answers from the saved price list at once, with no paid request.
    GET /api/search?q=… runs the paid web search and adds the price list's answer to it.
    Credentials come from the environment and stay on the server; nothing here returns or logs them. */
@@ -70,7 +71,9 @@ function combine(web, listed) {
 }
 
 export function createApi({
-  liveSearch, searchIndex = null, allowClient = createRateLimiter(), allowQuick = createRateLimiter({ limit: 60 }), log = console.error
+  liveSearch, searchIndex = null, recheck = null,
+  allowClient = createRateLimiter(), allowQuick = createRateLimiter({ limit: 120 }), allowRecheck = createRateLimiter({ limit: 30 }),
+  log = console.error
 }) {
   const failed = (res, error, what) => {
     if (error instanceof LiveSearchError) return send(res, STATUS[error.code] ?? 400, { error: error.message });
@@ -85,9 +88,23 @@ export function createApi({
       return send(res, STATUS.rate, { error: 'Too many searches. Please wait a minute and try again.' });
     }
     try {
-      return send(res, 200, await searchIndex(url.searchParams.get('q')));
+      /* partial=1 while the shopper is still typing the last word. */
+      return send(res, 200, await searchIndex(url.searchParams.get('q'), { partial: url.searchParams.get('partial') === '1' }));
     } catch (error) {
       return failed(res, error, 'price list search');
+    }
+  }
+
+  /* Re-reads the shops' pages behind a search's first results, or one product's, and answers again. */
+  async function recheckPrices(req, res, url) {
+    if (!recheck) return send(res, 503, { error: 'Live price checks are not set up on this server' });
+    if (!allowRecheck(req.socket.remoteAddress ?? 'unknown')) {
+      return send(res, STATUS.rate, { error: 'Too many requests. Please wait a minute and try again.' });
+    }
+    try {
+      return send(res, 200, await recheck(url.searchParams.get('q'), { product: url.searchParams.get('product') ?? '' }));
+    } catch (error) {
+      return failed(res, error, 'price re-check');
     }
   }
 
@@ -106,7 +123,9 @@ export function createApi({
   return async function handle(req, res, url) {
     if (req.method !== 'GET') return send(res, 405, { error: 'Use GET' });
     if (url.pathname === '/api/browse') return browse(req, res);
-    if (url.pathname.endsWith('/quick')) return quick(req, res, url);
+    if (url.pathname === '/api/recheck') return recheckPrices(req, res, url);
+    if (url.pathname === '/api/search/quick') return quick(req, res, url);
+    if (url.pathname !== '/api/search') return send(res, 404, { error: 'Not found' });
     if (!liveSearch) return send(res, 503, { error: 'Live search is not set up on this server' });
     if (!allowClient(req.socket.remoteAddress ?? 'unknown')) {
       return send(res, STATUS.rate, { error: 'Too many searches. Please wait a minute and try again.' });

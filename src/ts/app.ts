@@ -1,6 +1,6 @@
 import { SNAPSHOT, TRUST_WEIGHTS } from './data/meta.js';
 import { buildCatalog, byBestValue } from './core/catalog.js';
-import { fetchBrowse, fetchLive } from './core/live.js';
+import { applyFresh, fetchBrowse, fetchLive } from './core/live.js';
 import { createSearch } from './core/search.js';
 import { decodeState, encodeState } from './core/urlstate.js';
 import { toggleTheme } from './core/theme.js';
@@ -48,7 +48,8 @@ const state: State = {
   shelf: '',
   shelfLimit: 40,
   product: '',
-  resultLimit: 40
+  resultLimit: 40,
+  liveSuggest: []
 };
 
 function must<T extends Element>(selector: string): T {
@@ -144,9 +145,28 @@ function syncUrl(): void {
   }
 }
 
-/* Live search costs money per run, so it starts only when someone submits a search, never
-   on a keystroke. A newer search cancels the one in flight. */
+/* The web search costs money per run, so it starts only when someone submits a search, never
+   on a keystroke; typing only asks the free price list. A newer search cancels the one in flight. */
 let liveRequest: AbortController | undefined;
+
+/**
+ * Reads the prices on screen again from the shops (one product's, when `product` names it) and
+ * applies them in place. Runs beside whatever else is loading; anything newer cancels it.
+ */
+async function recheckShown(request: AbortController, product = ''): Promise<void> {
+  const shown = state.live;
+  if (shown.status !== 'done' || request.signal.aborted || !shown.result.groups.length) return;
+  state.live = { ...shown, checking: true };
+  render();
+  const fresh = await fetchLive(shown.result.query, request.signal, 'recheck', { product });
+  if (request.signal.aborted) return;
+  const current = state.live;
+  if (current.status !== 'done') return;
+  state.live = fresh.status === 'done'
+    ? { ...current, checking: false, result: { ...applyFresh(current.result, fresh.result), rechecked: fresh.result.rechecked } }
+    : { ...current, checking: false };
+  render();
+}
 
 function clearLive(): void {
   liveRequest?.abort();
@@ -188,6 +208,8 @@ async function startLive(): Promise<void> {
   }
   state.live = hasPrices(listed) ? { ...listed, pending: true, typed } : { status: 'loading', query: searched };
   render();
+  /* While the web search runs, the list's prices are read again from the shops. */
+  void recheckShown(request);
 
   const web = await fetchLive(searched, request.signal, 'web');
   if (request.signal.aborted) return;
@@ -221,7 +243,8 @@ function render(): void {
   dom.tray.innerHTML = trayView(ctx);
   /* Once a search is submitted, or another tab is open, the headline steps aside so the content
      starts on the first screen. Not while typing: the box would jump under the reader's thumb. */
-  document.body.dataset.mode = state.live.status === 'idle' && state.view === 'results' ? 'home' : 'search';
+  const typedResults = state.live.status === 'done' && state.live.instant;
+  document.body.dataset.mode = (state.live.status === 'idle' || typedResults) && state.view === 'results' ? 'home' : 'search';
   dom.tabs.querySelectorAll<HTMLButtonElement>('button[data-view]').forEach(tab =>
     tab.setAttribute('aria-selected', String(tab.dataset.view === state.view)));
   renderSuggestions(ctx);
@@ -230,19 +253,53 @@ function render(): void {
   if (focused) (document.querySelector<HTMLElement>(focused) ?? dom.out).focus({ preventScroll: true });
 }
 
+/* Results follow the typing: the price list answers in milliseconds, so each pause in typing
+   shows real prices for what is in the box, a half-typed last word completed the way the
+   suggestions are. A moment later those prices are read again from the shops. */
+let checkPause: ReturnType<typeof setTimeout> | undefined;
+async function searchAsTyped(value: string): Promise<void> {
+  liveRequest?.abort();
+  const request = new AbortController();
+  liveRequest = request;
+  const answer = await fetchLive(value.trim(), request.signal, 'quick', { partial: !/\s$/.test(value) });
+  if (request.signal.aborted) return;
+  if (answer.status !== 'done') {
+    /* No price list here (a static host), or it failed: the demo answers as it always has. */
+    state.live = { status: 'idle' };
+    state.liveSuggest = [];
+    render();
+    return;
+  }
+  state.liveSuggest = answer.result.suggestions ?? [];
+  state.product = '';
+  state.resultLimit = 40;
+  state.live = { ...answer, instant: true };
+  render();
+  clearTimeout(checkPause);
+  checkPause = setTimeout(() => void recheckShown(request), 1000);
+}
+
 /* Rendering leaves the input alone, so it keeps focus and the caret while typing. */
 let typing: ReturnType<typeof setTimeout> | undefined;
 function onQueryChange(value: string): void {
   state.q = value;
   state.view = 'results';
-  clearLive();
   state.suggestIndex = -1;
+  liveRequest?.abort();
   clearTimeout(typing);
-  typing = setTimeout(render, 90);
+  clearTimeout(checkPause);
+  if (value.trim().length < 2) {
+    state.live = { status: 'idle' };
+    state.liveSuggest = [];
+    typing = setTimeout(render, 90);
+    return;
+  }
+  typing = setTimeout(() => void searchAsTyped(value), 120);
 }
 
 function chooseSuggestion(item: State['suggest'][number]): void {
-  if (item.kind === 'store') { state.storeId = item.id; state.q = ''; }
+  if (item.kind === 'live') { state.q = item.label; }
+  else if (item.kind === 'store') { state.storeId = item.id; state.q = ''; }
   else { state.q = item.label; state.open.add(item.id); state.showAll = true; }
   dom.input.value = state.q;
   state.suggestIndex = -1;
@@ -289,7 +346,15 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
   query: trigger => { state.q = trigger.dataset.q ?? ''; state.view = 'results'; dom.input.value = state.q; void startLive(); window.scrollTo({ top: 0 }); },
   shelf: trigger => { state.shelf = trigger.dataset.id ?? ''; state.shelfLimit = 40; render(); },
   moreCards: () => { state.shelfLimit += 40; render(); },
-  product: trigger => { state.product = trigger.dataset.id ?? ''; render(); window.scrollTo({ top: 0 }); },
+  product: trigger => {
+    state.product = trigger.dataset.id ?? '';
+    render();
+    window.scrollTo({ top: 0 });
+    /* Opening a product reads every shop's price for it again. */
+    if (!liveRequest || liveRequest.signal.aborted) liveRequest = new AbortController();
+    void recheckShown(liveRequest, state.product);
+  },
+  searchWeb: () => { void startLive(); },
   allResults: () => { state.product = ''; render(); },
   moreResults: () => { state.resultLimit += 40; render(); },
   focusSearch: () => { window.scrollTo({ top: 0 }); dom.input.focus(); },

@@ -484,3 +484,19 @@ select option { background: var(--surface); color: var(--text); }
 .detail-head h2 { font-size: clamp(22px, 3.4vw, 30px); font-stretch: 80%; }
 .detail-head p { color: var(--muted); font-size: 16px; margin-top: 4px; }
 .gh-img.big { width: 120px; height: 120px; }
+
+/* ---------- live prices: freshness, checking, logos ---------- */
+
+.pc-fresh { font-size: 13px; color: var(--dim); display: inline-flex; align-items: center; gap: 6px; }
+.pc-fresh.live { color: var(--ok-text); font-weight: 600; }
+.pc-fresh.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 3px var(--brand-tint); }
+.pc-shop { display: inline-flex; align-items: center; gap: 6px; }
+.pc-shop img { width: 18px; height: 18px; border-radius: 5px; object-fit: contain; background: #ffffff; border: 1px solid var(--line-2); }
+
+.checking { display: flex; align-items: center; gap: 10px; font-size: 14.5px; color: var(--muted); margin: 0 0 14px; }
+.checking i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--brand); animation: spin .8s linear infinite; }
+.checking.done { color: var(--ok-text); }
+.checking.done::before { content: "✓"; font-weight: 800; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.offer.live .mono img { padding: 6px; }

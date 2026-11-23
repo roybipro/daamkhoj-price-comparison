@@ -13,7 +13,9 @@ const showsLive = (ctx: RenderContext): boolean => ctx.state.live.status !== 'id
 export function resultsView(ctx: RenderContext): string {
   const { state, catalog, groups } = ctx;
   if (showsLive(ctx)) return liveView(state.live, { product: state.product, limit: state.resultLimit });
-  if (!state.q && state.browse.status === 'ready') return browseView(ctx, state.browse.data);
+  /* With a price list, the shelves stay until the first typed results arrive; the sample
+     catalogue below answers only on a host that has none. */
+  if (state.browse.status === 'ready' && (!state.q || state.live.status === 'idle')) return browseView(ctx, state.browse.data);
   const priceCount = groups.reduce((n, g) => n + g.live.length + g.dropped.length, 0);
   const shopFilter = state.storeId ? catalog.stores.find(s => s.id === state.storeId) : undefined;
   const shopHints = state.q ? ctx.search.stores(state.q) : [];
@@ -187,7 +189,7 @@ export function howView(ctx: RenderContext): string {
 
 export function toolbarView(ctx: RenderContext): string {
   const { state, catalog } = ctx;
-  if (state.view !== 'results' || showsLive(ctx) || (!state.q && state.browse.status === 'ready')) return '';
+  if (state.view !== 'results' || showsLive(ctx) || state.browse.status === 'ready') return '';
   return `<div class="toolbar">
     <p class="count" aria-live="polite"><b class="num">${catalog.totals.offers}</b> sample prices from <b class="num">${catalog.totals.stores}</b> shops for <b class="num">${catalog.totals.products}</b> products</p>
     <div class="controls">
@@ -238,7 +240,11 @@ export function suggestionsView(ctx: RenderContext): string {
     return '';
   }
 
-  const items = [
+  /* Real products from the price list while it answers; the sample catalogue's only without one. */
+  const live = ctx.state.liveSuggest.map(item => ({
+    kind: 'live' as const, id: item.name, label: item.name, sub: item.shops > 1 ? `${item.shops} shops` : '1 shop'
+  }));
+  const items = live.length || ctx.state.browse.status === 'ready' ? live : [
     ...ctx.search.products(query).slice(0, 6).map(hit => ({
       kind: 'product' as const, id: hit.product.id, label: hit.product.name,
       sub: ctx.catalog.categories.get(hit.product.cat)?.en ?? ''
@@ -252,7 +258,7 @@ export function suggestionsView(ctx: RenderContext): string {
 
   let section = '';
   return `<div class="suggest" id="suggest" role="listbox" aria-label="Search suggestions">${items.map((item, i) => {
-    const head = item.kind !== section ? `<div class="sgroup">${item.kind === 'product' ? 'Products' : 'Shops'}</div>` : '';
+    const head = item.kind !== section ? `<div class="sgroup">${item.kind === 'store' ? 'Shops' : 'Products'}</div>` : '';
     section = item.kind;
     const active = ctx.state.suggestIndex === i;
     const tile = item.kind === 'store'

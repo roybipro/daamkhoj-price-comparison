@@ -1,4 +1,5 @@
 import { SEARCH_PATTERNS } from '../data/search-patterns.js';
+import { SHOP_LOGOS } from '../data/shop-logos.js';
 import type { Product, Shop, ShopLink } from '../types.js';
 
 export const hostOf = (url: string): string => url.replace(/^https?:\/\//, '').replace(/^www\./, '');
@@ -29,3 +30,10 @@ export function productLink(store: Shop, product: Product): ShopLink | null {
   if (template) return { url: template.replace('{q}', encodeURIComponent(productQuery(product))), searches: true };
   return { url: homeUrl(store), searches: false };
 }
+
+/** A shop's logo by its web address: its own icon, served from this site, for every shop in the
+    price list; a favicon service's guess for shops a web search found. */
+export const shopLogo = (shop: string): string => {
+  const host = hostOf(shop).replace(/\/.*$/, '');
+  return SHOP_LOGOS[host] ?? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`;
+};
