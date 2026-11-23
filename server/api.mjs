@@ -11,13 +11,19 @@ import { fetchPublic, resolveResultLink } from './safe-fetch.mjs';
 
 const STATUS = { query: 400, rate: 429, budget: 429 };
 
+function clientAddress(req) {
+  const forwarded = String(req.headers?.['x-forwarded-for'] ?? '').split(',')[0].trim();
+  return forwarded || req.socket?.remoteAddress || 'unknown';
+}
+
 export function createRateLimiter({ limit = 20, windowMs = 60_000, now = Date.now, maxClients = 10_000 } = {}) {
   const clients = new Map();
   return client => {
     const time = now();
     let entry = clients.get(client);
     if (!entry || time - entry.start >= windowMs) {
-      if (clients.size >= maxClients) clients.clear();
+      clients.delete(client);
+      if (clients.size >= maxClients) clients.delete(clients.keys().next().value);
       entry = { start: time, count: 0 };
       clients.set(client, entry);
     }
@@ -84,7 +90,7 @@ export function createApi({
   async function quick(req, res, url) {
     if (!searchIndex) return send(res, 503, { error: 'The price list is not set up on this server' });
     /* Free to answer, so a looser limit: it only stops a client hammering the server. */
-    if (!allowQuick(req.socket.remoteAddress ?? 'unknown')) {
+    if (!allowQuick(clientAddress(req))) {
       return send(res, STATUS.rate, { error: 'Too many searches. Please wait a minute and try again.' });
     }
     try {
@@ -99,7 +105,7 @@ export function createApi({
   /* Re-reads the shops' pages behind a search's first results, or one product's, and answers again. */
   async function recheckPrices(req, res, url) {
     if (!recheck) return send(res, 503, { error: 'Live price checks are not set up on this server' });
-    if (!allowRecheck(req.socket.remoteAddress ?? 'unknown')) {
+    if (!allowRecheck(clientAddress(req))) {
       return send(res, STATUS.rate, { error: 'Too many requests. Please wait a minute and try again.' });
     }
     try {
@@ -111,7 +117,7 @@ export function createApi({
 
   async function browse(req, res) {
     if (!searchIndex?.browse) return send(res, 503, { error: 'The price list is not set up on this server' });
-    if (!allowQuick(req.socket.remoteAddress ?? 'unknown')) {
+    if (!allowQuick(clientAddress(req))) {
       return send(res, STATUS.rate, { error: 'Too many requests. Please wait a minute and try again.' });
     }
     try {
@@ -128,7 +134,7 @@ export function createApi({
     if (url.pathname === '/api/search/quick') return quick(req, res, url);
     if (url.pathname !== '/api/search') return send(res, 404, { error: 'Not found' });
     if (!liveSearch) return send(res, 503, { error: 'Live search is not set up on this server' });
-    if (!allowClient(req.socket.remoteAddress ?? 'unknown')) {
+    if (!allowClient(clientAddress(req))) {
       return send(res, STATUS.rate, { error: 'Too many searches. Please wait a minute and try again.' });
     }
     try {

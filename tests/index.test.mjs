@@ -523,3 +523,58 @@ test('home cards without a photo get one from a shop that answers, not one that 
   assert.ok(cards().every(card => card.image?.startsWith('https://ok.bd/')));
   assert.ok(asked.filter(url => url.includes('no.bd')).length <= 3, 'a shop that keeps refusing is left alone');
 });
+
+test('productKey keeps M4 after screen sizes, strips unbracketed RAM/ROM, and buildBrowse drops mismatched accessories', async () => {
+  const { buildBrowse, productKey } = await import('../server/browse.mjs');
+  assert.equal(productKey('MacBook Air 15-inch M4 16GB / 256GB'), 'macbook air m4');
+  assert.equal(productKey('Galaxy A16 5G 8/256GB Official'), 'galaxy a16');
+
+  const [deduped] = readShopifyProduct({ title: 'AirPods 4', variants: [{ id: 1, title: 'AirPods 4', price: 1499900, available: true }] }, 'https://s.bd/products/airpods-4');
+  assert.equal(deduped.name, 'AirPods 4');
+
+  const index = createPriceIndex({ version: 1, shops: {
+    'a.bd': { entries: [entry('a.bd', 'iPhone 17 Pro Max 256GB', 175000)] },
+    'b.bd': { entries: [entry('b.bd', 'Green Lion Camera Lens for iPhone 17 Pro Max', 1990)] }
+  } }, { now: () => NOW });
+  const shelves = buildBrowse(query => index.search(query), { 'a.bd': 1, 'b.bd': 1 }, [{ id: 'phones', label: 'Phones', products: ['iPhone 17 Pro Max'] }]);
+  assert.equal(shelves.shelves.length, 0);
+});
+
+test('crawlShop remembers unpriced pages so they do not starve priced pages, and keeps saved prices if robots.txt is unreachable', async () => {
+  const { createRobots } = await import('../server/robots.mjs');
+  const pages = {
+    'https://a.bd/sitemap.xml': urlset(['https://a.bd/product/category', 'https://a.bd/product/phone']),
+    'https://a.bd/product/category': '<html><title>Category</title></html>',
+    'https://a.bd/product/phone': product('Phone 15', 50000)
+  };
+  let time = Date.parse('2026-11-21T00:00:00Z');
+  const first = await crawlShop(shop, { fetchPage: site(pages), robots: allowAll, sleep: noWait, now: () => time });
+  assert.equal(first.entries.length, 1);
+  assert.ok('https://a.bd/product/category' in first.checked);
+
+  time += 60_000;
+  const opened = [];
+  const second = await crawlShop(shop, {
+    fetchPage: async url => { opened.push(url); return site(pages)(url); },
+    robots: allowAll, previous: first.entries, checked: first.checked, limit: 1, sleep: noWait, now: () => time
+  });
+  assert.deepEqual(opened.slice(1), ['https://a.bd/product/category'], 'oldest checked page goes next');
+  assert.equal(second.entries[0].price, 50000, 'existing priced entry is preserved');
+
+  const downRobots = createRobots(async () => ({ status: 503, text: '' }));
+  const preserved = await crawlShop(shop, {
+    fetchPage: site(pages), robots: downRobots, previous: first.entries, sleep: noWait, now: () => time
+  });
+  assert.equal(preserved.entries.length, 1, 'unreachable robots.txt must not wipe saved prices');
+  assert.equal(preserved.stats.failed, 2);
+});
+
+test('watchIndexFile concurrent cold-start requests wait for the initial load', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'daamkhoj-cold-'));
+  const file = path.join(dir, 'list.json');
+  await saveIndexFile(file, listOf(entry('a.bd', 'iPhone 15 128GB', 82000)));
+  const search = watchIndexFile(file, { checkEveryMs: 1000 });
+  const [browsed, found] = await Promise.all([search.browse(), search('iphone 15')]);
+  assert.equal(browsed.prices, 1);
+  assert.equal(found.priced, 1);
+});

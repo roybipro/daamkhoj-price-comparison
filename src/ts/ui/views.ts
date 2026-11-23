@@ -15,7 +15,7 @@ export function resultsView(ctx: RenderContext): string {
   if (showsLive(ctx)) return liveView(state.live, { product: state.product, limit: state.resultLimit });
   /* With a price list, the shelves stay until the first typed results arrive; the sample
      catalogue below answers only on a host that has none. */
-  if (state.browse.status === 'ready' && (!state.q || state.live.status === 'idle')) return browseView(ctx, state.browse.data);
+  if (state.browse.status === 'ready' && !state.storeId && (!state.q || state.live.status === 'idle')) return browseView(ctx, state.browse.data);
   const priceCount = groups.reduce((n, g) => n + g.live.length + g.dropped.length, 0);
   const shopFilter = state.storeId ? catalog.stores.find(s => s.id === state.storeId) : undefined;
   const shopHints = state.q ? ctx.search.stores(state.q) : [];
@@ -189,7 +189,7 @@ export function howView(ctx: RenderContext): string {
 
 export function toolbarView(ctx: RenderContext): string {
   const { state, catalog } = ctx;
-  if (state.view !== 'results' || showsLive(ctx) || state.browse.status === 'ready') return '';
+  if (state.view !== 'results' || showsLive(ctx) || (state.browse.status === 'ready' && !state.storeId)) return '';
   return `<div class="toolbar">
     <p class="count" aria-live="polite"><b class="num">${catalog.totals.offers}</b> sample prices from <b class="num">${catalog.totals.stores}</b> shops for <b class="num">${catalog.totals.products}</b> products</p>
     <div class="controls">

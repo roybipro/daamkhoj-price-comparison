@@ -595,3 +595,54 @@ test('pages come back decoded, and redirects are left to the caller to check', a
     await close();
   }
 });
+
+test('non-Google lookalike hosts are never opened by resolveResultLink and translated IPv6 private ranges are blocked', async () => {
+  for (const address of ['::ffff:0:127.0.0.1', 'fec0::1', '2001::1']) {
+    assert.ok(isPrivateAddress(address), address);
+  }
+  let fetched = 0;
+  for (const link of ['https://google.localhost/url?q=1', 'https://google.attacker.com/url?q=1']) {
+    assert.equal(await resolveResultLink(link, { fetchImpl: async () => { fetched++; return new Response(''); } }), link);
+  }
+  assert.equal(fetched, 0);
+});
+
+test('rate limiter evicts only the oldest client and honours x-forwarded-for', async () => {
+  const allow = createRateLimiter({ limit: 1, maxClients: 2 });
+  assert.equal(allow('a'), true);
+  assert.equal(allow('b'), true);
+  assert.equal(allow('c'), true);
+  assert.equal(allow('b'), false, 'second client stays rate-limited when oldest is evicted');
+
+  const api = createApi({ liveSearch: { run: async () => ({ groups: [] }) }, allowClient: createRateLimiter({ limit: 1 }) });
+  const hit = ip => new Promise(resolve => {
+    const res = { writeHead(status) { this.status = status; }, end(body) { resolve({ status: this.status, body: JSON.parse(body) }); } };
+    api({ method: 'GET', headers: { 'x-forwarded-for': `${ip}, 10.0.0.1` }, socket: { remoteAddress: '127.0.0.1' } }, res, new URL('http://x/api/search?q=iphone+15'));
+  });
+  assert.equal((await hit('203.0.113.10')).status, 200);
+  assert.equal((await hit('203.0.113.11')).status, 200);
+  assert.equal((await hit('203.0.113.10')).status, 429);
+});
+
+test('accessories, substring collisions, plus models, decimals, and Apple Silicon tiers do not cross-match', () => {
+  for (const [name, query] of [
+    ['Green Lion TRIO Camera Lens for iPhone 17 Pro/Pro Max', 'iPhone 17 Pro Max'],
+    ['Apple Magic Keyboard for iPad Air 11-inch (M4)', 'iPad Air M4'],
+    ['Honor 600 Smart', 'Honor 600s'],
+    ['realme C100i', 'Realme C100'],
+    ['Galaxy Tab A9+', 'Galaxy Tab A9'],
+    ['Galaxy Tab A9', 'Galaxy Tab A9+'],
+    ['OnePlus Nord Buds 3.5mm Earphones', 'OnePlus Buds 3'],
+    ['MacBook Pro M4 Pro 14-Inch 24GB/512GB', 'MacBook Pro M4']
+  ]) assert.ok(!matchesQuery(name, query), `${name} should not match ${query}`);
+
+  assert.ok(matchesQuery('Galaxy Tab A9+ 8/128GB', 'Galaxy Tab A9+'));
+  assert.ok(matchesQuery('MacBook Pro M4 14-Inch 16/512GB', 'MacBook Pro M4'));
+});
+
+test('memoryOf and variantOf distinguish Apple Silicon tiers, high RAM, budget storage, and unspecific Official listings', () => {
+  assert.equal(variantOf('MacBook Pro M4 Max 64GB RAM 2TB SSD', 'macbook pro').key, 'm4 max|64gb ram|2tb');
+  assert.equal(variantOf('Symphony Z60 3GB 32GB', 'symphony z60').key, '3gb ram|32gb');
+  assert.notEqual(variantOf('MacBook Pro M4 Pro 24GB 512GB', 'macbook pro').key, variantOf('MacBook Pro M4 24GB 512GB', 'macbook pro').key);
+  assert.equal(variantOf('iPhone 17 (Official)', 'iphone 17').clear, false);
+});

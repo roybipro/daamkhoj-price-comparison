@@ -50,7 +50,7 @@ export function isPrivateAddress(address) {
   const zeros = count => groups.slice(0, count).every(group => group === 0);
   /* An IPv4 address can ride inside an IPv6 one ("::ffff:127.0.0.1" is written "::ffff:7f00:1"),
      and then it is the IPv4 address that decides. */
-  if ((zeros(5) && groups[5] === 0xffff) || zeros(6)) {
+  if ((zeros(5) && groups[5] === 0xffff) || (zeros(4) && groups[4] === 0xffff && groups[5] === 0) || zeros(6)) {
     if (zeros(8) || (zeros(7) && groups[7] === 1)) return true;
     return isPrivateIPv4(ipv4From(groups[6], groups[7]));
   }
@@ -59,8 +59,9 @@ export function isPrivateAddress(address) {
   const first = groups[0];
   return (first & 0xfe00) === 0xfc00 /* unique local */
     || (first & 0xffc0) === 0xfe80 /* link local */
+    || (first & 0xffc0) === 0xfec0 /* deprecated site-local */
     || (first & 0xff00) === 0xff00 /* multicast */
-    || (first === 0x2001 && groups[1] === 0x0db8) /* documentation */
+    || (first === 0x2001 && (groups[1] === 0x0db8 || groups[1] < 0x0200)) /* documentation, Teredo, benchmarking */
     || (first === 0x0100 && groups[1] === 0 && groups[2] === 0 && groups[3] === 0); /* discard */
 }
 
@@ -134,7 +135,10 @@ export function publicRequest(raw, init = {}, { resolve = lookup, isPrivate = is
       const status = response.statusCode ?? 502;
       const decode = DECODERS[String(response.headers['content-encoding'] ?? '').trim().toLowerCase()];
       const stream = decode ? response.pipe(decode()) : response;
-      if (decode) response.on('error', error => stream.destroy(error));
+      if (decode) {
+        response.on('error', error => stream.destroy(error));
+        stream.on('close', () => { if (!response.complete) response.destroy(); });
+      }
       headers.delete('content-encoding');
       headers.delete('content-length');
       const empty = status === 204 || status === 304 || (status >= 300 && status < 400);
@@ -172,18 +176,24 @@ export async function fetchPublic(raw, options = {}) {
   throw new Error('too many redirects');
 }
 
+const IS_GOOGLE = /(^|\.)google\.(com|[a-z]{2}|com?\.[a-z]{2})$/i;
+
 /** Google wraps result links in its own redirect; this finds where they really go. */
 export async function resolveResultLink(link, options = {}) {
-  const { fetchImpl = fetch, timeoutMs = 15_000 } = options;
+  const {
+    resolve = lookup,
+    fetchImpl = async (u, init) => { await assertPublicUrl(u, resolve); return publicRequest(u, init, { resolve }); },
+    timeoutMs = 15_000
+  } = options;
   const url = new URL(link);
-  if (!/(^|\.)google\.[a-z.]+$/.test(url.hostname)) return link;
+  if (!IS_GOOGLE.test(url.hostname)) return link;
 
   const response = await fetchImpl(link, {
     redirect: 'manual',
     signal: AbortSignal.timeout(timeoutMs),
     headers: { 'user-agent': USER_AGENT }
   });
-  const isGoogle = target => /(^|\.)google\.[a-z.]+$/.test(new URL(target).hostname);
+  const isGoogle = target => IS_GOOGLE.test(new URL(target).hostname);
   /* A redirect can be relative ("/url?q=…"); that one stays on Google, so read the body instead. */
   const location = response.headers.get('location');
   const next = location ? new URL(location, link).href : null;
