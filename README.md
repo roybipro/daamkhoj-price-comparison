@@ -58,9 +58,9 @@ src/
     ├── app.ts                entry: state, event wiring, render loop
     ├── data/             hand-maintained catalogue, nothing derived
     │   ├── meta.ts           snapshot date, categories, trust weight table
-    │   ├── stores.ts         26 shops and their trust signals
+    │   ├── stores.ts         23 shops and their trust signals
     │   ├── products.ts       21 products, with Bangla/Banglish search aliases
-    │   ├── offers.ts         117 listings as compact tuples
+    │   ├── offers.ts         104 listings as compact tuples
     │   └── search-patterns.ts  per-shop search URL templates
     ├── core/             pure logic, no DOM — reusable server-side
     │   ├── format.ts         money, escaping, normalisation

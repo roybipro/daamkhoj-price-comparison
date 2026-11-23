@@ -117,8 +117,10 @@ test('"Visit shop" never lands on a web search, a dead site or a search for a ma
   const rice = catalog.offers.find(offer => offer.store.id === 'chaldal' && /miniket/i.test(offer.product.name));
   assert.equal(rice.link.searches, true);
   assert.equal(rice.link.url, 'https://chaldal.com/search/Miniket%20Rice%205kg');
-  const shokh = catalog.offers.find(offer => offer.store.id === 'shokh');
-  const html = offerRow(shokh, { weights: TRUST_WEIGHTS });
+  /* A shop whose site later disappears is marked siteDown; it must show a note, not a link. */
+  const open = catalog.offers.find(offer => !offer.suppressed);
+  const gone = { ...open, link: null, store: { ...open.store, siteDown: '2026-11-23' } };
+  const html = offerRow(gone, { weights: TRUST_WEIGHTS });
   assert.ok(!html.includes('<a '), 'a shop whose site does not exist still gets a link');
   assert.ok(html.includes('Shop website not reachable'));
 });
