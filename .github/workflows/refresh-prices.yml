@@ -26,6 +26,8 @@ jobs:
   crawl:
     runs-on: ubuntu-latest
     timeout-minutes: 330
+    env:
+      RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -62,6 +64,17 @@ jobs:
             echo 'No prices changed.'
             exit 0
           fi
-          git commit -m "Refresh the price list (crawl ${{ steps.crawl.outcome }})"
+          if [ "$CRAWL" = success ]; then note=''; else note=' (some shops failed; their last prices were kept)'; fi
+          git commit -m "Refresh the price list$note"
           git pull --rebase origin main
           git push origin HEAD:main
+          echo 'pushed=yes' >> "$GITHUB_OUTPUT"
+        env:
+          CRAWL: ${{ steps.crawl.outcome }}
+        id: commit
+
+      # Render redeploys on a push only if its GitHub app can see this repository. A deploy hook
+      # (Render: Settings → Deploy Hook, saved here as the RENDER_DEPLOY_HOOK secret) works either way.
+      - name: Ask Render to deploy
+        if: steps.commit.outputs.pushed == 'yes' && env.RENDER_DEPLOY_HOOK != ''
+        run: curl --fail --silent --show-error -X POST "$RENDER_DEPLOY_HOOK" > /dev/null && echo 'Render deploy started.'
