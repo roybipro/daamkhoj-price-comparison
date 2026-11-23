@@ -25,5 +25,25 @@ export const INDEX_SHOPS = [
   { shop: 'binarylogic.com.bd', sitemap: 'https://www.binarylogic.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' },
   { shop: 'globalbrand.com.bd', sitemap: 'https://www.globalbrand.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' },
   { shop: 'gadgetandgear.com', sitemap: 'https://gadgetandgear.com/sitemap.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
-  { shop: 'gadgetbreeze.com.bd', sitemap: 'https://gadgetbreeze.com.bd/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' }
+  { shop: 'gadgetbreeze.com.bd', sitemap: 'https://gadgetbreeze.com.bd/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
+
+  /* Added 2026-11-23 after the same check (priced of the first 12 pages, then of 20 read with
+     their names and prices looked over): PC House 12 and 20/20, Ultra Tech 12 and 19/20, Smart
+     12 and 20/20, Gadget Mart 12 and 20/20, Ryans 10/12 and 32/40, Transcom Digital 10 and
+     15/20, KRY 9 and 13/20, Diamu 9 and 16/20, UCC 8 and 10/20, Vertech 8 and 15/20. Ultra Tech
+     puts a placeholder price on some out-of-stock items (an Asus TUF monitor at 5,000 taka in
+     its own product data); they are marked out of stock, and a price far below other shops'
+     is dropped. Mobile Dokan BD passed 12/12 but is a price guide with no cart, so it is not
+     here; Skyland, Potaka IT, BD Stall, Pentanik, Walton, Best Electronics and TechShop BD gave
+     no readable price, and Pickaboo and BDShop's sitemaps list no product pages. */
+  { shop: 'ryans.com', sitemap: 'https://www.ryans.com/sitemap.xml', product: ONE_LEVEL, kind: 'page' },
+  { shop: 'pchouse.com.bd', sitemap: 'https://www.pchouse.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' },
+  { shop: 'ultratech.com.bd', sitemap: 'https://www.ultratech.com.bd/index.php?route=feed/sitemaps', product: ONE_LEVEL, kind: 'page' },
+  { shop: 'smartbd.com', sitemap: 'https://smartbd.com/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
+  { shop: 'ucc.com.bd', sitemap: 'https://www.ucc.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' },
+  { shop: 'vertech.com.bd', sitemap: 'https://www.vertech.com.bd/sitemap.xml', product: /\/products\/[^/]+\/?$/, kind: 'page' },
+  { shop: 'kryinternational.com', sitemap: 'https://kryinternational.com/sitemap.xml', product: /\/products\/[^/]+\/?$/, kind: 'page' },
+  { shop: 'diamu.com.bd', sitemap: 'https://diamu.com.bd/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
+  { shop: 'gadgetmart.com.bd', sitemap: 'https://gadgetmart.com.bd/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
+  { shop: 'transcomdigital.com', sitemap: 'https://transcomdigital.com/sitemap.xml', product: ONE_LEVEL, kind: 'page' }
 ];
