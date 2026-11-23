@@ -51,5 +51,7 @@ export const INDEX_SHOPS = [
      same check: T-Tech 12/12 and 20/20 (earphones and gadgets; many out of stock, shown as such),
      Shopz 12/12 and 20/20 (gadgets and lifestyle: fans, bags, umbrellas). Both have a cart. */
   { shop: 't-tech.com.bd', sitemap: 'https://t-tech.com.bd/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
-  { shop: 'shopz.com.bd', sitemap: 'https://www.shopz.com.bd/sitemap.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' }
+  { shop: 'shopz.com.bd', sitemap: 'https://www.shopz.com.bd/sitemap.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
+  /* Gadgetz: 11/12 and 19/20 priced, with a cart; small (295 product pages: chargers, hubs, mice). */
+  { shop: 'gadgetz.com.bd', sitemap: 'https://gadgetz.com.bd/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' }
 ];
