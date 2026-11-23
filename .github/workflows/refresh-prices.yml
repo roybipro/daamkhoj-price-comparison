@@ -36,14 +36,19 @@ jobs:
           node-version: 22
 
       # One shop failing still saves the rest, so a failed exit doesn't stop the commit.
+      # The job is killed at 330 minutes, and a killed job commits nothing. So the crawl starts
+      # no page after 270 minutes and saves what it read, which leaves time for the commit. If it
+      # still runs at 300 minutes, the step is stopped and the job commits the last progress save
+      # (made every 100 pages per shop).
       - name: Crawl
         id: crawl
         continue-on-error: true
+        timeout-minutes: 300
         env:
           LIMIT: ${{ inputs.limit || '8000' }}
         run: |
           case "$LIMIT" in ''|*[!0-9]*) echo "limit must be a whole number"; exit 1;; esac
-          npm run crawl -- --limit="$LIMIT"
+          npm run crawl -- --limit="$LIMIT" --minutes=270
 
       - name: Check the list before saving it
         run: |

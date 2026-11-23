@@ -113,6 +113,26 @@ test('a run cut short reads new pages first, then the longest unread', async () 
   assert.deepEqual(opened.slice(1), ['https://a.bd/product/new', 'https://a.bd/product/stale']);
 });
 
+test('a run with a deadline starts no page after it, and keeps the prices it had not re-read', async () => {
+  const urls = ['one', 'two', 'three', 'four', 'old'].map(name => `https://a.bd/product/${name}`);
+  const pages = { 'https://a.bd/sitemap.xml': urlset(urls) };
+  for (const url of urls) pages[url] = product('Phone', 1000);
+  const previous = [{ shop: 'a.bd', url: urls[4], name: 'Old phone', price: 900, inStock: true, checkedAt: '2026-11-01T00:00:00.000Z' }];
+  let time = Date.parse('2026-11-21T10:00:00Z');
+  const opened = [];
+  const { entries, stats, stoppedEarly } = await crawlShop(shop, {
+    fetchPage: async url => { opened.push(url); return site(pages)(url); },
+    robots: allowAll, previous, delayMs: 1000,
+    sleep: async ms => { time += ms; },
+    now: () => time,
+    stopAt: time + 2500
+  });
+  assert.equal(stoppedEarly, true);
+  assert.equal(stats.read, 3);
+  assert.deepEqual(opened.slice(1), urls.slice(0, 3));
+  assert.deepEqual(entries.map(entry => [entry.url, entry.price]).sort(), [[urls[4], 900], [urls[2], 1000], [urls[0], 1000], [urls[1], 1000]].sort());
+});
+
 test('Shopify shops are read through the product JSON, asking robots.txt about that address', async () => {
   const asked = [];
   const pages = {
