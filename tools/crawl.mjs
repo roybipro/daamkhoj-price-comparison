@@ -1,8 +1,9 @@
-/* npm run crawl [-- --shop=dazzle.com.bd,istockbd.com] [--limit=200] [--delay=1000]
+/* npm run crawl [-- --shop=dazzle.com.bd,istockbd.com] [--limit=200] [--delay=1000] [--minutes=270]
 
    Refreshes the price list from each shop's sitemap. Shops run side by side, each one page at a
    time with a pause between pages, so no shop sees more than about one request a second.
-   Progress is saved as it goes, so an interrupted run keeps what it read. */
+   Progress is saved as it goes, so an interrupted run keeps what it read. With --minutes, no
+   page is started after that many minutes, so a run with a deadline ends by itself and saves. */
 
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -20,6 +21,7 @@ const { values } = parseArgs({
     shop: { type: 'string' },
     limit: { type: 'string' },
     delay: { type: 'string', default: '1000' },
+    minutes: { type: 'string' },
     file: { type: 'string', default: process.env.PRICE_INDEX_FILE || path.join(root, 'data', 'price-index.json') }
   }
 });
@@ -32,8 +34,9 @@ if (wanted && shops.length !== wanted.size) {
 }
 const limit = values.limit ? Number(values.limit) : Infinity;
 const delayMs = Number(values.delay);
-if (!(limit > 0) || !(delayMs >= 0)) {
-  console.error('--limit must be a positive number and --delay a number of milliseconds');
+const minutes = values.minutes ? Number(values.minutes) : Infinity;
+if (!(limit > 0) || !(delayMs >= 0) || !(minutes > 0)) {
+  console.error('--limit and --minutes must be positive numbers, and --delay a number of milliseconds');
   process.exit(1);
 }
 
@@ -51,6 +54,7 @@ const save = () => (saving = saving.then(() => saveIndexFile(values.file, data))
   .catch(error => console.error(`save failed: ${error.message}`)));
 
 const started = Date.now();
+const stopAt = started + minutes * 60_000;
 const results = await Promise.allSettled(shops.map(async shop => {
   const previous = data.shops[shop.shop]?.entries ?? [];
   const checked = data.shops[shop.shop]?.checked ?? {};
@@ -63,11 +67,12 @@ const results = await Promise.allSettled(shops.map(async shop => {
     };
     return save();
   };
-  const { entries, stats, checked: checkedPages } = await crawlShop(shop, {
-    fetchPage, fetchSitemap, robots, previous, checked, limit, delayMs, log: console.log, onProgress: record
+  const { entries, stats, checked: checkedPages, stoppedEarly } = await crawlShop(shop, {
+    fetchPage, fetchSitemap, robots, previous, checked, limit, delayMs, stopAt, log: console.log, onProgress: record
   });
   await record(entries, stats, checkedPages);
-  console.log(`${shop.shop}: ${stats.priced} of ${stats.read} pages priced (${stats.listed} listed), ${entries.length} prices kept`);
+  const early = stoppedEarly ? `, stopped at the ${minutes}-minute limit` : '';
+  console.log(`${shop.shop}: ${stats.priced} of ${stats.read} pages priced (${stats.listed} listed), ${entries.length} prices kept${early}`);
 }));
 await saving;
 

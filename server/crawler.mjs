@@ -57,7 +57,10 @@ function readOne(shop, text, url) {
 export async function crawlShop(shop, deps) {
   const {
     fetchPage, fetchSitemap = fetchPage, robots, previous = [], checked = {}, limit = Infinity,
-    delayMs = 1000, sleep = pause, now = Date.now, log = () => {}, onProgress = () => {}, progressEvery = 100
+    delayMs = 1000, sleep = pause, now = Date.now, log = () => {}, onProgress = () => {}, progressEvery = 100,
+    /* No page is started after this time (ms), so a run that has to end by a deadline stops by
+       itself and keeps what it read, instead of being killed before it can save. */
+    stopAt = Infinity
   } = deps;
 
   /* A refused sitemap and an empty one look alike from here, so the answer goes in the error. */
@@ -91,8 +94,13 @@ export async function crawlShop(shop, deps) {
   const stats = { listed: listed.length, read: 0, priced: 0, noPrice: 0, blocked: 0, failed: 0 };
   const snapshot = () => [...kept.values()].flat();
 
+  let stoppedEarly = false;
   for (const page of order.slice(0, limit)) {
     if (stats.read) await sleep(delayMs);
+    if (now() >= stopAt) {
+      stoppedEarly = true;
+      break;
+    }
     stats.read++;
     try {
       /* robots.txt is asked about the address actually fetched, which differs for Shopify. */
@@ -134,5 +142,5 @@ export async function crawlShop(shop, deps) {
       await onProgress(snapshot(), stats, Object.fromEntries(checkedMap));
     }
   }
-  return { entries: snapshot(), stats, checked: Object.fromEntries(checkedMap) };
+  return { entries: snapshot(), stats, checked: Object.fromEntries(checkedMap), stoppedEarly };
 }
