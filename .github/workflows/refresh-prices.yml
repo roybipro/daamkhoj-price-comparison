@@ -69,19 +69,33 @@ jobs:
           "
 
       - name: Commit the new list
+        # The list on main may have changed while this crawl ran (prices published from a crawl run
+        # elsewhere). A rebase would conflict on the one-line file and lose the whole crawl, so
+        # instead start from main's newest list and lay over it each shop this crawl read more
+        # recently than main has it (tools/merge-lists.mjs). Tried again if main moves meanwhile.
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add data/price-index.json
-          if git diff --cached --quiet; then
-            echo 'No prices changed.'
-            exit 0
-          fi
           if [ "$CRAWL" = success ]; then note=''; else note=' (some shops failed; their last prices were kept)'; fi
-          git commit -m "Refresh the price list$note"
-          git pull --rebase origin main
-          git push origin HEAD:main
-          echo 'pushed=yes' >> "$GITHUB_OUTPUT"
+          cp data/price-index.json "$RUNNER_TEMP/crawled.json"
+          for attempt in 1 2 3; do
+            git fetch -q origin main
+            git checkout -q -f -B save origin/main
+            node tools/merge-lists.mjs --into=data/price-index.json --from="$RUNNER_TEMP/crawled.json"
+            git add data/price-index.json
+            if git diff --cached --quiet; then
+              echo 'No prices changed.'
+              exit 0
+            fi
+            git commit -q -m "Refresh the price list$note"
+            if git push origin HEAD:main; then
+              echo 'pushed=yes' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo '::error::could not save the list after 3 tries'
+          exit 1
         env:
           CRAWL: ${{ steps.crawl.outcome }}
         id: commit
