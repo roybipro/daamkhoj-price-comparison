@@ -103,6 +103,17 @@ export function tags(offer: Offer): string {
   return list.join('');
 }
 
+/** "Search on Chaldal" opens the shop's own search for the product; "Visit shop" its home page.
+    A shop whose website no longer exists gets a note instead of a dead link. */
+export function shopLink(offer: Offer, className = 'shop-link'): string {
+  const { link, store, product } = offer;
+  if (!link) return store.siteDown ? '<span class="tag warn">Shop website not reachable</span>' : '';
+  const label = link.searches ? `Search on ${escapeHtml(store.name)}` : 'Visit shop';
+  const title = link.searches ? `Search ${store.name} for ${product.name}` : `Open ${store.name}; search there for ${product.name}`;
+  return `<a class="${className}" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer nofollow"
+    title="${escapeHtml(title)}">${label} ${OUT_ICON}</a>`;
+}
+
 export interface OfferRowOptions {
   isBest?: boolean;
   /** The lowest all-in price of the product: the one row that wears the price tag. */
@@ -144,8 +155,7 @@ export function offerRow(offer: Offer, options: OfferRowOptions): string {
     ${dropped ? '' : `<div class="acts">
       <button class="cmp" data-act="compare" data-id="${offer.id}" aria-pressed="${selected}"
         ${!selected && compareFull ? 'disabled' : ''}>${selected ? 'Added' : 'Compare'}</button>
-      <a class="shop-link" href="${escapeHtml(offer.link)}" target="_blank" rel="noopener noreferrer nofollow"
-        title="${escapeHtml(`Find ${offer.product.name} on ${offer.store.name}`)}">Visit shop ${OUT_ICON}</a>
+      ${shopLink(offer)}
     </div>`}
     ${dropped ? `<div class="reason">Not counted in the comparison: ${offer.trust.flags.map(escapeHtml).join('; ')}.</div>` : ''}
   </div>`;

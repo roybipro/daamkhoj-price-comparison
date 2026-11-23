@@ -15,6 +15,12 @@ export interface Incident { t: string; sev: 'fatal' | 'major' }
 export interface TrustWeight { id: SignalId; label: string; check: string; weight: number }
 export interface Snapshot { date: string; label: string; note: 'sample' | 'live' }
 
+export interface ShopLink {
+  url: string;
+  /** True when it opens the shop's own search for the product, false for its home page. */
+  searches: boolean;
+}
+
 export interface Shop {
   id: string;
   name: string;
@@ -26,6 +32,8 @@ export interface Shop {
   kind: ShopKind;
   since: number;
   closed?: number;
+  /** When the shop's website was last found not to exist (no DNS, or a parked domain). */
+  siteDown?: string;
   categories: CategoryId[];
   cod: boolean;
   payments: string[];
@@ -88,7 +96,8 @@ export interface Offer extends TrustInput {
   sellerReviews: number;
   product: Product;
   store: Shop;
-  link: string;
+  /** Where "Visit shop" goes; null when there is nowhere safe to send anyone. */
+  link: ShopLink | null;
   icon: string;
   landed: number;
   market: MarketStats;

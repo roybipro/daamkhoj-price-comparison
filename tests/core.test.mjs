@@ -101,3 +101,26 @@ test('a malformed URL gets a 400 and leaves the dev server running', async () =>
     server.kill();
   }
 });
+
+test('"Visit shop" never lands on a web search, a dead site or a search for a made-up brand', () => {
+  for (const offer of catalog.offers) {
+    const { link, store } = offer;
+    if (store.closed || store.siteDown) {
+      assert.equal(link, null, `${offer.id} links to a shop that cannot be reached`);
+      continue;
+    }
+    assert.ok(link, offer.id);
+    const url = new URL(link.url);
+    assert.ok(!/(^|\.)google\./.test(url.hostname), `${offer.id} sends the shopper to a web search`);
+    assert.ok(url.hostname.endsWith(store.url.replace(/^www\./, '')), `${offer.id} leaves the shop's own site`);
+  }
+  const rice = catalog.offers.find(offer => offer.store.id === 'chaldal' && /miniket/i.test(offer.product.name));
+  assert.equal(rice.link.searches, true);
+  assert.equal(rice.link.url, 'https://chaldal.com/search/Miniket%20Rice%205kg');
+  /* A shop whose site later disappears is marked siteDown; it must show a note, not a link. */
+  const open = catalog.offers.find(offer => !offer.suppressed);
+  const gone = { ...open, link: null, store: { ...open.store, siteDown: '2026-11-23' } };
+  const html = offerRow(gone, { weights: TRUST_WEIGHTS });
+  assert.ok(!html.includes('<a '), 'a shop whose site does not exist still gets a link');
+  assert.ok(html.includes('Shop website not reachable'));
+});

@@ -41,24 +41,6 @@ export const STORES: Shop[] = [
     blurb: 'Younger IT storefront; competitive on builds, thinner return window.'
   },
   {
-    id: 'app-bazar', name: 'App Bazar', bn: 'অ্যাপ বাজার', monogram: 'AB', accent: '#C0392B',
-    url: 'appbazar.com', kind: 'retailer', since: 2015,
-    categories: ['accessories', 'phones'],
-    cod: true, payments: ['Card', 'bKash', 'Nagad'], returnsDays: 7,
-    officialWarranty: false, coverage: 'nationwide', showrooms: 3, rating: 4.1, reviews: 9800,
-    supportVerified: true, incidents: [],
-    blurb: 'Gadget and accessory retailer; import-line stock, warranty varies by item.'
-  },
-  {
-    id: 'brands-world', name: "Brand's World", bn: 'ব্র্যান্ডস ওয়ার্ল্ড', monogram: 'BW', accent: '#111827',
-    url: 'brandsworld.com.bd', kind: 'retailer', since: 2011,
-    categories: ['phones', 'accessories'],
-    cod: false, payments: ['Card', 'bKash', 'SSLCommerz'], returnsDays: 15,
-    officialWarranty: true, coverage: 'nationwide', showrooms: 10, rating: 4.3, reviews: 7300,
-    supportVerified: true, incidents: [],
-    blurb: 'Apple-focused reseller chain; bills and official warranty on every device.'
-  },
-  {
     id: 'daraz', name: 'Daraz Bangladesh', bn: 'দারাজ', monogram: 'DZ', accent: '#F57224',
     url: 'daraz.com.bd', kind: 'marketplace', since: 2018,
     categories: ['phones', 'computers', 'accessories', 'appliances', 'grocery', 'beauty', 'fashion', 'books'],
@@ -120,17 +102,8 @@ export const STORES: Shop[] = [
     blurb: 'Inventory-held grocery delivery, so listed price is what you pay — no seller roulette.'
   },
   {
-    id: 'shokh', name: 'Shokh', bn: 'শখ', monogram: 'SH', accent: '#C2410C',
-    url: 'shokh.com.bd', kind: 'retailer', since: 2016,
-    categories: ['grocery', 'beauty', 'fashion'],
-    cod: true, payments: ['bKash', 'Nagad', 'Card'], returnsDays: 3,
-    officialWarranty: false, coverage: 'dhaka', showrooms: 2, rating: 4.1, reviews: 11800,
-    supportVerified: true, incidents: [],
-    blurb: 'Grocery arm backed by a large local food group; strongest on staple foods.'
-  },
-  {
     id: 'meena-bazar', name: 'Meena Bazar', bn: 'মীনা বাজার', monogram: 'MB', accent: '#0F766E',
-    url: 'meenabazar.com', kind: 'retailer', since: 2011,
+    url: 'meenabazaronline.com', kind: 'retailer', since: 2011,
     categories: ['grocery', 'beauty'],
     cod: false, payments: ['Card', 'bKash'], returnsDays: 2,
     officialWarranty: false, coverage: 'dhaka', showrooms: 20, rating: 4.0, reviews: 8700,
