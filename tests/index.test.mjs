@@ -578,3 +578,26 @@ test('watchIndexFile concurrent cold-start requests wait for the initial load', 
   assert.equal(browsed.prices, 1);
   assert.equal(found.priced, 1);
 });
+
+test('compound searches merge joined and spaced spellings without splitting strong single words', () => {
+  const index = createPriceIndex({ version: 1, shops: {
+    'a.bd': { entries: [
+      entry('a.bd', 'Baseus Powerbank 10000mAh', 2000),
+      entry('a.bd', 'MagSafe Charger 15W', 4500),
+      entry('a.bd', 'MagSafe Power Bank 5000mAh', 3500)
+    ] },
+    'b.bd': { entries: [
+      entry('b.bd', 'Baseus Power Bank 20000mAh', 2800),
+      entry('b.bd', 'Anker Power Bank 10000mAh', 2500),
+      entry('b.bd', 'MagSafe Wallet', 2200),
+      entry('b.bd', 'Mag Wallet', 900),
+      entry('b.bd', 'Safe Box', 1200)
+    ] }
+  } }, { now: () => NOW });
+
+  const merged = index.search('baseus powerbank');
+  assert.equal(merged.priced, 2, 'merges Baseus Powerbank and Baseus Power Bank');
+  const magsafe = index.search('magsafe powerbank');
+  assert.equal(magsafe.query, 'magsafe power bank', 'keeps magsafe whole while splitting powerbank');
+  assert.equal(magsafe.priced, 1);
+});

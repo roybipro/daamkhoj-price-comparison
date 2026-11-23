@@ -16,3 +16,8 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
+      - name: Ask Render to deploy
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.RENDER_DEPLOY_HOOK != ''
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: curl --fail --silent --show-error -X POST "$RENDER_DEPLOY_HOOK" > /dev/null && echo 'Render deploy started.'

@@ -173,8 +173,10 @@ function clearLive(): void {
   state.live = { status: 'idle' };
 }
 
-async function startLive(): Promise<void> {
+async function startLive(webSearch = false): Promise<void> {
   const query = state.q.trim();
+  clearTimeout(typing);
+  clearTimeout(checkPause);
   liveRequest?.abort();
   if (!query) {
     state.live = { status: 'idle' };
@@ -186,26 +188,41 @@ async function startLive(): Promise<void> {
   state.product = '';
   state.resultLimit = 40;
   state.view = 'results';
-  state.live = { status: 'loading', query };
-  render();
+  if (webSearch || state.live.status !== 'done') {
+    state.live = { status: 'loading', query };
+    render();
+  }
 
   /* The price list answers in milliseconds, so it goes first: if it corrected the spelling
-     ("onplus" → "oneplus"), the paid web search runs with the corrected words too. Its prices
-     show at once; the web's answer, which includes them, replaces them when it arrives. If the
-     web search can't run, the list's prices stay. */
+     ("onplus" → "oneplus"), the paid web search runs with the corrected words too. */
   const hasPrices = (answer: LiveState): answer is Extract<LiveState, { status: 'done' }> =>
     answer.status === 'done' && answer.result.groups.length > 0;
-  const listed = await fetchLive(query, request.signal, 'quick');
+  const listed = await fetchLive(query, request.signal, 'quick', { partial: !webSearch });
   if (request.signal.aborted) return;
 
   let searched = query;
   let typed: string | undefined;
-  if (listed.status === 'done' && listed.result.correctedFrom) {
-    typed = listed.result.correctedFrom;
-    searched = listed.result.query;
-    state.q = searched;
-    dom.input.value = searched;
+  if (listed.status === 'done') {
+    state.liveSuggest = listed.result.suggestions ?? [];
+    if (listed.result.correctedFrom) {
+      typed = listed.result.correctedFrom;
+      searched = listed.result.query;
+      state.q = searched;
+      dom.input.value = searched;
+    }
   }
+  if (!webSearch && listed.status !== 'unavailable') {
+    if (listed.status === 'done') {
+      state.live = { ...listed, pending: false, instant: false, typed };
+      render();
+      void recheckShown(request);
+    } else {
+      state.live = listed;
+      render();
+    }
+    return;
+  }
+
   state.live = hasPrices(listed) ? { ...listed, pending: true, typed } : { status: 'loading', query: searched };
   render();
   /* While the web search runs, the list's prices are read again from the shops. */
@@ -299,10 +316,10 @@ function onQueryChange(value: string): void {
   if (value.trim().length < 2) {
     state.live = { status: 'idle' };
     state.liveSuggest = [];
-    typing = setTimeout(render, 90);
+    typing = setTimeout(render, 50);
     return;
   }
-  typing = setTimeout(() => void searchAsTyped(value), 120);
+  typing = setTimeout(() => void searchAsTyped(value), 50);
 }
 
 function chooseSuggestion(item: State['suggest'][number]): void {
@@ -363,11 +380,11 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
     liveRequest = new AbortController();
     void recheckShown(liveRequest, state.product);
   },
-  searchWeb: () => { void startLive(); },
+  searchWeb: () => { void startLive(true); },
   allResults: () => { state.product = ''; render(); },
   moreResults: () => { state.resultLimit += 40; render(); },
   focusSearch: () => { window.scrollTo({ top: 0 }); dom.input.focus(); },
-  retryLive: () => { void startLive(); },
+  retryLive: () => { void startLive(false); },
   shop: trigger => {
     state.storeId = trigger.dataset.id ?? '';
     state.q = '';

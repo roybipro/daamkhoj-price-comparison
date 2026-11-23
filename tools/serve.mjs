@@ -32,6 +32,7 @@ const searchIndex = watchIndexFile(indexFile, {
     console.log(`photos: found ${filled} for home page cards; ${missing} still have none`);
   }
 });
+void searchIndex.browse().catch(() => {});
 
 /* PRICE_INDEX_URL pulls the list the nightly crawl publishes, on start and every
    PRICE_INDEX_PULL_HOURS (6 by default), so the site stays current without a redeploy. */
