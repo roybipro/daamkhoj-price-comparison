@@ -238,6 +238,10 @@ GitHub app can't see the repository, pushes don't redeploy; then save the servic
 calls it after each refresh. Run it by hand
 from the Actions tab (*Refresh price list → Run workflow*), with a smaller limit for a quick test.
 
+A server that isn't redeployed can still follow those nightly commits: set `PRICE_INDEX_URL` to
+the list's raw GitHub address and it downloads the newest list on start and every
+`PRICE_INDEX_PULL_HOURS` (6), refusing anything that isn't a price list.
+
 On a server with a persistent disk you can instead set `PRICE_INDEX_REFRESH_HOURS=24` and point
 `PRICE_INDEX_FILE` at that disk, and the server crawls on that schedule itself.
 

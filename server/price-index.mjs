@@ -34,12 +34,33 @@ export async function saveIndexFile(file, data) {
 }
 
 /**
+ * Fetches a published copy of the list (the one the nightly crawl commits) and saves it over the
+ * local file, so a server that is never redeployed still gets each night's prices. A download
+ * that is not a price list is refused and the last good file stays. Says whether it changed.
+ */
+export async function pullIndexFile(url, file, { fetchImpl = fetch, timeoutMs = 60_000, maxBytes = 100_000_000 } = {}) {
+  const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
+  if (!response.ok) throw new Error(`price list download answered ${response.status}`);
+  const text = await response.text();
+  if (text.length > maxBytes) throw new Error('price list download is too large');
+  const data = JSON.parse(text);
+  if (data?.version !== 1 || typeof data.shops !== 'object' || data.shops === null) throw new Error('the download is not a price list');
+  const current = await readFile(file, 'utf8').catch(() => '');
+  if (current === text) return false;
+  const temporary = `${file}.${process.pid}.pull.tmp`;
+  await writeFile(temporary, text);
+  await rename(temporary, file);
+  return true;
+}
+
+/**
  * Instant search over a loaded list. Prices older than `maxAgeMs` are left out rather than
  * shown as current, and at most `maxOffers` are returned, cheapest first within each version.
  */
 export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 * 60 * 1000, maxOffers = 120 } = {}) {
   const entries = Object.values(data?.shops ?? {}).flatMap(shop => shop.entries ?? []);
   let shelves = null;
+  let shelvedAt = -Infinity;
   /* Each entry's words, split once: a search then only checks those words. */
   let words = null;
 
@@ -84,8 +105,13 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
       };
     },
 
-    /** The home page's shelves. Worked out once per list, since a list never changes. */
+    /** The home page's shelves. Rebuilt hourly: the list doesn't change, but prices age out of it,
+        and a card must never offer a price its own search would leave out. */
     browse() {
+      if (now() - shelvedAt >= 60 * 60 * 1000) {
+        shelves = null;
+        shelvedAt = now();
+      }
       const fresh = now() - maxAgeMs;
       const counts = Object.fromEntries(Object.entries(data?.shops ?? {}).map(([shop, { entries: listed = [] }]) =>
         [shop, listed.filter(entry => Date.parse(entry.checkedAt) >= fresh).length]));

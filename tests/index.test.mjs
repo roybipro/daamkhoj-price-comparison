@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import { createApi } from '../server/api.mjs';
 import { crawlShop, readShopifyProduct } from '../server/crawler.mjs';
 import { mergeGroups } from '../server/live-search.mjs';
-import { createPriceIndex, loadIndexFile, saveIndexFile, watchIndexFile } from '../server/price-index.mjs';
+import { createPriceIndex, loadIndexFile, pullIndexFile, saveIndexFile, watchIndexFile } from '../server/price-index.mjs';
 import { parseSitemap, productPages } from '../server/sitemap.mjs';
 
 const urlset = urls => `<?xml version="1.0"?><urlset>${urls.map(url => `<url><loc>${url}</loc><lastmod>2026-11-20</lastmod></url>`).join('')}</urlset>`;
@@ -313,4 +313,32 @@ test('the browse endpoint serves the shelves, and says so when there is no price
   search.browse = async () => shelves;
   assert.deepEqual((await call(createApi({ liveSearch: null, searchIndex: search }), '/api/browse')).body, shelves);
   assert.equal((await call(createApi({ liveSearch: null }), '/api/browse')).status, 503);
+});
+
+test('a published list is pulled over the local one, and a bad download never replaces it', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'pull-'));
+  const file = path.join(dir, 'price-index.json');
+  const good = JSON.stringify({ version: 1, shops: { 'a.bd': { entries: [entry('a.bd', 'Galaxy A16', 20000)] } } });
+  const serve = (body, status = 200) => async () => new Response(body, { status });
+
+  assert.equal(await pullIndexFile('https://x/list.json', file, { fetchImpl: serve(good) }), true);
+  assert.equal((await loadIndexFile(file)).shops['a.bd'].entries.length, 1);
+  assert.equal(await pullIndexFile('https://x/list.json', file, { fetchImpl: serve(good) }), false, 'the same list is not rewritten');
+
+  await assert.rejects(pullIndexFile('https://x/list.json', file, { fetchImpl: serve('<html>rate limited</html>') }));
+  await assert.rejects(pullIndexFile('https://x/list.json', file, { fetchImpl: serve(JSON.stringify({ version: 2 })) }), /not a price list/);
+  await assert.rejects(pullIndexFile('https://x/list.json', file, { fetchImpl: serve('', 404) }), /404/);
+  assert.equal((await loadIndexFile(file)).shops['a.bd'].entries.length, 1, 'the last good list stays');
+});
+
+test('shelves are rebuilt as prices age, so a card never offers a price its search leaves out', () => {
+  let time = NOW;
+  const index = createPriceIndex({ version: 1, shops: {
+    'a.bd': { entries: [entry('a.bd', 'Galaxy A16 5G 8/256GB', 30000)] },
+    'b.bd': { entries: [entry('b.bd', 'Galaxy A16 5G 8/256GB', 29000)] }
+  } }, { now: () => time });
+  const cards = () => index.browse().shelves.flatMap(shelf => shelf.cards).filter(card => card.name === 'Galaxy A16');
+  assert.equal(cards().length, 1);
+  time += 8 * 24 * 60 * 60 * 1000;
+  assert.equal(cards().length, 0);
 });

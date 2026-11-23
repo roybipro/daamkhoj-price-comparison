@@ -116,7 +116,8 @@ export function shopLink(offer: Offer, className = 'shop-link'): string {
 
 export interface OfferRowOptions {
   isBest?: boolean;
-  /** The lowest all-in price of the product: the one row that wears the price tag. */
+  /** The lowest all-in price of the product: the one row that wears the price tag, on that all-in
+      figure, so it always matches the "from" price above it. */
   isLowest?: boolean;
   selected?: boolean;
   compareFull?: boolean;
@@ -143,9 +144,11 @@ export function offerRow(offer: Offer, options: OfferRowOptions): string {
       </span>
     </div>
     <div class="price">
-      <div class="p-line">${isLowest && !dropped ? priceTag(offer.price) : `<b class="num">${money(offer.price)}</b>`}${struck}</div>
+      <div class="p-line"><b class="num">${money(offer.price)}</b>${struck}</div>
       ${delta}
-      <span class="total num">All-in ${money(offer.landed)} ${sparkline(offer.history)}</span>
+      ${isLowest && !dropped
+        ? `<span class="total num">${priceTag(offer.landed, 'all-in')} ${sparkline(offer.history)}</span>`
+        : `<span class="total num">All-in ${money(offer.landed)} ${sparkline(offer.history)}</span>`}
     </div>
     <div class="trust" tabindex="0" aria-label="Trust score ${offer.trust.score} out of 100">
       ${meter(offer)}
