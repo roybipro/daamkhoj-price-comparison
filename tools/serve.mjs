@@ -85,6 +85,10 @@ const TYPES = {
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  /* Every type `npm run fetch-logos` can save a shop's logo as. */
+  '.webp': 'image/webp',
+  '.jpg': 'image/jpeg',
+  '.gif': 'image/gif',
   '.ico': 'image/x-icon'
 };
 
