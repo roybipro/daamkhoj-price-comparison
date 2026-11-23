@@ -178,6 +178,8 @@ export interface LiveResult {
   correctedFrom?: string;
   /** What was typed, when a half-typed word was completed to make `query`. */
   completedFrom?: string;
+  /** What was searched, when nothing matched it and `query` is the closest broader search. */
+  broadenedFrom?: string;
   /** Real products whose names start the way the search does, while it is being typed. */
   suggestions?: LiveSuggestion[];
   /** How many shop pages a live re-check just read. */

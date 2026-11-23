@@ -89,7 +89,8 @@ export function createApi({
     }
     try {
       /* partial=1 while the shopper is still typing the last word. */
-      return send(res, 200, await searchIndex(url.searchParams.get('q'), { partial: url.searchParams.get('partial') === '1' }));
+      /* A shopper sees the closest thing the list has rather than nothing. */
+      return send(res, 200, await searchIndex(url.searchParams.get('q'), { partial: url.searchParams.get('partial') === '1', closest: true }));
     } catch (error) {
       return failed(res, error, 'price list search');
     }

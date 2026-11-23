@@ -22,7 +22,16 @@ try {
 const liveSearch = createDefaultLiveSearch(process.env);
 /* The price list from `npm run crawl`; a new crawl is picked up without a restart. */
 const indexFile = process.env.PRICE_INDEX_FILE || path.join(root, 'data', 'price-index.json');
-const searchIndex = watchIndexFile(indexFile, { log: console.log });
+/* Re-reading a page has to fit inside a shopper's wait, so its time limit is short. */
+const rechecker = createRechecker({ fetchPage: url => fetchPublic(url, { timeoutMs: 8_000 }), robots: createRobots(url => fetchPublic(url)) });
+const searchIndex = watchIndexFile(indexFile, {
+  log: console.log,
+  /* Each list that loads gets photos for its home-page cards that have none. */
+  onLoad: async index => {
+    const { filled, missing } = await rechecker.fillPhotos(index);
+    console.log(`photos: found ${filled} for home page cards; ${missing} still have none`);
+  }
+});
 
 /* PRICE_INDEX_URL pulls the list the nightly crawl publishes, on start and every
    PRICE_INDEX_PULL_HOURS (6 by default), so the site stays current without a redeploy. */
@@ -34,8 +43,6 @@ if (process.env.PRICE_INDEX_URL) {
   void pull();
   setInterval(pull, (Number(process.env.PRICE_INDEX_PULL_HOURS) || 6) * 60 * 60 * 1000).unref();
 }
-/* Re-reading a page has to fit inside a shopper's wait, so its time limit is short. */
-const rechecker = createRechecker({ fetchPage: url => fetchPublic(url, { timeoutMs: 8_000 }), robots: createRobots(url => fetchPublic(url)) });
 const recheck = async (query, options) => rechecker(await searchIndex.index(), query, options);
 const api = createApi({ liveSearch, searchIndex, recheck });
 

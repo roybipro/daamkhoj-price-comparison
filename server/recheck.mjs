@@ -45,12 +45,31 @@ export function createRechecker({
   const kindOf = new Map(shops.map(shop => [shop.shop, shop.kind]));
   const reading = new Map();
 
+  /* A shop that keeps refusing this server (some block data-centre addresses) is left alone for an
+     hour, so re-checks don't wait on it and photos come from another shop's page instead. */
+  const trouble = new Map();
+  const reachable = shop => !((trouble.get(shop)?.until ?? 0) > now());
+  function noteAnswer(shop, ok) {
+    if (ok) {
+      trouble.delete(shop);
+      return;
+    }
+    const record = trouble.get(shop) ?? { failures: 0, until: 0 };
+    record.failures++;
+    if (record.failures >= 3) {
+      record.failures = 0;
+      record.until = now() + 60 * 60 * 1000;
+    }
+    trouble.set(shop, record);
+  }
+
   /** Every price one page gives: a Shopify page prices each version, any other page one price. */
   async function read(page, shop) {
     const shopify = kindOf.get(shop) === 'shopify';
     const target = shopify ? `${page.replace(/\/+$/, '')}.js` : page;
     if (!(await robots.allows(target))) return [];
     const response = await fetchPage(target);
+    noteAnswer(shop, response.ok);
     if (!response.ok) return [];
     const checkedAt = new Date(now()).toISOString();
     if (shopify) {
@@ -63,16 +82,24 @@ export function createRechecker({
 
   const readOnce = (page, shop) => {
     if (!reading.has(page)) {
-      reading.set(page, read(page, shop).catch(() => []).finally(() => reading.delete(page)));
+      reading.set(page, read(page, shop).catch(() => { noteAnswer(shop, false); return []; }).finally(() => reading.delete(page)));
     }
     return reading.get(page);
   };
+
+  /** Every price the given pages give, a few pages at a time per shop. */
+  async function readPages(pages) {
+    const byShop = new Map();
+    for (const [page, shop] of pages) byShop.set(shop, [...(byShop.get(shop) ?? []), page]);
+    const read = await Promise.all([...byShop].map(([shop, list]) => mapLimited(list, concurrency, page => readOnce(page, shop))));
+    return read.flat(2);
+  }
 
   /**
    * Re-reads the pages behind a search's first results (or one product's, when `product` names
    * it), applies what they say to the price list, and answers the search again.
    */
-  return async function recheck(index, rawQuery, { product = '' } = {}) {
+  async function recheck(index, rawQuery, { product = '' } = {}) {
     const answer = index.search(rawQuery);
     const stale = offer => !offer.checkedAt || now() - Date.parse(offer.checkedAt) > freshForMs;
 
@@ -83,17 +110,50 @@ export function createRechecker({
         if (pages.size >= maxPages) break;
         const page = pageOf(offer.url);
         const used = perShopCount.get(offer.shop) ?? 0;
-        if (pages.has(page) || !stale(offer) || used >= perShop) continue;
+        if (pages.has(page) || !stale(offer) || used >= perShop || !reachable(offer.shop)) continue;
         pages.set(page, offer.shop);
         perShopCount.set(offer.shop, used + 1);
       }
     }
 
-    const byShop = new Map();
-    for (const [page, shop] of pages) byShop.set(shop, [...(byShop.get(shop) ?? []), page]);
-    const read = await Promise.all([...byShop].map(([shop, list]) => mapLimited(list, concurrency, page => readOnce(page, shop))));
-    const changed = index.update(read.flat(2));
-
+    const changed = index.update(await readPages(pages));
     return { ...index.search(answer.query), rechecked: pages.size, changed };
-  };
+  }
+
+  /**
+   * Photos for the home page's cards that have none, each read from one of its shops' pages
+   * (a second shop's when the first can't answer), so no card is left blank for want of a
+   * crawl. Runs after a price list loads; what it finds lives in memory with the list.
+   */
+  async function fillPhotos(index, { limit = 150 } = {}) {
+    const tried = new Set();
+    const missing = () => index.browse().shelves.flatMap(shelf => shelf.cards).filter(card => !card.image);
+    const before = missing().length;
+    for (let pass = 0; pass < 2; pass++) {
+      const pages = new Map();
+      for (const card of missing()) {
+        if (pages.size >= limit) break;
+        let offers;
+        try {
+          offers = index.search(card.name).groups.flatMap(group => group.offers);
+        } catch {
+          continue;
+        }
+        const pick = offers
+          .filter(offer => reachable(offer.shop) && !tried.has(pageOf(offer.url)))
+          .sort((a, b) => a.price - b.price)[0];
+        if (!pick) continue;
+        tried.add(pageOf(pick.url));
+        pages.set(pageOf(pick.url), pick.shop);
+      }
+      if (!pages.size) break;
+      index.update(await readPages(pages));
+      index.reshelve();
+    }
+    const after = missing().length;
+    return { filled: before - after, missing: after };
+  }
+
+  recheck.fillPhotos = fillPhotos;
+  return recheck;
 }
