@@ -4,10 +4,13 @@
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', ndash: '–', mdash: '—', raquo: '»', laquo: '«' };
 
+/* A page can write any number here; one past Unicode's range must not lose the whole page. */
+const character = (whole, code) => (code <= 0x10ffff ? String.fromCodePoint(code) : whole);
+
 export function decodeEntities(text) {
   return String(text)
-    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([\da-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&#(\d+);/g, (whole, code) => character(whole, Number(code)))
+    .replace(/&#x([\da-f]+);/gi, (whole, code) => character(whole, parseInt(code, 16)))
     .replace(/&([a-z]+);/gi, (whole, name) => ENTITIES[name.toLowerCase()] ?? whole);
 }
 

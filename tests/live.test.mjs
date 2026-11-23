@@ -23,6 +23,12 @@ test('reads a clear taka price from structured data', () => {
   assert.equal(page.inStock, true);
 });
 
+test('a character code past Unicode does not lose the page\'s price', () => {
+  const page = readPage(product('iPhone 15 &#99999999; &#x110000; &#2547;', '74,499'));
+  assert.equal(page.price, 74499);
+  assert.equal(page.name, 'iPhone 15 &#99999999; &#x110000; ৳');
+});
+
 test('reads stock from the page', () => {
   assert.equal(readPage(product('X', 100, { availability: 'https://schema.org/OutOfStock' })).inStock, false);
 });
