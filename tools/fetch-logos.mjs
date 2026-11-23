@@ -1,14 +1,19 @@
-/* npm run fetch-logos
+/* npm run fetch-logos [-- --shop=a.com.bd,b.com]
 
    Saves each price-list shop's own icon into src/assets/shops/ and writes
    src/ts/data/shop-logos.ts, so the site shows real shop logos from its own host instead of a
-   favicon service's small or blank guesses. Run it again when a shop is added. Prefers the
-   largest apple-touch-icon a home page names, then its largest icon of 64px or more, then any
-   icon, then /apple-touch-icon.png, then /favicon.ico. */
+   favicon service's small or blank guesses. Prefers the largest apple-touch-icon a home page
+   names, then its largest icon of 64px or more, then any icon, then /apple-touch-icon.png, then
+   /favicon.ico.
 
-import { mkdir, writeFile } from 'node:fs/promises';
+   With --shop, only those shops are fetched (the usual way after adding a shop). Either way the
+   logos already listed are kept: a shop whose download fails this time keeps its old logo, and
+   a logo replaced by hand (say, resized) is not overwritten unless that shop is named. */
+
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 import { INDEX_SHOPS } from '../server/index-shops.mjs';
 import { USER_AGENT } from '../server/safe-fetch.mjs';
 
@@ -36,9 +41,23 @@ function iconsOf(html, base) {
   return found.sort((a, b) => b.score - a.score).map(icon => icon.url);
 }
 
+const { values } = parseArgs({ options: { shop: { type: 'string' } } });
+const wanted = values.shop ? new Set(values.shop.split(',').map(name => name.trim())) : null;
+const shops = INDEX_SHOPS.filter(shop => !wanted || wanted.has(shop.shop));
+if (wanted && shops.length !== wanted.size) {
+  console.error(`unknown shop; choose from ${INDEX_SHOPS.map(shop => shop.shop).join(', ')}`);
+  process.exit(1);
+}
+
+const listFile = path.join(root, 'src', 'ts', 'data', 'shop-logos.ts');
+const listed = Object.fromEntries([...(await readFile(listFile, 'utf8').catch(() => ''))
+  .matchAll(/'([^']+)': '([^']+)'/g)].map(([, shop, file]) => [shop, file]));
+
 await mkdir(assets, { recursive: true });
-const logos = {};
-for (const shop of INDEX_SHOPS) {
+const logos = { ...listed };
+for (const shop of shops) {
+  /* Every shop was fetched before; only those not listed yet are fetched without being named. */
+  if (!wanted && listed[shop.shop]) continue;
   const home = new URL(shop.sitemap).origin + '/';
   try {
     const page = await get(home);
@@ -59,17 +78,17 @@ for (const shop of INDEX_SHOPS) {
       break;
     }
     if (saved) logos[shop.shop] = `assets/shops/${saved}`;
-    else console.log(`${shop.shop}: no icon found`);
+    else console.log(`${shop.shop}: no icon found${listed[shop.shop] ? '; keeping the one listed' : ''}`);
   } catch (error) {
     console.log(`${shop.shop}: ${error.message}`);
   }
 }
 
 const lines = Object.entries(logos).sort().map(([shop, file]) => `  '${shop}': '${file}'`).join(',\n');
-await writeFile(path.join(root, 'src', 'ts', 'data', 'shop-logos.ts'), `/* Written by \`npm run fetch-logos\`: each price-list shop's own icon, served from this site. */
+await writeFile(listFile, `/* Written by \`npm run fetch-logos\`: each price-list shop's own icon, served from this site. */
 
 export const SHOP_LOGOS: Readonly<Record<string, string>> = {
 ${lines}
 };
 `);
-console.log(`${Object.keys(logos).length} of ${INDEX_SHOPS.length} logos saved`);
+console.log(`${Object.keys(logos).length} of ${INDEX_SHOPS.length} shops have a logo`);
