@@ -1,59 +1,59 @@
-/* Design tokens: a plain price-list look. Warm paper and ink neutrals, one deep green for the
-   brand and lowest prices, flat surfaces with hairline borders, IBM Plex Sans + Hind Siliguri
-   for text and IBM Plex Mono for prices. */
+/* Design tokens: a bright storefront look. Soft grey page, white rounded cards with soft
+   shadows, near-black buttons, green for lowest prices. Montserrat for headings, menu and prices,
+   Lato for text, Hind Siliguri for Bangla. */
 
 :root {
   color-scheme: light;
 
-  --bg: #f7f5f0;
+  --bg: #f5f5f7;
   --bg-mesh: none;
   --surface: #ffffff;
-  --surface-2: #f0ede6;
+  --surface-2: #f2f2f5;
   --raised: #ffffff;
-  --line: #cfc9bb;
-  --line-2: #e4dfd4;
+  --line: #d9d9de;
+  --line-2: #e8e8ed;
 
-  --text: #1b1a17;
-  --muted: #55514a;
-  --dim: #7a7468;
+  --text: #1d1d1f;
+  --muted: #575e63;
+  --dim: #86868b;
 
-  --brand: #11703f;
-  --brand-2: #0c5a32;
-  --brand-hover: #0c5a32;
+  --brand: #0f8a4c;
+  --brand-2: #0b6f3d;
+  --brand-hover: #0b6f3d;
   --on-brand: #ffffff;
-  --btn-grad: #11703f;
-  --btn-grad-hover: #0c5a32;
+  --btn-grad: #1d1d1f;
+  --btn-grad-hover: #3a3a3c;
   --on-btn: #ffffff;
 
-  --mark-bg: #1b1a17;
+  --mark-bg: #1d1d1f;
   --mark-fg: #ffffff;
-  --mark-dot: #2f9e5f;
+  --mark-dot: #2fb36b;
   --mark-ink: #ffffff;
 
   /* Lowest prices are written in green, without a box around them. */
   --tag: transparent;
   --tag-edge: transparent;
-  --on-tag: #11703f;
+  --on-tag: #0f8a4c;
 
-  --price: #1b1a17;
-  --taka: #11703f;
+  --price: #1d1d1f;
+  --taka: #0f8a4c;
   --over: #b4410c;
   --risk: #c62828;
   --warn: #a15c07;
   --sun: #2f9e5f;
 
   /* Legacy aliases */
-  --ink: #1b1a17;
-  --ink-2: #3d3a34;
-  --ink-3: #7a7468;
-  --paper: #f7f5f0;
-  --paper-2: #f0ede6;
+  --ink: #1d1d1f;
+  --ink-2: #3a3a3c;
+  --ink-3: #86868b;
+  --paper: #f5f5f7;
+  --paper-2: #f2f2f5;
   --card: #ffffff;
 
   --tile: #ffffff;
-  --tile-line: #e4dfd4;
+  --tile-line: #e8e8ed;
 
-  --header-bg: #f7f5f0;
+  --header-bg: rgba(255, 255, 255, .92);
   --badge-glass: #ffffff;
   --row-hover: rgba(27, 26, 23, .025);
   --head-tint: rgba(27, 26, 23, .03);
@@ -75,72 +75,72 @@
 
   --selection: rgba(17, 112, 63, .2);
 
-  --shadow: none;
-  --shadow-hover: none;
-  --overlay-shadow: 0 10px 30px -12px rgba(27, 26, 23, .25);
+  --shadow: 0 13px 34px rgba(31, 35, 48, .08), inset 0 1px 0 rgba(255, 255, 255, .98);
+  --shadow-hover: 0 18px 40px rgba(31, 35, 48, .13), inset 0 1px 0 rgba(255, 255, 255, .98);
+  --overlay-shadow: 0 20px 48px -12px rgba(31, 35, 48, .25);
   --ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand);
 
-  --r-lg: 10px;
-  --r: 8px;
-  --r-sm: 6px;
+  --r-lg: 20px;
+  --r: 14px;
+  --r-sm: 10px;
   --maxw: 1200px;
 
-  --font: "IBM Plex Sans", "Hind Siliguri", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --display: var(--font);
+  --font: "Lato", "Hind Siliguri", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --display: "Montserrat", "Hind Siliguri", system-ui, -apple-system, sans-serif;
   --mono: var(--font);
-  --num: "IBM Plex Mono", "Hind Siliguri", ui-monospace, monospace;
+  --num: "Montserrat", "Hind Siliguri", system-ui, sans-serif;
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --bg: #141311;
+  --bg: #111113;
   --bg-mesh: none;
-  --surface: #1c1b18;
-  --surface-2: #24231f;
-  --raised: #282722;
-  --line: #3d3b34;
-  --line-2: #2d2c27;
+  --surface: #1c1c1f;
+  --surface-2: #242428;
+  --raised: #27272b;
+  --line: #3a3a40;
+  --line-2: #2c2c31;
 
-  --text: #f1eee6;
-  --muted: #b0aa9d;
-  --dim: #878174;
+  --text: #f5f5f7;
+  --muted: #b4b4bb;
+  --dim: #8a8a91;
 
-  --brand: #5cc489;
-  --brand-2: #47b075;
-  --brand-hover: #7dd3a2;
+  --brand: #4cd08a;
+  --brand-2: #36b874;
+  --brand-hover: #7be0a9;
   --on-brand: #0b2616;
-  --btn-grad: #5cc489;
-  --btn-grad-hover: #7dd3a2;
-  --on-btn: #0b2616;
+  --btn-grad: #f5f5f7;
+  --btn-grad-hover: #ffffff;
+  --on-btn: #1d1d1f;
 
-  --mark-bg: #24231f;
+  --mark-bg: #27272b;
   --mark-fg: #f1eee6;
-  --mark-dot: #5cc489;
+  --mark-dot: #4cd08a;
   --mark-ink: #0b2616;
 
   --tag: transparent;
   --tag-edge: transparent;
-  --on-tag: #6fd197;
+  --on-tag: #5fd897;
 
-  --price: #f1eee6;
-  --taka: #6fd197;
+  --price: #f5f5f7;
+  --taka: #5fd897;
   --over: #f0915a;
   --risk: #f07a7a;
   --warn: #e8b04a;
   --sun: #5cc489;
 
-  --ink: #141311;
-  --ink-2: #d4d0c6;
-  --ink-3: #b0aa9d;
-  --paper: #1c1b18;
-  --paper-2: #24231f;
+  --ink: #111113;
+  --ink-2: #d6d6db;
+  --ink-3: #b4b4bb;
+  --paper: #1c1c1f;
+  --paper-2: #242428;
   --card: #1c1b18;
 
   --tile: #ffffff;
-  --tile-line: #3d3b34;
+  --tile-line: #3a3a40;
 
-  --header-bg: #141311;
+  --header-bg: rgba(28, 28, 31, .92);
   --badge-glass: #1c1b18;
   --row-hover: rgba(255, 255, 255, .025);
   --head-tint: rgba(255, 255, 255, .03);
@@ -162,8 +162,8 @@
 
   --selection: rgba(92, 196, 137, .28);
 
-  --shadow: none;
-  --shadow-hover: none;
+  --shadow: 0 13px 34px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .04);
+  --shadow-hover: 0 18px 40px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .06);
   --overlay-shadow: 0 14px 36px -14px rgba(0, 0, 0, .8);
   --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--brand);
 }

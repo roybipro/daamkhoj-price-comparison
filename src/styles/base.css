@@ -1,5 +1,5 @@
-/* Reset, typography and shared utilities. IBM Plex Sans with Hind Siliguri for Bangla; prices
-   are set in IBM Plex Mono so their digits line up like a printed price list. */
+/* Reset, typography and shared utilities. Lato for text, Montserrat for headings and prices,
+   Hind Siliguri for Bangla. */
 
 :where(*, *::before, *::after) { box-sizing: border-box; }
 

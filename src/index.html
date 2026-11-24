@@ -25,7 +25,7 @@
 <meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Lato:wght@400;700&family=Montserrat:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="icon" href="assets/favicon-taka.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles/tokens.css">
 <link rel="stylesheet" href="styles/base.css">
@@ -33,6 +33,8 @@
 <link rel="stylesheet" href="styles/layout.css">
 </head>
 <body>
+
+<div class="ticker" aria-hidden="true"><div class="ticker-track"><span>Prices read from each shop's own website</span><span>Checked twice a day</span><span>Popular products re-checked every hour</span><span>Only the same version is compared</span><span>No commission, no paid rankings</span><span>Confirm the price on the shop's site before you pay</span><span>Prices read from each shop's own website</span><span>Checked twice a day</span><span>Popular products re-checked every hour</span><span>Only the same version is compared</span><span>No commission, no paid rankings</span><span>Confirm the price on the shop's site before you pay</span></div></div>
 
 <header class="top">
   <div class="wrap top-in">
@@ -47,9 +49,9 @@
       <span class="brand-name">DaamKhoj <span lang="bn">দামখোঁজ</span></span>
     </a>
     <nav class="tabs" id="tabs" role="tablist" aria-label="Sections">
-      <button role="tab" data-view="results" aria-selected="true">Prices</button>
-      <button role="tab" data-view="stores" aria-selected="false">Shops</button>
-      <button role="tab" data-view="how" aria-selected="false">How it works</button>
+      <button role="tab" data-view="results" aria-selected="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12.2 11.3 4.4a1.5 1.5 0 0 1 1.1-.4H19a1 1 0 0 1 1 1v6.6a1.5 1.5 0 0 1-.4 1.1l-7.8 7.8a1.4 1.4 0 0 1-2 0l-6.3-6.3a1.4 1.4 0 0 1 0-2z"/><circle cx="16" cy="8" r="1.2" fill="currentColor"/></svg>Prices</button>
+      <button role="tab" data-view="stores" aria-selected="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5 5.5 4h13L20 9.5M4 9.5h16v10.5H4zM10 20v-5h4v5"/></svg>Shops</button>
+      <button role="tab" data-view="how" aria-selected="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.4c-.7.3-1 .8-1 1.5v.6M12 17h.01"/></svg>How it works</button>
     </nav>
     <button class="theme-toggle" type="button" data-act="theme" aria-label="Switch colour theme" title="Switch between light and dark">
       <span class="in-light">
