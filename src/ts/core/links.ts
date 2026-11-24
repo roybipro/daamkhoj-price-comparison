@@ -4,10 +4,11 @@ import type { Product, Shop, ShopLink } from '../types.js';
 
 export const hostOf = (url: string): string => url.replace(/^https?:\/\//, '').replace(/^www\./, '');
 
-/* Public favicon service so the tile shows the shop's real mark; the UI falls back
-   to the coloured monogram when a brand publishes no retrievable icon. */
-export const iconUrl = (store: Shop): string =>
-  `https://www.google.com/s2/favicons?domain=${hostOf(store.url)}&sz=64`;
+/* Local bundled shop icon first, falling back to a public favicon lookup and monogram. */
+export const iconUrl = (store: Shop): string => {
+  const host = hostOf(store.url).replace(/\/.*$/, '');
+  return SHOP_LOGOS[host] ?? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`;
+};
 
 /** What to type into a shop's own search: the product's name, without the details in brackets.
     A one-word brand the name leaves out is added ("Apple iPhone 15"); longer "brands" in the
