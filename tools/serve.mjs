@@ -11,6 +11,7 @@ import { createRobots } from '../server/robots.mjs';
 import { fetchPublic } from '../server/safe-fetch.mjs';
 import { pullIndexFile, watchIndexFile } from '../server/price-index.mjs';
 import { pageMeta, robotsTxt, sitemapXml, withMeta } from '../server/seo.mjs';
+import { createFreshener } from '../server/freshen.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'dist');
@@ -47,6 +48,12 @@ if (process.env.PRICE_INDEX_URL) {
   setInterval(pull, (Number(process.env.PRICE_INDEX_PULL_HOURS) || 6) * 60 * 60 * 1000).unref();
 }
 const recheck = async (query, options) => rechecker(await searchIndex.index(), query, options);
+/* Between nightly crawls, the pages behind the home page's products are re-read in the
+   background: two products a minute by default (FRESHEN_EVERY_SECONDS; 0 turns it off). */
+const freshenEvery = Number(process.env.FRESHEN_EVERY_SECONDS ?? 60);
+if (freshenEvery > 0) {
+  createFreshener({ recheck: rechecker, getIndex: () => searchIndex.index(), log: console.log }).start(freshenEvery * 1000);
+}
 /* CLIENT_IP_HEADER names the header the host's proxy fills with the visitor's real address
    (cf-connecting-ip on Render, which sits behind Cloudflare), so each visitor gets their own
    rate limit and a made-up X-Forwarded-For buys nothing. Unset, the connection's address is used. */
