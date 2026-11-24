@@ -24,5 +24,20 @@ export const SEARCH_PATTERNS: Record<Shop['id'], string | undefined> = {
   'gadget-gear': 'https://gadgetandgear.com/?s={q}',
   'applex': 'https://www.applex.com.bd/?s={q}',
   'istock': 'https://istockbd.com/search?q={q}',
-  'rokomari': 'https://www.rokomari.com/search?term={q}'
+  'rokomari': 'https://www.rokomari.com/search?term={q}',
+  'sumash-tech': 'https://www.sumashtech.com/search?q={q}',
+  'dazzle': 'https://dazzle.com.bd/search?q={q}',
+  'pc-house': 'https://www.pchouse.com.bd/product/search?search={q}',
+  'ultra-tech': 'https://www.ultratech.com.bd/product/search?search={q}',
+  'ucc': 'https://www.ucc.com.bd/catalogsearch/result/?q={q}',
+  'smart-bd': 'https://smartbd.com/?s={q}&post_type=product',
+  'transcom-digital': 'https://transcomdigital.com/search?q={q}',
+  'vertech': 'https://www.vertech.com.bd/products?search={q}',
+  'kry-international': 'https://kryinternational.com/search?q={q}',
+  'diamu': 'https://diamu.com.bd/?s={q}&post_type=product',
+  'gadget-breeze': 'https://gadgetbreeze.com.bd/?s={q}&post_type=product',
+  'gadget-mart': 'https://gadgetmart.com.bd/?s={q}&post_type=product',
+  't-tech': 'https://t-tech.com.bd/?s={q}&post_type=product',
+  'shopz': 'https://www.shopz.com.bd/?s={q}&post_type=product',
+  'gadgetz': 'https://gadgetz.com.bd/?s={q}&post_type=product'
 };
