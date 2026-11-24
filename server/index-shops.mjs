@@ -53,5 +53,18 @@ export const INDEX_SHOPS = [
   { shop: 't-tech.com.bd', sitemap: 'https://t-tech.com.bd/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
   { shop: 'shopz.com.bd', sitemap: 'https://www.shopz.com.bd/sitemap.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
   /* Gadgetz: 11/12 and 19/20 priced, with a cart; small (295 product pages: chargers, hubs, mice). */
-  { shop: 'gadgetz.com.bd', sitemap: 'https://gadgetz.com.bd/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' }
+  { shop: 'gadgetz.com.bd', sitemap: 'https://gadgetz.com.bd/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
+
+  /* Added 2026-11-24 after the same 12-page check (priced of 12, all with photos and a cart):
+     Motion View 12/12 (788 pages: smartwatches, earbuds, gadgets), Custom Mac BD 11/12 (949 pages:
+     Apple, phones, consoles), Universal Computer BD 11/12 (1,465 pages: laptops, SSDs, adapters),
+     Sell Tech BD 10/12 (6,522 pages: PC components, monitors, laptops), MC Solution BD 9/12
+     (2,179 pages: laptops, MacBooks, monitors), Vibe Gaming 9/12 (5,096 pages: gaming mice,
+     keyboards, headsets, GPUs). */
+  { shop: 'motionview.com.bd', sitemap: 'https://www.motionview.com.bd/sitemap.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
+  { shop: 'custommacbd.com', sitemap: 'https://www.custommacbd.com/sitemap.xml', product: /\/products\/[^/]+\/?$/, kind: 'page' },
+  { shop: 'mcsolution.com.bd', sitemap: 'https://www.mcsolution.com.bd/sitemap_index.xml', product: ONE_LEVEL, kind: 'page' },
+  { shop: 'vibegaming.com.bd', sitemap: 'https://www.vibegaming.com.bd/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
+  { shop: 'universal.com.bd', sitemap: 'https://www.universal.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' },
+  { shop: 'selltech.com.bd', sitemap: 'https://www.selltech.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' }
 ];
