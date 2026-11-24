@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApi, createDefaultLiveSearch, startWarming } from '../server/api.mjs';
@@ -9,6 +10,7 @@ import { createRechecker } from '../server/recheck.mjs';
 import { createRobots } from '../server/robots.mjs';
 import { fetchPublic } from '../server/safe-fetch.mjs';
 import { pullIndexFile, watchIndexFile } from '../server/price-index.mjs';
+import { pageMeta, robotsTxt, sitemapXml, withMeta } from '../server/seo.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'dist');
@@ -92,10 +94,40 @@ const TYPES = {
   '.ico': 'image/x-icon'
 };
 
+/* SITE_URL is the address search engines are given for every page (canonical links, sitemap). */
+const siteUrl = (process.env.SITE_URL || 'https://daamkhoj.onrender.com').replace(/\/+$/, '');
+/* A page's head is filled from the price list, but never makes a visitor wait: a lookup slower
+   than this gets the plain head. Answers are kept for a while, as crawlers ask for many pages. */
+const META_WAIT_MS = 1500;
+const metaCache = new Map();
+async function headFor(url) {
+  const key = `${url.searchParams.get('view') ?? ''}|${(url.searchParams.get('q') ?? '').trim().toLowerCase()}`;
+  const kept = metaCache.get(key);
+  if (kept && Date.now() - kept.at < 30 * 60 * 1000) return kept.meta;
+  const lookup = pageMeta(url, { base: siteUrl, search: (query, options) => searchIndex(query, options) })
+    .then(meta => {
+      if (metaCache.size >= 2000) metaCache.delete(metaCache.keys().next().value);
+      metaCache.set(key, { at: Date.now(), meta });
+      return meta;
+    })
+    .catch(() => null);
+  return Promise.race([lookup, new Promise(resolve => setTimeout(resolve, META_WAIT_MS, null))]);
+}
+
 /* ES modules need an http(s) origin, so this stands in for the static host locally. */
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${host}`);
   if (url.pathname.startsWith('/api/')) return api(req, res, url);
+  if (url.pathname === '/robots.txt') {
+    res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' }).end(robotsTxt(siteUrl));
+    return;
+  }
+  if (url.pathname === '/sitemap.xml') {
+    const [browse, index] = await Promise.all([searchIndex.browse().catch(() => null), searchIndex.index().catch(() => null)]);
+    res.writeHead(200, { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' })
+      .end(sitemapXml(siteUrl, { shelves: browse?.shelves ?? [], updatedAt: index?.updatedAt ?? null }));
+    return;
+  }
 
   let pathname;
   try {
@@ -115,6 +147,15 @@ createServer(async (req, res) => {
   const info = await stat(file).catch(() => null);
   if (!info) {
     res.writeHead(404, { 'content-type': 'text/plain' }).end('not found');
+    return;
+  }
+
+  /* The page itself gets a head that describes it: its title, description and prices. */
+  if (file === path.join(dir, 'index.html')) {
+    const [html, meta] = await Promise.all([readFile(file, 'utf8'), headFor(url)]);
+    const body = meta ? withMeta(html, meta) : html;
+    res.writeHead(200, { 'content-type': TYPES['.html'], 'cache-control': 'no-cache', 'content-length': Buffer.byteLength(body) });
+    res.end(req.method === 'HEAD' ? undefined : body);
     return;
   }
 

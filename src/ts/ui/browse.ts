@@ -145,6 +145,13 @@ function shelfRow(shelf: BrowseShelf): string {
   </section>`;
 }
 
+/** The Shops tab: the shops whose prices are in the list, and how many each has. */
+export function shopsView(data: BrowseData): string {
+  return `<div class="lead"><h2>The ${data.shops.length} shops we read prices from</h2>
+    <p>Prices are read from each shop's own product pages every night. We don't rate shops: check the shop's own site for its warranty and return terms before you pay.</p></div>
+    ${shopStrip(data)}`;
+}
+
 function shopStrip(data: BrowseData): string {
   return `<section class="shop-strip" aria-labelledby="shop-strip-h">
     <h2 id="shop-strip-h">Prices read from these shops</h2>

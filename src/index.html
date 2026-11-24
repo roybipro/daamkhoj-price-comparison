@@ -3,10 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DaamKhoj demo — Compare prices and trust across Bangladesh's online shops</title>
-<meta name="description" content="Compare one product's price across Bangladesh's online shops. Prices are read from the shops' own pages; trust scores are sample data in this demo.">
-<!-- Sample prices attached to real shop names must not reach search results. Remove with live data. -->
-<meta name="robots" content="noindex">
+<title>DaamKhoj — compare prices across Bangladesh's online shops | দামখোঁজ</title>
+<meta name="description" content="Find the lowest price for phones, laptops, gadgets and more. DaamKhoj lines up prices from 30 Bangladeshi online shops, read from each shop's own website.">
 <meta name="theme-color" content="#f8fafc">
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f8fafc">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#090d16">
@@ -20,9 +18,11 @@
     document.documentElement.dataset.theme = theme;
   })();
 </script>
-<meta property="og:title" content="DaamKhoj demo — compare before you buy in Bangladesh">
-<meta property="og:description" content="A demo: compare one product's prices side by side. Live results are read from shop pages; everything else is sample data.">
+<meta property="og:title" content="DaamKhoj — compare prices across Bangladesh's online shops">
+<meta property="og:description" content="Find the lowest price for phones, laptops, gadgets and more, read from each shop's own website.">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="DaamKhoj">
+<meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anek+Bangla:wght@400..700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -48,7 +48,6 @@
     </a>
     <nav class="tabs" id="tabs" role="tablist" aria-label="Sections">
       <button role="tab" data-view="results" aria-selected="true">Prices</button>
-      <button role="tab" data-view="compare" aria-selected="false">Side by side</button>
       <button role="tab" data-view="stores" aria-selected="false">Shops</button>
       <button role="tab" data-view="how" aria-selected="false">How it works</button>
     </nav>
@@ -65,8 +64,8 @@
 
 <main class="wrap">
   <details class="sample-banner" role="note">
-    <summary><b>Demo.</b> Prices on the home page and in search results are read from shops' own pages. Trust scores are sample data.</summary>
-    <p>Each read price shows when it was checked, and can still be out of date or wrong. The trust scores, the Shops and Side by side tabs, and any result not marked Live use sample data from 27 Sep 2026: they are made up for this demo and say nothing about how those shops really operate. Check the shop's own site before you buy.</p>
+    <summary><b>Prices are read from each shop's own website</b> and show when they were checked.</summary>
+    <p>A price can still be out of date or wrong, and DaamKhoj doesn't rate shops. Check the price, warranty and return terms on the shop's own site before you pay.</p>
   </details>
 
   <div class="search-zone">
@@ -111,8 +110,7 @@
 
 <footer>
   <div class="wrap in">
-    <p class="fine"><b>What DaamKhoj is not:</b> we are not a shop and nothing is bought here. We line up the prices and terms each store already publishes. <b>Prices on the home page and in Live results are read from shops' own pages; every rating, policy and trust score is sample data for the demo</b> — check the shop's own site for the live price, warranty and return terms before you pay.</p>
-    <p class="fine"><b>The trust score</b> comes from seven signals: business history, buyer reviews, payment safety, returns, authenticity, delivery and support. The full method is in the <button class="link" data-act="view" data-view="how">How it works</button> tab.</p>
+    <p class="fine"><b>What DaamKhoj is not:</b> we are not a shop and nothing is bought here. We line up the prices each shop already publishes on its own website, with the time each was read. We don't rate shops and take no commission. Check the shop's own site for the current price, warranty and return terms before you pay.</p>
   </div>
 </footer>
 
