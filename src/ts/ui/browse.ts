@@ -14,6 +14,8 @@ const stroke = (paths: string, size = 26): string =>
 /* Drawn rather than photographed, so a shelf reads the same whatever the shops publish. */
 const ICONS: Record<string, string> = {
   all: stroke('<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>'),
+  popular: stroke('<path d="m12 3.5 2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 16.9l-5.3 2.7 1-5.8-4.2-4.1 5.9-.9z"/>'),
+  trending: stroke('<path d="M3 17 9.5 10.5l4 4L21 7"/><path d="M15 7h6v6"/>'),
   phones: stroke('<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>'),
   laptops: stroke('<rect x="4.5" y="5" width="15" height="10" rx="1.5"/><path d="M2.5 18.5h19"/>'),
   tablets: stroke('<rect x="4.5" y="2.5" width="15" height="19" rx="2.5"/><circle cx="12" cy="18.3" r=".6" fill="currentColor"/>'),
@@ -31,15 +33,91 @@ const icon = (id: string, size?: number): string =>
 
 const QUICK = [
   { act: 'focusSearch', view: '', title: 'Compare prices', text: 'Search any product across shops', icon: stroke('<path d="M3.5 12.2 11.3 4.4a1.5 1.5 0 0 1 1.1-.4H19a1 1 0 0 1 1 1v6.6a1.5 1.5 0 0 1-.4 1.1l-7.8 7.8a1.4 1.4 0 0 1-2 0l-6.3-6.3a1.4 1.4 0 0 1 0-2z"/><circle cx="16" cy="8" r="1.4" fill="currentColor"/>') },
-  { act: 'shelf', view: '', id: 'phones', title: 'Phones', text: 'Compare the latest phones', icon: stroke('<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>') },
+  { act: 'shelf', view: '', id: 'popular', title: 'Popular & trending', text: 'Most compared products across shops', icon: stroke('<path d="M3 17 9.5 10.5l4 4L21 7"/><path d="M15 7h6v6"/>') },
   { act: 'view', view: 'stores', title: 'Shops', text: 'Who we read prices from', icon: stroke('<path d="M4 9.5 5.5 4h13L20 9.5M4 9.5h16v10.5H4zM4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0M10 20v-5h4v5"/>') },
   { act: 'view', view: 'how', title: 'How it works', text: 'Where every price comes from', icon: stroke('<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.4c-.7.3-1 .8-1 1.5v.6M12 17h.01"/>') }
 ];
 
+/* Consumer-first shelf order on the home page, after Popular and Trending. */
+const SHELF_ORDER = ['phones', 'laptops', 'tablets', 'audio', 'watches', 'pc', 'screens', 'gaming', 'power', 'more'];
+
+/* High-demand lines shoppers look up most often, used to populate the Trending shelf. */
+const TRENDING_LINES: RegExp[] = [
+  /\biphone\s*\d+/i,
+  /\bgalaxy\s*(s2\d|a\d+)/i,
+  /\b(redmi\s*note|poco)\b/i,
+  /\b(macbook|thinkpad|ideapad|vivobook)\b/i,
+  /\b(ipad|galaxy\s*tab|honor\s*pad|xiaomi\s*pad)\b/i,
+  /\b(airpods|galaxy\s*buds|soundcore|edifier)\b/i,
+  /\b(apple\s*watch|galaxy\s*watch|amazfit|huawei\s*(watch|band)|kieslect)\b/i,
+  /\b(ryzen\s*[579]|rtx\s*[345]0\d0|corsair|kingston\s*fury)\b/i,
+  /\b(jbl\s*(flip|charge|xtreme|go|clip)|marshall)\b/i,
+  /\b(anker|baseus|ugreen)\b/i,
+  /\b(jisulife|handheld\s*fan)\b/i,
+  /\b(ps5|playstation|xbox|osmo|gopro|insta360)\b/i,
+  /\b(cudy|tp-link|archer|deco)\b/i
+];
+
+function buildFeaturedShelves(shelves: BrowseShelf[]): { popular: BrowseShelf; trending: BrowseShelf; ordered: BrowseShelf[] } {
+  const rankOf = (id: string): number => {
+    const idx = SHELF_ORDER.indexOf(id);
+    return idx >= 0 ? idx : SHELF_ORDER.length;
+  };
+  const ordered = [...shelves].sort((a, b) => rankOf(a.id) - rankOf(b.id));
+
+  /* Popular across shops: round-robin the most widely stocked pictured products across categories
+     so the top row mixes phones, laptops, audio, watches, PC gear and chargers. */
+  const byCategory = ordered.map(shelf =>
+    [...shelf.cards].sort((a, b) => Number(Boolean(b.image)) - Number(Boolean(a.image)) || b.shops - a.shops || b.versions - a.versions)
+  );
+  const popularCards: BrowseCard[] = [];
+  const seenPopular = new Set<string>();
+  const maxDepth = Math.max(0, ...byCategory.map(list => list.length));
+  for (let i = 0; i < maxDepth && popularCards.length < 40; i++) {
+    for (const list of byCategory) {
+      const candidate = list[i];
+      if (!candidate || seenPopular.has(candidate.name)) continue;
+      if (popularCards.length < 15 && !candidate.image) continue;
+      seenPopular.add(candidate.name);
+      popularCards.push(candidate);
+      if (popularCards.length >= 40) break;
+    }
+  }
+  popularCards.sort((a, b) => b.shops - a.shops || Number(Boolean(b.image)) - Number(Boolean(a.image)));
+
+  /* Trending searches: pick top-compared products from each high-demand line in turn. */
+  const allCards = ordered.flatMap(shelf => shelf.cards)
+    .sort((a, b) => Number(Boolean(b.image)) - Number(Boolean(a.image)) || b.shops - a.shops || b.versions - a.versions);
+  const lineBuckets = TRENDING_LINES.map(pattern => allCards.filter(item => pattern.test(item.name)));
+  const trendingCards: BrowseCard[] = [];
+  const seenTrending = new Set<string>();
+  const maxBucket = Math.max(0, ...lineBuckets.map(bucket => bucket.length));
+  for (let i = 0; i < maxBucket && trendingCards.length < 40; i++) {
+    for (const bucket of lineBuckets) {
+      const candidate = bucket[i];
+      if (!candidate || seenTrending.has(candidate.name)) continue;
+      seenTrending.add(candidate.name);
+      trendingCards.push(candidate);
+      if (trendingCards.length >= 40) break;
+    }
+  }
+
+  return {
+    popular: { id: 'popular', label: 'Popular across shops', cards: popularCards },
+    trending: { id: 'trending', label: 'Trending searches', cards: trendingCards },
+    ordered
+  };
+}
+
 function card(item: BrowseCard, shelf: string): string {
   const photo = item.image ? safeHttpUrl(item.image) : null;
+  const badge = shelf === 'popular'
+    ? `<span class="pc-badge">Popular · ${item.shops} shops</span>`
+    : shelf === 'trending'
+      ? '<span class="pc-badge trend">Trending</span>'
+      : '';
   return `<button class="pcard" data-act="query" data-q="${escapeHtml(item.name)}" title="${escapeHtml(`Compare ${item.name} across ${item.shops} shops`)}">
-    <span class="pc-img">${icon(shelf, 40)}${photo
+    <span class="pc-img">${badge}${icon(shelf, 40)}${photo
       ? `<img src="${escapeHtml(photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span>
     <span class="pc-body">
       <span class="pc-name">${escapeHtml(item.name)}</span>
@@ -52,9 +130,14 @@ function card(item: BrowseCard, shelf: string): string {
 
 function shelfRow(shelf: BrowseShelf): string {
   const shown = shelf.cards.slice(0, 10);
+  const sub = shelf.id === 'popular'
+    ? '<span class="shelf-sub">Stocked by the most Bangladeshi shops</span>'
+    : shelf.id === 'trending'
+      ? '<span class="shelf-sub">Most searched phones, laptops &amp; gadgets</span>'
+      : '';
   return `<section class="shelf" aria-labelledby="shelf-${escapeHtml(shelf.id)}">
     <div class="shelf-head">
-      <h2 id="shelf-${escapeHtml(shelf.id)}">${escapeHtml(shelf.label)}</h2>
+      <div><h2 id="shelf-${escapeHtml(shelf.id)}">${escapeHtml(shelf.label)}</h2>${sub}</div>
       ${shelf.cards.length > shown.length
         ? `<button class="link" data-act="shelf" data-id="${escapeHtml(shelf.id)}">See all ${shelf.cards.length}</button>` : ''}
     </div>
@@ -78,9 +161,15 @@ function shopStrip(data: BrowseData): string {
 
 export function browseView(ctx: RenderContext, data: BrowseData): string {
   const { shelf } = ctx.state;
-  const chosen = data.shelves.find(item => item.id === shelf);
+  const { popular, trending, ordered } = buildFeaturedShelves(data.shelves);
+  const featured = [popular, trending].filter(item => item.cards.length > 0);
+  const allShelves = [...featured, ...ordered];
+  const chosen = allShelves.find(item => item.id === shelf);
   const total = data.shelves.reduce((sum, item) => sum + item.cards.length, 0);
-  const tabs = [{ id: '', label: 'All', count: total }, ...data.shelves.map(item => ({ id: item.id, label: item.label, count: item.cards.length }))];
+  const tabs = [
+    { id: '', label: 'All', count: total },
+    ...allShelves.map(item => ({ id: item.id, label: item.label, count: item.cards.length }))
+  ];
 
   return `<nav class="quick" aria-label="What you can do here">${QUICK.map(item =>
       `<button class="quick-tile" data-act="${item.act}"${item.view ? ` data-view="${item.view}"` : ''}${'id' in item ? ` data-id="${item.id}"` : ''}>
@@ -96,7 +185,7 @@ export function browseView(ctx: RenderContext, data: BrowseData): string {
           <div class="cards grid-cards">${chosen.cards.slice(0, ctx.state.shelfLimit).map(item => card(item, chosen.id)).join('')}</div>
           ${chosen.cards.length > ctx.state.shelfLimit
             ? `<button class="more more-all" data-act="moreCards">Show more (${chosen.cards.length - ctx.state.shelfLimit} left)</button>` : ''}</section>`
-      : data.shelves.map(shelfRow).join('')}
+      : allShelves.map(shelfRow).join('')}
 
     ${shopStrip(data)}
     <p class="fine-print">Each card's price is the lowest for any version; open it to compare the same version across shops. Lowest found ${money(Math.min(...data.shelves.flatMap(item => item.cards.map(c => c.from))))} across ${pluralCount(total, 'product')}.</p>`;
