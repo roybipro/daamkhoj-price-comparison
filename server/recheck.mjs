@@ -40,7 +40,7 @@ function productsInOrder(answer, product) {
  */
 export function createRechecker({
   fetchPage, robots, shops = INDEX_SHOPS, now = Date.now,
-  maxPages = 24, perShop = 6, concurrency = 2, freshForMs = 30 * 60 * 1000
+  maxPages = 30, perShop = 20, concurrency = 3, freshForMs = 30 * 60 * 1000
 }) {
   const kindOf = new Map(shops.map(shop => [shop.shop, shop.kind]));
   const reading = new Map();
@@ -105,15 +105,25 @@ export function createRechecker({
 
     const pages = new Map();
     const perShopCount = new Map();
-    for (const offers of productsInOrder(answer, product)) {
-      for (const offer of [...offers].sort((a, b) => a.price - b.price)) {
-        if (pages.size >= maxPages) break;
-        const page = pageOf(offer.url);
-        const used = perShopCount.get(offer.shop) ?? 0;
-        if (pages.has(page) || !stale(offer) || used >= perShop || !reachable(offer.shop)) continue;
-        pages.set(page, offer.shop);
-        perShopCount.set(offer.shop, used + 1);
-      }
+    const products = productsInOrder(answer, product)
+      .map(offers => [...offers].sort((a, b) => a.price - b.price));
+    const tryPick = offer => {
+      if (pages.size >= maxPages) return false;
+      const page = pageOf(offer.url);
+      const used = perShopCount.get(offer.shop) ?? 0;
+      if (pages.has(page) || !stale(offer) || used >= perShop || !reachable(offer.shop)) return false;
+      pages.set(page, offer.shop);
+      perShopCount.set(offer.shop, used + 1);
+      return true;
+    };
+    /* Cards without a photo get one page read first, then one offer per card per pass so the
+       earliest multi-shop cards do not spend a shop's quota before single-shop cards on screen. */
+    for (const offers of products) {
+      if (!offers.some(offer => offer.image)) offers.some(tryPick);
+    }
+    const deepest = Math.max(0, ...products.map(offers => offers.length));
+    for (let i = 0; i < deepest && pages.size < maxPages; i++) {
+      for (const offers of products) if (offers[i]) tryPick(offers[i]);
     }
 
     const changed = index.update(await readPages(pages));
