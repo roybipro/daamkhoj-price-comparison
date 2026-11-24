@@ -27,6 +27,7 @@
   --mark-bg: #090d16;
   --mark-fg: #ffffff;
   --mark-dot: #10b981;
+  --mark-ink: #ffffff;
 
   /* Minimal lowest-price pill */
   --tag: #ecfdf5;
@@ -114,6 +115,7 @@
   --mark-bg: #172033;
   --mark-fg: #f8fafc;
   --mark-dot: #34d399;
+  --mark-ink: #06281c;
 
   --tag: rgba(16, 185, 129, .14);
   --tag-edge: rgba(52, 211, 153, .28);
