@@ -37,7 +37,7 @@ export function howView(): string {
   return `<div class="lead"><h2>How DaamKhoj works</h2>
     <p>Every price comes from a shop's own website, with the time it was read. We line them up so you can see who sells the same product for less.</p></div>
     <div class="grid" style="margin-top:16px">
-      <div class="panel"><h4>Where prices come from</h4><p class="blurb">Every night we read the product pages that Bangladeshi online shops list for search engines, and save each page's taka price, stock and photo. Prices older than a week are left out.</p></div>
+      <div class="panel"><h4>Where prices come from</h4><p class="blurb">Twice a day we read the product pages that Bangladeshi online shops list for search engines, and save each page's taka price, stock and photo. The products on the home page are re-checked through the day, the most stocked about every hour. Prices older than a week are left out.</p></div>
       <div class="panel"><h4>When you search</h4><p class="blurb">Results come from that list at once. We then open the shops' pages again and update any price that changed, so each card says when its price was checked. We skip pages that ask not to be read automatically, and pages without one clear taka price.</p></div>
       <div class="panel"><h4>Only the same product is compared</h4><p class="blurb">Storage, memory and model are matched, so a 128 GB phone is never compared with a 256 GB one, and accessories are kept apart from the product itself.</p></div>
       <div class="panel"><h4>What we don't do</h4><p class="blurb">DaamKhoj sells nothing, takes no commission and has no paid rankings. We don't rate shops. A price can still be out of date or wrong, so check it on the shop's site before you pay.</p></div>

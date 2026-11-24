@@ -420,11 +420,7 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
   },
   reset: () => { state.codOnly = false; state.minTrust = 0; state.storeId = ''; render(); },
   clearQuery: () => { state.q = ''; dom.input.value = ''; clearLive(); render(); dom.input.focus(); },
-  retry: () => {
-    state.browse = { status: 'loading' };
-    render();
-    void fetchBrowse().then(browse => { state.browse = browse; if (state.q) void startLive(); else render(); });
-  }
+  retry: () => loadBrowse(true)
 };
 
 dom.input.addEventListener('input', event => onQueryChange((event.target as HTMLInputElement).value));
@@ -500,8 +496,29 @@ dom.tabs.addEventListener('click', event => {
   if (tab) setView(tab.dataset.view);
 });
 
-/* The shelves come from the price list; on a host without one the demo home stays. */
-void fetchBrowse().then(browse => { state.browse = browse; render(); });
+/* A server that is restarting (it does on every deploy) answers nothing for a minute or so, so the
+   placeholders stay up while the shelves are asked for again; only after that does the page say
+   prices couldn't be loaded. `thenSearch` re-runs the search on screen once they arrive. */
+const BROWSE_RETRY_MS = [3_000, 6_000, 10_000, 15_000, 20_000, 30_000];
+let browseLoad = 0;
+function loadBrowse(thenSearch: boolean): void {
+  const load = ++browseLoad;
+  state.browse = { status: 'loading' };
+  render();
+  const attempt = (tries: number): void => {
+    void fetchBrowse().then(browse => {
+      if (load !== browseLoad) return;
+      if (browse.status === 'unavailable' && tries < BROWSE_RETRY_MS.length) {
+        setTimeout(() => attempt(tries + 1), BROWSE_RETRY_MS[tries]);
+        return;
+      }
+      state.browse = browse;
+      if (thenSearch && state.q) void startLive(); else render();
+    });
+  };
+  attempt(0);
+}
+loadBrowse(false);
 
 /* A shared search link runs the same live search as typing it would. */
 if (state.q && state.view === 'results') void startLive();
