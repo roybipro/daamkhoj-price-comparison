@@ -1,5 +1,5 @@
-/* Reset, typography and shared utilities. Inter + Anek Bangla pair clean geometric Latin with
-   modern Bangla letterforms at natural proportions. */
+/* Reset, typography and shared utilities. IBM Plex Sans with Hind Siliguri for Bangla; prices
+   are set in IBM Plex Mono so their digits line up like a printed price list. */
 
 :where(*, *::before, *::after) { box-sizing: border-box; }
 
@@ -19,7 +19,7 @@ body {
 }
 
 h1, h2, h3, h4, h5 {
-  margin: 0; line-height: 1.15; font-weight: 650; letter-spacing: -.025em;
+  margin: 0; line-height: 1.2; font-weight: 600; letter-spacing: -.01em;
   font-family: var(--display);
 }
 p { margin: 0; }
@@ -27,7 +27,8 @@ a { color: inherit; }
 button, select, input, summary { font: inherit; color: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
 
-.num { font-variant-numeric: tabular-nums lining-nums; letter-spacing: -.01em; }
+.num { font-variant-numeric: tabular-nums lining-nums; }
+.pricetag b, .price b, .summary dd, .score-big .n { font-family: var(--num); letter-spacing: -.02em; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
 
@@ -37,9 +38,6 @@ button { -webkit-tap-highlight-color: transparent; }
 @media (prefers-reduced-motion: no-preference) {
   :where(button, .shop-link, .shop-tile) {
     transition: transform 150ms ease-out, scale 140ms ease-out, box-shadow 160ms ease-out, border-color 150ms ease-out, background-color 150ms ease-out, color 150ms ease-out;
-  }
-  :where(.go, .btn-primary, .btn-ghost, .shop-link, .chip, .cat-tab, .cmp, .toggle, .theme-toggle):active:not(:disabled) {
-    scale: 0.97;
   }
 }
 
