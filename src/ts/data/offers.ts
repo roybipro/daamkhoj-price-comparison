@@ -204,5 +204,70 @@ export const RAW_OFFERS: RawOffer[] = [
   ['samsung-43-uhd-tv', 'transcom-digital', 44900, 49900, 2, 0, '', 0, 0],
   ['samsung-43-uhd-tv', 'star-tech', 43500, 48000, 3, 0, '', 0, 0],
   ['samsung-43-uhd-tv', 'ryans', 44200, 48500, 3, 0, '', 0, 0],
-  ['samsung-43-uhd-tv', 'gadget-mart', 42900, 47500, 4, 0, '', 0, 0]
+  ['samsung-43-uhd-tv', 'gadget-mart', 42900, 47500, 4, 0, '', 0, 0],
+
+  ['poco-x7-pro', 'sumash-tech', 39990, 43990, 2, 0, '', 0, 0],
+  ['poco-x7-pro', 'apple-gadgets', 40500, 43990, 2, 0, '', 0, 0],
+  ['poco-x7-pro', 'dazzle', 40900, 43990, 3, 0, '', 0, 0],
+  ['poco-x7-pro', 'kry-international', 39800, 43500, 3, 0, '', 0, 0],
+  ['poco-x7-pro', 'custom-mac', 40200, 43990, 2, 0, '', 0, 0],
+
+  ['honor-pad-x9', 'apple-gadgets', 23900, 26900, 2, 0, '', 0, 0],
+  ['honor-pad-x9', 'sumash-tech', 24200, 26900, 2, 0, '', 0, 0],
+  ['honor-pad-x9', 'star-tech', 24900, 27500, 2, 0, '', 0, 0],
+  ['honor-pad-x9', 'ryans', 25200, 27500, 2, 0, '', 0, 0],
+  ['honor-pad-x9', 'mc-solution', 24500, 27000, 3, 0, '', 0, 0],
+
+  ['msi-pro-mp223', 'star-tech', 10800, 11800, 2, 0, '', 0, 0],
+  ['msi-pro-mp223', 'techland', 10500, 11500, 2, 0, '', 0, 0],
+  ['msi-pro-mp223', 'pc-house', 10400, 11500, 2, 0, '', 0, 0],
+  ['msi-pro-mp223', 'ucc', 10900, 11800, 2, 0, '', 0, 0],
+  ['msi-pro-mp223', 'sell-tech', 10600, 11500, 3, 0, '', 0, 0],
+  ['msi-pro-mp223', 'universal-computer', 10550, 11500, 3, 0, '', 0, 0],
+
+  ['corsair-vengeance-16gb', 'star-tech', 4200, 4800, 2, 0, '', 0, 0],
+  ['corsair-vengeance-16gb', 'techland', 4050, 4600, 2, 0, '', 0, 0],
+  ['corsair-vengeance-16gb', 'pc-house', 3990, 4500, 2, 0, '', 0, 0],
+  ['corsair-vengeance-16gb', 'ultra-tech', 4100, 4600, 3, 0, '', 0, 0],
+  ['corsair-vengeance-16gb', 'sell-tech', 4000, 4500, 3, 0, '', 0, 0],
+  ['corsair-vengeance-16gb', 'universal-computer', 4050, 4550, 3, 0, '', 0, 0],
+
+  ['logitech-g304', 'vibe-gaming', 3650, 4200, 2, 0, '', 0, 0],
+  ['logitech-g304', 'star-tech', 3850, 4300, 2, 0, '', 0, 0],
+  ['logitech-g304', 'techland', 3750, 4200, 2, 0, '', 0, 0],
+  ['logitech-g304', 'pc-house', 3700, 4200, 2, 0, '', 0, 0],
+  ['logitech-g304', 'ryans', 3900, 4300, 2, 0, '', 0, 0],
+
+  ['razer-deathadder-v2x', 'vibe-gaming', 4450, 5200, 2, 0, '', 0, 0],
+  ['razer-deathadder-v2x', 'star-tech', 4650, 5300, 2, 0, '', 0, 0],
+  ['razer-deathadder-v2x', 'techland', 4550, 5200, 2, 0, '', 0, 0],
+  ['razer-deathadder-v2x', 'pc-house', 4500, 5200, 2, 0, '', 0, 0],
+  ['razer-deathadder-v2x', 'sell-tech', 4600, 5200, 3, 0, '', 0, 0],
+
+  ['amazfit-bip-5', 'motion-view', 6490, 7490, 2, 0, '', 0, 0],
+  ['amazfit-bip-5', 'apple-gadgets', 6550, 7490, 2, 0, '', 0, 0],
+  ['amazfit-bip-5', 'sumash-tech', 6590, 7490, 2, 0, '', 0, 0],
+  ['amazfit-bip-5', 'gadget-gear', 6990, 7690, 2, 0, '', 0, 0],
+  ['amazfit-bip-5', 'star-tech', 6750, 7500, 2, 0, '', 0, 0],
+
+  ['soundcore-r50i', 'motion-view', 1850, 2290, 2, 0, '', 0, 0],
+  ['soundcore-r50i', 'apple-gadgets', 1790, 2250, 2, 0, '', 0, 0],
+  ['soundcore-r50i', 'sumash-tech', 1820, 2250, 2, 0, '', 0, 0],
+  ['soundcore-r50i', 'gadgetz', 1800, 2200, 3, 0, '', 0, 0],
+  ['soundcore-r50i', 't-tech', 1780, 2200, 3, 0, '', 0, 0],
+
+  ['ugreen-65w-gan', 'gadgetz', 2950, 3500, 3, 0, '', 0, 0],
+  ['ugreen-65w-gan', 'apple-gadgets', 2990, 3500, 2, 0, '', 0, 0],
+  ['ugreen-65w-gan', 'sumash-tech', 3050, 3550, 2, 0, '', 0, 0],
+  ['ugreen-65w-gan', 'custom-mac', 3100, 3600, 2, 0, '', 0, 0],
+  ['ugreen-65w-gan', 'motion-view', 3090, 3590, 2, 0, '', 0, 0],
+
+  ['ps5-slim-disc', 'custom-mac', 63500, 69900, 2, 0, '', 0, 0],
+  ['ps5-slim-disc', 'apple-gadgets', 62900, 69900, 2, 0, '', 0, 0],
+  ['ps5-slim-disc', 'sumash-tech', 63200, 69900, 2, 0, '', 0, 0],
+  ['ps5-slim-disc', 'dazzle', 63900, 69900, 3, 0, '', 0, 0],
+  ['ps5-slim-disc', 'star-tech', 65500, 71000, 2, 0, '', 0, 0],
+
+  ['macbook-air-m4', 'custom-mac', 136500, 145000, 2, 0, '', 0, 0],
+  ['macbook-air-m4', 'mc-solution', 136800, 145000, 2, 0, '', 0, 0]
 ];

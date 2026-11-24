@@ -21,7 +21,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const assets = path.join(root, 'src', 'assets', 'shops');
 const EXTENSIONS = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg', 'image/x-icon': 'ico', 'image/vnd.microsoft.icon': 'ico', 'image/gif': 'gif' };
 
-const get = url => fetch(url, { headers: { 'user-agent': USER_AGENT }, redirect: 'follow', signal: AbortSignal.timeout(20_000) });
+const get = (url, referer) => fetch(url, { headers: { 'user-agent': USER_AGENT, ...(referer && { referer }) }, redirect: 'follow', signal: AbortSignal.timeout(20_000) });
 
 /** Icon addresses a page names, best first. */
 function iconsOf(html, base) {
@@ -64,10 +64,15 @@ for (const shop of shops) {
     const html = page.ok ? await page.text() : '';
     /* Shopify's image server sizes on request: ask for a sharp one instead of the 32px it names. */
     const sharper = url => url.replace(/([?&]width=)\d+/, '$1180');
-    const candidates = [...iconsOf(html, page.url || home).map(sharper), new URL('/apple-touch-icon.png', home).href, new URL('/favicon.ico', home).href];
+    const candidates = [
+      ...iconsOf(html, page.url || home).map(sharper),
+      new URL('/apple-touch-icon.png', home).href,
+      new URL('/favicon.ico', home).href,
+      `https://www.google.com/s2/favicons?domain=${encodeURIComponent(shop.shop)}&sz=128`
+    ];
     let saved = '';
     for (const url of candidates) {
-      const response = await get(url).catch(() => null);
+      const response = await get(url, home).catch(() => null);
       const type = response?.headers.get('content-type')?.split(';')[0].trim().toLowerCase() ?? '';
       if (!response?.ok || !EXTENSIONS[type]) continue;
       const bytes = Buffer.from(await response.arrayBuffer());

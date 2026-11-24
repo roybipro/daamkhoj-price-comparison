@@ -39,5 +39,11 @@ export const SEARCH_PATTERNS: Record<Shop['id'], string | undefined> = {
   'gadget-mart': 'https://gadgetmart.com.bd/?s={q}&post_type=product',
   't-tech': 'https://t-tech.com.bd/?s={q}&post_type=product',
   'shopz': 'https://www.shopz.com.bd/?s={q}&post_type=product',
-  'gadgetz': 'https://gadgetz.com.bd/?s={q}&post_type=product'
+  'gadgetz': 'https://gadgetz.com.bd/?s={q}&post_type=product',
+  'motion-view': 'https://motionview.com.bd/search?q={q}',
+  'custom-mac': 'https://www.custommacbd.com/search?q={q}',
+  'mc-solution': 'https://www.mcsolution.com.bd/?s={q}&post_type=product',
+  'vibe-gaming': 'https://www.vibegaming.com.bd/?s={q}&post_type=product',
+  'universal-computer': 'https://www.universal.com.bd/index.php?route=product/search&search={q}',
+  'sell-tech': 'https://www.selltech.com.bd/index.php?route=product/search&search={q}'
 };

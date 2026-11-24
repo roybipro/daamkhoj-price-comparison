@@ -352,5 +352,59 @@ export const STORES: Shop[] = [
     officialWarranty: true, coverage: 'nationwide', showrooms: 1, rating: 4.1, reviews: 1900,
     supportVerified: true, incidents: [],
     blurb: 'GaN charger, USB-C hub and desk accessory retailer stocking Anker, Baseus and Ugreen.'
+  },
+  {
+    id: 'motion-view', name: 'Motion View', bn: 'মোশন ভিউ', monogram: 'MV', accent: '#E11D48',
+    url: 'motionview.com.bd', kind: 'retailer', since: 2015,
+    categories: ['accessories', 'phones'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad', 'SSLCommerz'], returnsDays: 7,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 10, rating: 4.4, reviews: 16800,
+    supportVerified: true, incidents: [],
+    blurb: 'National importer and retail chain for Xiaomi ecosystem gear, smartwatches and TWS earbuds.'
+  },
+  {
+    id: 'custom-mac', name: 'Custom Mac BD', bn: 'কাস্টম ম্যাক বিডি', monogram: 'CM', accent: '#111827',
+    url: 'custommacbd.com', kind: 'retailer', since: 2017,
+    categories: ['computers', 'phones', 'accessories'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad', 'SSLCommerz'], returnsDays: 7,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 4, rating: 4.4, reviews: 6100,
+    supportVerified: true, incidents: [],
+    blurb: 'Apple MacBook, iPad, flagship phone and console retailer with outlets in Bashundhara and Jamuna.'
+  },
+  {
+    id: 'mc-solution', name: 'MC Solution BD', bn: 'এমসি সলিউশন', monogram: 'MC', accent: '#1D4ED8',
+    url: 'mcsolution.com.bd', kind: 'retailer', since: 2017,
+    categories: ['computers', 'accessories'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad', 'SSLCommerz'], returnsDays: 7,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 5, rating: 4.3, reviews: 5400,
+    supportVerified: true, incidents: [],
+    blurb: 'Laptop, MacBook and corporate notebook retailer with branches in Dhaka and Chattogram.'
+  },
+  {
+    id: 'vibe-gaming', name: 'Vibe Gaming', bn: 'ভাইব গেমিং', monogram: 'VG', accent: '#7C3AED',
+    url: 'vibegaming.com.bd', kind: 'retailer', since: 2019,
+    categories: ['computers', 'accessories'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad', 'SSLCommerz'], returnsDays: 5,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 2, rating: 4.4, reviews: 4200,
+    supportVerified: true, incidents: [],
+    blurb: 'Enthusiast gaming peripheral, mechanical keyboard, mouse and custom PC store in Dhaka.'
+  },
+  {
+    id: 'universal-computer', name: 'Universal Computer BD', bn: 'ইউনিভার্সাল কম্পিউটার', monogram: 'UC', accent: '#0369A1',
+    url: 'universal.com.bd', kind: 'retailer', since: 2010,
+    categories: ['computers', 'accessories'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad'], returnsDays: 5,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 3, rating: 4.2, reviews: 3800,
+    supportVerified: true, incidents: [],
+    blurb: 'Multiplan Center laptop, SSD, charger and PC hardware retailer.'
+  },
+  {
+    id: 'sell-tech', name: 'Sell Tech BD', bn: 'সেল টেক', monogram: 'ST', accent: '#0F766E',
+    url: 'selltech.com.bd', kind: 'retailer', since: 2016,
+    categories: ['computers', 'accessories'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad', 'SSLCommerz'], returnsDays: 5,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 2, rating: 4.2, reviews: 3300,
+    supportVerified: true, incidents: [],
+    blurb: 'Desktop hardware, monitor, laptop and office IT equipment supplier in Dhaka.'
   }
 ];
