@@ -6,26 +6,29 @@
 :root {
   color-scheme: light;
 
-  --bg: #eef2f0;
+  --bg: #edf3f0;
+  --bg-mesh: radial-gradient(960px 420px at 12% -6%, rgba(0, 106, 78, .11), transparent 62%),
+             radial-gradient(760px 360px at 88% -8%, rgba(255, 199, 44, .16), transparent 58%);
   --surface: #ffffff;
-  --surface-2: #f4f7f6;
+  --surface-2: #f4f8f6;
   --raised: #ffffff;
-  --line: #d3dcd9;
-  --line-2: #e3e9e7;
+  --line: #cdd8d4;
+  --line-2: #dfe7e4;
 
-  --text: #13233a;
-  --muted: #45566a;
-  --dim: #526373;
+  --text: #0f1f33;
+  --muted: #435568;
+  --dim: #556778;
 
   --brand: #006a4e;
   --brand-2: #00553f;
   --brand-hover: #007d5c;
   --on-brand: #ffffff;
+  --btn-grad: linear-gradient(180deg, #007d5c 0%, #006248 100%);
 
   /* The price tag: only the lowest price wears it. */
   --tag: #ffc72c;
-  --tag-edge: #e8ad00;
-  --on-tag: #13233a;
+  --tag-edge: #e0a500;
+  --on-tag: #102034;
 
   --price: #13233a;
   --taka: #00704f;
@@ -45,15 +48,16 @@
   --tile: #ffffff;
   --tile-line: #d3dcd9;
 
-  --header-bg: rgba(238, 242, 240, .88);
-  --row-hover: rgba(19, 35, 58, .025);
-  --head-tint: rgba(19, 35, 58, .03);
-  --brand-tint: rgba(0, 106, 78, .1);
-  --brand-tint-soft: rgba(0, 106, 78, .05);
+  --header-bg: rgba(237, 243, 240, .82);
+  --badge-glass: rgba(255, 255, 255, .9);
+  --row-hover: rgba(15, 31, 51, .028);
+  --head-tint: rgba(15, 31, 51, .03);
+  --brand-tint: rgba(0, 106, 78, .11);
+  --brand-tint-soft: rgba(0, 106, 78, .055);
   --risk-tint: rgba(200, 16, 46, .06);
   --risk-text: #a10d25;
   --risk-line: rgba(200, 16, 46, .3);
-  --ok-tint: rgba(0, 106, 78, .08);
+  --ok-tint: rgba(0, 106, 78, .09);
   --ok-text: #005a42;
   --ok-line: rgba(0, 106, 78, .26);
   --tag-tint: rgba(255, 199, 44, .2);
@@ -66,14 +70,15 @@
 
   --selection: rgba(255, 199, 44, .45);
 
-  --shadow: 0 1px 1px rgba(19, 35, 58, .04), 0 8px 24px -16px rgba(19, 35, 58, .22);
-  --overlay-shadow: 0 24px 56px -24px rgba(19, 35, 58, .38);
+  --shadow: 0 1px 2px rgba(15, 31, 51, .04), 0 10px 26px -18px rgba(15, 31, 51, .2);
+  --shadow-hover: 0 4px 12px -4px rgba(0, 106, 78, .12), 0 18px 36px -18px rgba(15, 31, 51, .26);
+  --overlay-shadow: 0 24px 56px -20px rgba(15, 31, 51, .34);
   --ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand);
 
   --r-lg: 20px;
-  --r: 14px;
-  --r-sm: 9px;
-  --maxw: 1120px;
+  --r: 16px;
+  --r-sm: 10px;
+  --maxw: 1180px;
 
   --font: "Anek Bangla", "Hind Siliguri", "Noto Sans Bengali", system-ui, -apple-system, sans-serif;
   /* The same family, narrowed: headlines and prices read as signage. */
@@ -84,21 +89,24 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --bg: #0e1a24;
-  --surface: #152532;
-  --surface-2: #1b2e3d;
-  --raised: #20364a;
-  --line: #2b4155;
-  --line-2: #213648;
+  --bg: #0b1620;
+  --bg-mesh: radial-gradient(920px 400px at 14% -6%, rgba(69, 199, 156, .13), transparent 62%),
+             radial-gradient(740px 340px at 86% -8%, rgba(255, 199, 44, .09), transparent 58%);
+  --surface: #132230;
+  --surface-2: #192c3c;
+  --raised: #1e3447;
+  --line: #2a4155;
+  --line-2: #1f3446;
 
-  --text: #e8eef3;
-  --muted: #b2c1cd;
-  --dim: #94a7b6;
+  --text: #ecf2f7;
+  --muted: #b5c4d0;
+  --dim: #92a6b6;
 
   --brand: #45c79c;
   --brand-2: #2fae84;
   --brand-hover: #63d6ae;
-  --on-brand: #06231a;
+  --on-brand: #052118;
+  --btn-grad: linear-gradient(180deg, #57d2a8 0%, #39b88d 100%);
 
   --tag: #ffc72c;
   --tag-edge: #f0b400;
@@ -121,18 +129,19 @@
   --tile: #f4f7f6;
   --tile-line: #2b4155;
 
-  --header-bg: rgba(14, 26, 36, .88);
-  --row-hover: rgba(255, 255, 255, .025);
+  --header-bg: rgba(11, 22, 32, .82);
+  --badge-glass: rgba(19, 34, 48, .88);
+  --row-hover: rgba(255, 255, 255, .03);
   --head-tint: rgba(255, 255, 255, .03);
-  --brand-tint: rgba(69, 199, 156, .14);
+  --brand-tint: rgba(69, 199, 156, .15);
   --brand-tint-soft: rgba(69, 199, 156, .07);
   --risk-tint: rgba(255, 107, 125, .08);
   --risk-text: #ffb3bd;
   --risk-line: rgba(255, 107, 125, .38);
-  --ok-tint: rgba(69, 199, 156, .12);
+  --ok-tint: rgba(69, 199, 156, .13);
   --ok-text: #8ee3c3;
   --ok-line: rgba(69, 199, 156, .34);
-  --tag-tint: rgba(255, 199, 44, .06);
+  --tag-tint: rgba(255, 199, 44, .08);
 
   --tier-strong: #5fd3a9;
   --tier-good: #5ac8d8;
@@ -142,7 +151,8 @@
 
   --selection: rgba(255, 199, 44, .35);
 
-  --shadow: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 14px 32px -22px rgba(0, 0, 0, .8);
-  --overlay-shadow: 0 24px 56px -24px rgba(0, 0, 0, .85);
+  --shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 14px 32px -20px rgba(0, 0, 0, .78);
+  --shadow-hover: 0 1px 0 rgba(255, 255, 255, .07) inset, 0 20px 40px -18px rgba(0, 0, 0, .88);
+  --overlay-shadow: 0 24px 56px -22px rgba(0, 0, 0, .86);
   --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--brand);
 }

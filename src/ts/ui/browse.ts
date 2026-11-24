@@ -139,7 +139,7 @@ function shelfRow(shelf: BrowseShelf): string {
     <div class="shelf-head">
       <div><h2 id="shelf-${escapeHtml(shelf.id)}">${escapeHtml(shelf.label)}</h2>${sub}</div>
       ${shelf.cards.length > shown.length
-        ? `<button class="link" data-act="shelf" data-id="${escapeHtml(shelf.id)}">See all ${shelf.cards.length}</button>` : ''}
+        ? `<button class="link" data-act="shelf" data-id="${escapeHtml(shelf.id)}">See all ${shelf.cards.length} →</button>` : ''}
     </div>
     <div class="cards row">${shown.map(item => card(item, shelf.id)).join('')}</div>
   </section>`;
