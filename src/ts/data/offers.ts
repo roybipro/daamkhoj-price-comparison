@@ -132,5 +132,77 @@ export const RAW_OFFERS: RawOffer[] = [
   ['romoss-20000', 'applex', 2350, 2790, 3, 0, '', 0, 0],
   ['romoss-20000', 'dizmo', 2150, 2790, 4, 0, '', 0, 0],
   ['lenovo-qct-2504', 'applex', 950, 1290, 4, 0, '', 0, 0],
-  ['lenovo-qct-2504', 'dizmo', 890, 1290, 5, 0, '', 0, 0]
+  ['lenovo-qct-2504', 'dizmo', 890, 1290, 5, 0, '', 0, 0],
+
+  ['redmi-note-14', 'sumash-tech', 23990, 25990, 2, 0, '', 0, 0],
+  ['redmi-note-14', 'apple-gadgets', 24200, 25990, 2, 0, '', 0, 0],
+  ['redmi-note-14', 'dazzle', 24500, 25990, 3, 0, '', 0, 0],
+  ['redmi-note-14', 'kry-international', 23800, 25500, 3, 0, '', 0, 0],
+  ['redmi-note-14', 'diamu', 23500, 25500, 3, 0, '', 0, 0],
+
+  ['galaxy-s24-ultra', 'sumash-tech', 118500, 129900, 2, 0, '', 0, 0],
+  ['galaxy-s24-ultra', 'apple-gadgets', 117900, 129900, 2, 0, '', 0, 0],
+  ['galaxy-s24-ultra', 'dazzle', 119000, 129900, 3, 0, '', 0, 0],
+  ['galaxy-s24-ultra', 'istock', 119500, 129900, 2, 0, '', 0, 0],
+  ['galaxy-s24-ultra', 'transcom-digital', 124900, 134900, 2, 0, '', 0, 0],
+
+  ['macbook-air-m4', 'apple-gadgets', 136900, 145000, 2, 0, '', 0, 0],
+  ['macbook-air-m4', 'istock', 137500, 145000, 2, 0, '', 0, 0],
+  ['macbook-air-m4', 'vertech', 138000, 145000, 3, 0, '', 0, 0],
+  ['macbook-air-m4', 'star-tech', 139500, 146000, 2, 0, '', 0, 0],
+  ['macbook-air-m4', 'ryans', 141000, 146000, 2, 0, '', 0, 0],
+
+  ['ipad-air-m3', 'apple-gadgets', 74500, 79900, 2, 0, '', 0, 0],
+  ['ipad-air-m3', 'istock', 75000, 79900, 2, 0, '', 0, 0],
+  ['ipad-air-m3', 'dazzle', 75500, 79900, 3, 0, '', 0, 0],
+  ['ipad-air-m3', 'sumash-tech', 74900, 79900, 2, 0, '', 0, 0],
+  ['ipad-air-m3', 'gadget-gear', 77500, 81900, 2, 0, '', 0, 0],
+
+  ['ryzen-5-5600', 'star-tech', 12200, 13500, 2, 0, '', 0, 0],
+  ['ryzen-5-5600', 'techland', 11900, 13200, 2, 0, '', 0, 0],
+  ['ryzen-5-5600', 'pc-house', 11800, 13000, 2, 0, '', 0, 0],
+  ['ryzen-5-5600', 'ultra-tech', 11850, 13000, 3, 0, '', 0, 0],
+  ['ryzen-5-5600', 'ucc', 12400, 13500, 2, 0, '', 0, 0],
+  ['ryzen-5-5600', 'smart-bd', 12300, 13500, 2, 0, '', 0, 0],
+
+  ['airpods-pro-2', 'apple-gadgets', 25900, 28900, 2, 0, '', 0, 0],
+  ['airpods-pro-2', 'istock', 26200, 28900, 2, 0, '', 0, 0],
+  ['airpods-pro-2', 'sumash-tech', 25800, 28500, 2, 0, '', 0, 0],
+  ['airpods-pro-2', 'gadget-gear', 27500, 29900, 2, 0, '', 0, 0],
+  ['airpods-pro-2', 'dazzle', 26400, 28900, 3, 0, '', 0, 0],
+
+  ['apple-watch-s10', 'apple-gadgets', 46500, 51000, 2, 0, '', 0, 0],
+  ['apple-watch-s10', 'istock', 46900, 51000, 2, 0, '', 0, 0],
+  ['apple-watch-s10', 'sumash-tech', 46800, 51000, 2, 0, '', 0, 0],
+  ['apple-watch-s10', 'dazzle', 47200, 51500, 3, 0, '', 0, 0],
+  ['apple-watch-s10', 'kry-international', 47000, 51000, 3, 0, '', 0, 0],
+
+  ['anker-335-20000', 'apple-gadgets', 3450, 3990, 2, 0, '', 0, 0],
+  ['anker-335-20000', 'sumash-tech', 3490, 3990, 2, 0, '', 0, 0],
+  ['anker-335-20000', 'gadgetz', 3390, 3900, 3, 0, '', 0, 0],
+  ['anker-335-20000', 't-tech', 3400, 3900, 3, 0, '', 0, 0],
+  ['anker-335-20000', 'gadget-gear', 3790, 4200, 2, 0, '', 0, 0],
+
+  ['jbl-flip-6', 'gadget-gear', 12900, 14500, 2, 0, '', 0, 0],
+  ['jbl-flip-6', 'apple-gadgets', 12200, 13900, 2, 0, '', 0, 0],
+  ['jbl-flip-6', 'sumash-tech', 12300, 13900, 2, 0, '', 0, 0],
+  ['jbl-flip-6', 'gadget-breeze', 12400, 13900, 3, 0, '', 0, 0],
+  ['jbl-flip-6', 'kry-international', 12500, 14000, 3, 0, '', 0, 0],
+
+  ['jisulife-pro1', 'apple-gadgets', 3150, 3690, 2, 0, '', 0, 0],
+  ['jisulife-pro1', 'sumash-tech', 3190, 3690, 2, 0, '', 0, 0],
+  ['jisulife-pro1', 'kry-international', 3100, 3600, 3, 0, '', 0, 0],
+  ['jisulife-pro1', 'shopz', 3250, 3750, 3, 0, '', 0, 0],
+  ['jisulife-pro1', 'diamu', 3200, 3650, 3, 0, '', 0, 0],
+
+  ['cudy-wr1300e', 'star-tech', 2350, 2650, 2, 0, '', 0, 0],
+  ['cudy-wr1300e', 'techland', 2290, 2600, 2, 0, '', 0, 0],
+  ['cudy-wr1300e', 'pc-house', 2250, 2600, 2, 0, '', 0, 0],
+  ['cudy-wr1300e', 'ultra-tech', 2280, 2600, 3, 0, '', 0, 0],
+  ['cudy-wr1300e', 'ryans', 2400, 2650, 2, 0, '', 0, 0],
+
+  ['samsung-43-uhd-tv', 'transcom-digital', 44900, 49900, 2, 0, '', 0, 0],
+  ['samsung-43-uhd-tv', 'star-tech', 43500, 48000, 3, 0, '', 0, 0],
+  ['samsung-43-uhd-tv', 'ryans', 44200, 48500, 3, 0, '', 0, 0],
+  ['samsung-43-uhd-tv', 'gadget-mart', 42900, 47500, 4, 0, '', 0, 0]
 ];

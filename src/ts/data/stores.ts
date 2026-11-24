@@ -217,5 +217,140 @@ export const STORES: Shop[] = [
     officialWarranty: false, coverage: 'dhaka', showrooms: 1, rating: 3.9, reviews: 1400,
     supportVerified: false, incidents: [],
     blurb: 'Young Apple reseller. Short history and one outlet means less complaint record to learn from.'
+  },
+  {
+    id: 'sumash-tech', name: 'Sumash Tech', bn: 'সুমাশ টেক', monogram: 'SM', accent: '#EA580C',
+    url: 'sumashtech.com', kind: 'retailer', since: 2016,
+    categories: ['phones', 'accessories', 'computers'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad', 'SSLCommerz'], returnsDays: 7,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 6, rating: 4.4, reviews: 11200,
+    supportVerified: true, incidents: [],
+    blurb: 'Popular smartphone and gadget chain with outlets in Bashundhara City and Jamuna Future Park.'
+  },
+  {
+    id: 'dazzle', name: 'Dazzle', bn: 'ড্যাজল', monogram: 'DZ', accent: '#0284C7',
+    url: 'dazzle.com.bd', kind: 'retailer', since: 2015,
+    categories: ['phones', 'computers', 'accessories'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad', 'SSLCommerz'], returnsDays: 7,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 5, rating: 4.3, reviews: 6400,
+    supportVerified: true, incidents: [],
+    blurb: 'Chattogram and Dhaka Apple and flagship phone retailer with in-store warranty desks.'
+  },
+  {
+    id: 'pc-house', name: 'PC House', bn: 'পিসি হাউস', monogram: 'PH', accent: '#2563EB',
+    url: 'pchouse.com.bd', kind: 'retailer', since: 2016,
+    categories: ['computers', 'accessories'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad', 'SSLCommerz'], returnsDays: 5,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 4, rating: 4.3, reviews: 5800,
+    supportVerified: true, incidents: [],
+    blurb: 'Desktop build, monitor and component retailer based at Multiplan Center, Dhaka.'
+  },
+  {
+    id: 'ultra-tech', name: 'Ultra Technology', bn: 'আল্ট্রা টেক', monogram: 'UT', accent: '#4F46E5',
+    url: 'ultratech.com.bd', kind: 'retailer', since: 2017,
+    categories: ['computers', 'accessories'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad', 'SSLCommerz'], returnsDays: 5,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 4, rating: 4.2, reviews: 4900,
+    supportVerified: true, incidents: [],
+    blurb: 'PC hardware and laptop retailer with branches in Dhaka and Chattogram.'
+  },
+  {
+    id: 'ucc', name: 'UCC BD', bn: 'ইউসিসি', monogram: 'UC', accent: '#0D9488',
+    url: 'ucc.com.bd', kind: 'retailer', since: 1998,
+    categories: ['computers', 'accessories'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad', 'SSLCommerz'], returnsDays: 7,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 6, rating: 4.4, reviews: 9800,
+    supportVerified: true, incidents: [],
+    blurb: 'Long-standing official distributor and retailer for AMD, MSI and networking gear.'
+  },
+  {
+    id: 'smart-bd', name: 'Smart Technologies', bn: 'স্মার্ট টেকনোলজিস', monogram: 'SB', accent: '#0369A1',
+    url: 'smartbd.com', kind: 'retailer', since: 1998,
+    categories: ['computers', 'accessories', 'phones'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad', 'SSLCommerz'], returnsDays: 7,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 10, rating: 4.4, reviews: 12500,
+    supportVerified: true, incidents: [],
+    blurb: 'One of Bangladesh’s largest IT distributors with direct brand-warranty coverage.'
+  },
+  {
+    id: 'transcom-digital', name: 'Transcom Digital', bn: 'ট্রান্সকম ডিজিটাল', monogram: 'TD', accent: '#B91C1C',
+    url: 'transcomdigital.com', kind: 'retailer', since: 2004,
+    categories: ['appliances', 'phones', 'accessories'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad', 'SSLCommerz'], returnsDays: 7,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 55, rating: 4.5, reviews: 22400,
+    supportVerified: true, incidents: [],
+    blurb: 'Nationwide electronics and home-appliance showroom network backed by Transcom Group.'
+  },
+  {
+    id: 'vertech', name: 'Vertech', bn: 'ভারটেক', monogram: 'VT', accent: '#15803D',
+    url: 'vertech.com.bd', kind: 'retailer', since: 2019,
+    categories: ['computers', 'accessories'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad'], returnsDays: 5,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 2, rating: 4.2, reviews: 2700,
+    supportVerified: true, incidents: [],
+    blurb: 'Laptop-specialist storefront in Dhaka stocking business and creator notebooks.'
+  },
+  {
+    id: 'kry-international', name: 'KRY International', bn: 'কেআরওয়াই ইন্টারন্যাশনাল', monogram: 'KR', accent: '#6D28D9',
+    url: 'kryinternational.com', kind: 'retailer', since: 2018,
+    categories: ['phones', 'accessories'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad', 'SSLCommerz'], returnsDays: 5,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 4, rating: 4.2, reviews: 3900,
+    supportVerified: true, incidents: [],
+    blurb: 'Smartphone, audio and lifestyle gadget retailer with Dhaka mall outlets.'
+  },
+  {
+    id: 'diamu', name: 'Diamu', bn: 'দিয়ামু', monogram: 'DI', accent: '#C2410C',
+    url: 'diamu.com.bd', kind: 'retailer', since: 2018,
+    categories: ['phones', 'accessories'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad'], returnsDays: 5,
+    officialWarranty: false, coverage: 'nationwide', showrooms: 2, rating: 4.1, reviews: 3100,
+    supportVerified: true, incidents: [],
+    blurb: 'Gadget, smartwatch and lifestyle accessory shop with nationwide courier delivery.'
+  },
+  {
+    id: 'gadget-breeze', name: 'Gadget Breeze', bn: 'গ্যাজেট ব্রিজ', monogram: 'GB', accent: '#0891B2',
+    url: 'gadgetbreeze.com.bd', kind: 'retailer', since: 2019,
+    categories: ['accessories', 'phones'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad'], returnsDays: 5,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 1, rating: 4.1, reviews: 2200,
+    supportVerified: true, incidents: [],
+    blurb: 'Audio, smart home and action-camera specialist retailer in Dhaka.'
+  },
+  {
+    id: 'gadget-mart', name: 'Gadget Mart BD', bn: 'গ্যাজেট মার্ট', monogram: 'GM', accent: '#047857',
+    url: 'gadgetmart.com.bd', kind: 'retailer', since: 2020,
+    categories: ['accessories', 'appliances'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad'], returnsDays: 3,
+    officialWarranty: false, coverage: 'nationwide', showrooms: 1, rating: 4.0, reviews: 1800,
+    supportVerified: true, incidents: [],
+    blurb: 'Compact gadget and small home-appliance storefront with cash-on-delivery.'
+  },
+  {
+    id: 't-tech', name: 'T-Tech BD', bn: 'টি-টেক', monogram: 'TT', accent: '#4338CA',
+    url: 't-tech.com.bd', kind: 'retailer', since: 2020,
+    categories: ['accessories', 'computers'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad'], returnsDays: 3,
+    officialWarranty: false, coverage: 'nationwide', showrooms: 1, rating: 4.0, reviews: 1600,
+    supportVerified: true, incidents: [],
+    blurb: 'Earphone, charger and PC peripheral shop serving online buyers across Bangladesh.'
+  },
+  {
+    id: 'shopz', name: 'Shopz BD', bn: 'শপজ বিডি', monogram: 'SZ', accent: '#A21CAF',
+    url: 'shopz.com.bd', kind: 'retailer', since: 2016,
+    categories: ['accessories', 'appliances', 'fashion'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad', 'SSLCommerz'], returnsDays: 5,
+    officialWarranty: false, coverage: 'nationwide', showrooms: 1, rating: 4.1, reviews: 4500,
+    supportVerified: true, incidents: [],
+    blurb: 'Online gadget, portable fan and everyday lifestyle store with nationwide delivery.'
+  },
+  {
+    id: 'gadgetz', name: 'Gadgetz BD', bn: 'গ্যাজেটজ', monogram: 'GZ', accent: '#1E40AF',
+    url: 'gadgetz.com.bd', kind: 'retailer', since: 2020,
+    categories: ['accessories', 'computers'],
+    cod: true, payments: ['Card', 'bKash', 'Nagad'], returnsDays: 5,
+    officialWarranty: true, coverage: 'nationwide', showrooms: 1, rating: 4.1, reviews: 1900,
+    supportVerified: true, incidents: [],
+    blurb: 'GaN charger, USB-C hub and desk accessory retailer stocking Anker, Baseus and Ugreen.'
   }
 ];
