@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- DaamKhoj: the Taka sign on a price tag. Drawn as paths, so it looks the same without any font. -->
+  <style>
+    .bg { fill: #0b1220; }
+    .tag { fill: #10b981; }
+    .hole { fill: #0b1220; }
+    .taka { stroke: #ffffff; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #111827; }
+      .tag { fill: #34d399; }
+      .hole { fill: #111827; }
+      .taka { stroke: #06281c; }
+    }
+  </style>
+  <rect class="bg" width="64" height="64" rx="15"/>
+  <path class="tag" d="M8.5 32 21 15.5c.8-1 2-1.5 3.2-1.5H52a4 4 0 0 1 4 4v28a4 4 0 0 1-4 4H24.2c-1.2 0-2.4-.6-3.2-1.5L8.5 32Z"/>
+  <circle class="hole" cx="19" cy="32" r="3"/>
+  <g class="taka" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M29 22.5c1.3-1.6 4.5-1.2 4.5 1.8V37c0 3.6 2.3 5.5 5.3 5.5s5.2-2.2 5.2-5c0-2.4-1.6-3.8-3.6-3.8"/>
+    <path d="M28 28.5h11.5"/>
+  </g>
+</svg>

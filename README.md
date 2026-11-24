@@ -54,7 +54,7 @@ Both themes hold at least 5:1 contrast on every text element — comfortably pas
 ```
 src/
 ├── index.html            shell: header, search, tabs, footer
-├── assets/favicon.svg
+├── assets/favicon-taka.svg
 ├── styles/               tokens → base → components → layout (cascade order matters)
 └── ts/
     ├── types.ts              the domain model everything else speaks
