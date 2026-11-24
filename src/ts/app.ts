@@ -68,12 +68,13 @@ const dom = {
 };
 
 /* A pasted link is a supported entry point, so read it before the first render. */
-Object.assign(state, decodeState(window.location.search, {
+const urlValid = {
   stores: new Set(catalog.stores.map(store => store.id)),
   /* A closed shop can't be shortlisted by hand, so it can't be by link either. */
   offers: new Set(catalog.offers.filter(offer => !offer.suppressed).map(offer => offer.id)),
   maxCompare: state.maxCompare
-}));
+};
+Object.assign(state, decodeState(window.location.search, urlValid));
 if (state.q) dom.input.value = state.q;
 
 function passesFilters(offer: Offer): boolean {
@@ -135,15 +136,53 @@ function renderSuggestions(ctx: RenderContext): void {
   if (ctx.state.suggestIndex < 0) dom.input.removeAttribute('aria-activedescendant');
 }
 
-/* replaceState, not pushState: filtering is one continuous view, and the back button
-   should leave the site, not walk back through every keypress. */
+/* Each step someone takes (opening a card or a product, a search, a tab, a category, starting
+   to type into an empty box) is its own history entry, so the back button undoes it instead of
+   leaving the site. The keypresses after the first replace the entry rather than piling up.
+   The open product and category aren't in the address, so they ride in the entry's state. */
+interface HistoryEntry { product: string; shelf: string }
+let stepTaken = false;
+const takeStep = (): void => { stepTaken = true; };
 function syncUrl(): void {
   const query = encodeState(state);
   const next = query ? `${window.location.pathname}?${query}` : window.location.pathname;
-  if (`${window.location.pathname}${window.location.search}` !== next) {
-    window.history.replaceState(null, '', next);
+  const entry: HistoryEntry = { product: state.product, shelf: state.shelf };
+  const kept = (window.history.state ?? {}) as Partial<HistoryEntry>;
+  const here = `${window.location.pathname}${window.location.search}`;
+  const step = stepTaken;
+  stepTaken = false;
+  if (here === next && kept.product === entry.product && kept.shelf === entry.shelf) return;
+  const startedTyping = !new URLSearchParams(window.location.search).has('q') && Boolean(state.q);
+  if (step || (startedTyping && here !== next)) {
+    window.history.pushState(entry, '', next);
+  } else {
+    window.history.replaceState(entry, '', next);
   }
 }
+
+/* Back and forward put the page back the way that entry left it. */
+window.addEventListener('popstate', () => {
+  const from = decodeState(window.location.search, urlValid);
+  const saved = (window.history.state ?? {}) as Partial<HistoryEntry>;
+  const query = from.q ?? '';
+  const queryChanged = query !== state.q;
+  state.q = query;
+  dom.input.value = query;
+  state.view = from.view ?? 'results';
+  state.shelf = saved.shelf ?? '';
+  state.shelfLimit = 40;
+  state.suggestIndex = -1;
+  stepTaken = false;
+  if (queryChanged && query && state.view === 'results') {
+    void startLive().then(() => {
+      if (saved.product && state.q === query) { state.product = saved.product; render(); }
+    });
+    return;
+  }
+  if (queryChanged) { liveRequest?.abort(); state.live = { status: 'idle' }; }
+  state.product = saved.product ?? '';
+  render();
+});
 
 /* The web search costs money per run, so it starts only when someone submits a search, never
    on a keystroke; typing only asks the free price list. A newer search cancels the one in flight. */
@@ -340,6 +379,7 @@ function chooseSuggestion(item: State['suggest'][number]): void {
   dom.input.value = state.q;
   state.suggestIndex = -1;
   dom.input.blur();
+  takeStep();
   void startLive();
 }
 
@@ -356,6 +396,7 @@ function toggleCompare(id: string): void {
 
 function setView(next: string | undefined): void {
   if (next !== 'results' && next !== 'stores' && next !== 'compare' && next !== 'how') return;
+  takeStep();
   state.view = next;
   render();
   window.scrollTo({ top: 0 });
@@ -379,10 +420,11 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
     render();
   },
   all: () => { state.showAll = true; render(); },
-  query: trigger => { state.q = trigger.dataset.q ?? ''; state.view = 'results'; dom.input.value = state.q; void startLive(); window.scrollTo({ top: 0 }); },
-  shelf: trigger => { state.shelf = trigger.dataset.id ?? ''; state.shelfLimit = 40; render(); },
+  query: trigger => { takeStep(); state.q = trigger.dataset.q ?? ''; state.view = 'results'; dom.input.value = state.q; void startLive(); window.scrollTo({ top: 0 }); },
+  shelf: trigger => { takeStep(); state.shelf = trigger.dataset.id ?? ''; state.shelfLimit = 40; render(); },
   moreCards: () => { state.shelfLimit += 40; render(); },
   product: trigger => {
+    takeStep();
     state.product = trigger.dataset.id ?? '';
     render();
     window.scrollTo({ top: 0 });
@@ -392,7 +434,7 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
     void recheckShown(liveRequest, state.product);
   },
   searchWeb: () => { void startLive(true); },
-  allResults: () => { state.product = ''; render(); },
+  allResults: () => { takeStep(); state.product = ''; render(); },
   moreResults: () => { state.resultLimit += 40; render(); },
   focusSearch: () => { window.scrollTo({ top: 0 }); dom.input.focus(); },
   retryLive: () => { void startLive(false); },
@@ -460,6 +502,7 @@ dom.form.addEventListener('submit', event => {
     return;
   }
   dom.input.blur();
+  takeStep();
   void startLive();
 });
 
