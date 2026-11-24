@@ -40,13 +40,13 @@ export function sitemapXml(base, browse) {
 }
 
 /** Title, description, canonical and structured data for the page at `url`. */
-export async function pageMeta(url, { base, search }) {
+export async function pageMeta(url, { base, search, counts }) {
   const view = url.searchParams.get('view');
   const query = (url.searchParams.get('q') ?? '').trim().slice(0, 120);
   if (view === 'stores') {
     return {
       title: `Online shops in Bangladesh we compare prices from | ${SITE_NAME}`,
-      description: 'The Bangladeshi online shops whose prices DaamKhoj reads every night, and how many prices each one lists.',
+      description: 'The Bangladeshi online shops whose prices DaamKhoj reads twice a day, and how many prices each one lists.',
       canonical: `${base}/?view=stores`
     };
   }
@@ -60,7 +60,7 @@ export async function pageMeta(url, { base, search }) {
   if (!query) {
     return {
       title: `${SITE_NAME} — compare prices across Bangladesh's online shops | দামখোঁজ`,
-      description: "Find the lowest price for phones, laptops, gadgets and more. DaamKhoj lines up prices from 30 Bangladeshi online shops, read from each shop's own website.",
+      description: `Find the lowest price for phones, laptops, gadgets and more. DaamKhoj lines up prices from ${counts?.shops ? `${counts.shops} Bangladeshi online shops` : "Bangladesh's online shops"}, read from each shop's own website.`,
       canonical: `${base}/`,
       jsonLd: {
         '@context': 'https://schema.org',
@@ -141,6 +141,18 @@ function displayQuery(query, titles) {
     if (counts) return [...counts].sort((a, b) => b[1] - a[1])[0][0];
     return word[0].toUpperCase() + word.slice(1);
   }).join(' ');
+}
+
+/** "30 Bangladeshi shops · 108,000+ prices", from the list being served. */
+export function countsLine({ shops, prices }) {
+  const rounded = prices >= 1000 ? `${(Math.floor(prices / 1000) * 1000).toLocaleString('en-US')}+` : String(prices);
+  return `${shops} Bangladeshi ${shops === 1 ? 'shop' : 'shops'} · ${rounded} prices`;
+}
+
+/** The home page's line of counts, filled in so it never shows a number the list has outgrown. */
+export function withCounts(html, counts) {
+  if (!counts?.shops || !counts?.prices) return html;
+  return html.replace(/<p class="hero-kicker">[^<]*<\/p>/, () => `<p class="hero-kicker">${escapeAttr(countsLine(counts))}</p>`);
 }
 
 /** The page's HTML with its head filled from `meta`. */

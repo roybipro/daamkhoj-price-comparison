@@ -11,7 +11,7 @@ import { createApi } from '../server/api.mjs';
 import { crawlShop, readShopifyProduct } from '../server/crawler.mjs';
 import { mergeGroups } from '../server/live-search.mjs';
 import { matchesQuery } from '../server/matching.mjs';
-import { pageMeta, robotsTxt, sitemapXml, withMeta } from '../server/seo.mjs';
+import { countsLine, pageMeta, robotsTxt, sitemapXml, withCounts, withMeta } from '../server/seo.mjs';
 import { createFreshener, freshenOrder } from '../server/freshen.mjs';
 import { createPriceIndex, loadIndexFile, pullIndexFile, saveIndexFile, watchIndexFile } from '../server/price-index.mjs';
 import { parseSitemap, productPages } from '../server/sitemap.mjs';
@@ -855,4 +855,16 @@ test('between crawls, the most-stocked products are re-read every turn and the r
   /* A tick that starts while one runs is skipped, never doubled. */
   const slow = createFreshener({ recheck: () => new Promise(resolve => setTimeout(() => resolve({}), 20)), getIndex: async () => index });
   await Promise.all([slow.tick(), slow.tick()]);
+});
+
+test('the home page counts come from the list being served, never a number written into the page', async () => {
+  const html = await readFile(fileURLToPath(new URL('../src/index.html', import.meta.url)), 'utf8');
+  assert.doesNotMatch(html, /\d{1,3},\d{3}\+? prices|\b\d+ Bangladeshi (online )?shops/);
+  assert.equal(countsLine({ shops: 30, prices: 108849 }), '30 Bangladeshi shops · 108,000+ prices');
+  assert.equal(countsLine({ shops: 1, prices: 640 }), '1 Bangladeshi shop · 640 prices');
+  const filled = withCounts(html, { shops: 31, prices: 120500 });
+  assert.match(filled, /<p class="hero-kicker">31 Bangladeshi shops · 120,000\+ prices<\/p>/);
+  assert.equal(withCounts(html, null), html);
+  const home = await pageMeta(new URL('https://x.test/'), { base: 'https://x.test', search: async () => null, counts: { shops: 31, prices: 1 } });
+  assert.match(home.description, /from 31 Bangladeshi online shops/);
 });

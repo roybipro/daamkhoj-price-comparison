@@ -10,7 +10,7 @@ import { createRechecker } from '../server/recheck.mjs';
 import { createRobots } from '../server/robots.mjs';
 import { fetchPublic } from '../server/safe-fetch.mjs';
 import { pullIndexFile, watchIndexFile } from '../server/price-index.mjs';
-import { pageMeta, robotsTxt, sitemapXml, withMeta } from '../server/seo.mjs';
+import { pageMeta, robotsTxt, sitemapXml, withCounts, withMeta } from '../server/seo.mjs';
 import { createFreshener } from '../server/freshen.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -107,18 +107,25 @@ const siteUrl = (process.env.SITE_URL || 'https://daamkhoj.onrender.com').replac
    than this gets the plain head. Answers are kept for a while, as crawlers ask for many pages. */
 const META_WAIT_MS = 1500;
 const metaCache = new Map();
-async function headFor(url) {
-  const key = `${url.searchParams.get('view') ?? ''}|${(url.searchParams.get('q') ?? '').trim().toLowerCase()}`;
+/* How many shops and prices the list being served has, for the page's own line of counts. */
+const countsNow = () => searchIndex.browse()
+  .then(browse => ({ shops: browse.shops?.length ?? 0, prices: browse.prices ?? 0 }))
+  .catch(() => null);
+const inTime = lookup => Promise.race([lookup, new Promise(resolve => setTimeout(resolve, META_WAIT_MS, null))]);
+
+async function headFor(url, counts) {
+  /* The counts are in the key, so a head made before the list was ready isn't kept after it is. */
+  const key = `${url.searchParams.get('view') ?? ''}|${(url.searchParams.get('q') ?? '').trim().toLowerCase()}|${counts?.prices ?? ''}`;
   const kept = metaCache.get(key);
   if (kept && Date.now() - kept.at < 30 * 60 * 1000) return kept.meta;
-  const lookup = pageMeta(url, { base: siteUrl, search: (query, options) => searchIndex(query, options) })
+  const lookup = pageMeta(url, { base: siteUrl, counts, search: (query, options) => searchIndex(query, options) })
     .then(meta => {
       if (metaCache.size >= 2000) metaCache.delete(metaCache.keys().next().value);
       metaCache.set(key, { at: Date.now(), meta });
       return meta;
     })
     .catch(() => null);
-  return Promise.race([lookup, new Promise(resolve => setTimeout(resolve, META_WAIT_MS, null))]);
+  return inTime(lookup);
 }
 
 /* ES modules need an http(s) origin, so this stands in for the static host locally. */
@@ -159,8 +166,9 @@ createServer(async (req, res) => {
 
   /* The page itself gets a head that describes it: its title, description and prices. */
   if (file === path.join(dir, 'index.html')) {
-    const [html, meta] = await Promise.all([readFile(file, 'utf8'), headFor(url)]);
-    const body = meta ? withMeta(html, meta) : html;
+    const counts = await inTime(countsNow());
+    const [html, meta] = await Promise.all([readFile(file, 'utf8'), headFor(url, counts)]);
+    const body = withCounts(meta ? withMeta(html, meta) : html, counts);
     res.writeHead(200, { 'content-type': TYPES['.html'], 'cache-control': 'no-cache', 'content-length': Buffer.byteLength(body) });
     res.end(req.method === 'HEAD' ? undefined : body);
     return;
