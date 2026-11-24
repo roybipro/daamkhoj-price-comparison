@@ -78,26 +78,42 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
   let rebuilding = null;
   /* Set when a re-check changed a price, so the shelves catch up within minutes, not an hour. */
   let shelvesStale = false;
-  /* Each entry's words, split once, and for each word the entries that use it: a search starts
-     from its rarest word's entries instead of reading every name in the list. */
-  let words = null;
-  let postings = null;
-  function buildPostings() {
-    if (words) return;
-    words = new Array(entries.length);
-    postings = new Map();
-    for (let i = 0; i < entries.length; i++) {
-      const set = wordSet(`${entries[i].name} ${entries[i].url}`);
-      words[i] = set;
-      for (const word of set) {
-        const list = postings.get(word);
-        if (list) list.push(i);
-        else postings.set(word, [i]);
-      }
-    }
+  /* A table built one step at a time. The warm-up after loading advances it a slice at a time; a
+     request that needs it sooner finishes that same build. Two copies never exist at once: on
+     Render's 512 MB plan they did, when a search arrived mid-warm-up, and the heap ran out. */
+  function stepwise(build) {
+    let steps = null;
+    let done = false;
+    let value = null;
+    const advance = () => {
+      steps ??= build();
+      const next = steps.next();
+      if (next.done) { done = true; value = next.value; steps = null; }
+    };
+    return {
+      get() { while (!done) advance(); return value; },
+      *warm() { while (!done) { advance(); yield; } }
+    };
   }
+
+  /* For each word, the entries that use it: a search starts from its rarest word's entries
+     instead of reading every name in the list. An entry's own words are worked out again when
+     needed rather than kept: 77k word sets cost more memory than the host can spare. */
+  const tokensOf = i => wordSet(`${entries[i].name} ${entries[i].url}`);
+  const postingsTable = stepwise(function* () {
+    const built = new Map();
+    for (let i = 0; i < entries.length; i++) {
+      for (const word of tokensOf(i)) {
+        const list = built.get(word);
+        if (list) list.push(i);
+        else built.set(word, [i]);
+      }
+      yield;
+    }
+    return built;
+  });
   const candidates = query => {
-    buildPostings();
+    const postings = postingsTable.get();
     const lists = requiredWords(query).map(word => postings.get(word) ?? []);
     if (!lists.length) return entries.map((_, i) => i);
     return lists.reduce((smallest, list) => (list.length < smallest.length ? list : smallest));
@@ -109,7 +125,7 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
     const query = validQuery(rawQuery);
     const oldest = now() - maxAgeMs;
     const matched = candidates(query)
-      .filter(i => checkedMs[i] >= oldest && mentionsInTokens(words[i], query) && matchesQuery(entries[i].name, query))
+      .filter(i => checkedMs[i] >= oldest && matchesQuery(entries[i].name, query) && mentionsInTokens(tokensOf(i), query))
       .map(i => entries[i]);
 
     const offers = matched.map(entry => ({
@@ -141,14 +157,15 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
   }
 
   /* How many product names use each word, for telling known words from slips. */
-  let wordCounts = null;
-  const countOf = word => {
-    if (!wordCounts) {
-      wordCounts = new Map();
-      for (let i = 0; i < entries.length; i++) for (const name of namesOf(i)) wordCounts.set(name, (wordCounts.get(name) ?? 0) + 1);
+  const countsTable = stepwise(function* () {
+    const built = new Map();
+    for (let i = 0; i < entries.length; i++) {
+      for (const name of namesOf(i)) built.set(name, (built.get(name) ?? 0) + 1);
+      yield;
     }
-    return wordCounts.get(word) ?? 0;
-  };
+    return built;
+  });
+  const countOf = word => countsTable.get().get(word) ?? 0;
 
   /** Words shops write both joined and apart, written the other way: "powerbank" → "power bank",
       "ear buds" → "earbuds". Only words the list's names use count. */
@@ -232,26 +249,30 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
   }
 
   /* Each listing's words as its name uses them (URLs left out, so "prod" never becomes "product"
-     from every shop's web address), worked out when a half-typed word first needs them. */
-  let nameWords = null;
-  const namesOf = i => {
-    nameWords ??= new Array(entries.length);
-    return (nameWords[i] ??= wordSet(entries[i].name));
-  };
+     from every shop's web address), worked out each time rather than kept for every listing. */
+  const namesOf = i => wordSet(entries[i].name);
 
   /** The commonest word that starts with `start` (itself included) among the listings holding
       every word in `before`: "a1" after "galaxy" is "a16", while "ip" alone is "iphone". */
   function completeWord(start, before) {
-    candidates('');
+    const postings = postingsTable.get();
     let pool = before.length
       ? before.map(word => postings.get(word) ?? []).reduce((smallest, list) => (list.length < smallest.length ? list : smallest))
       : null;
-    pool = pool?.filter(i => before.every(word => words[i].has(word)));
-    if (!pool?.length) pool = entries.map((_, i) => i);
-    const counts = new Map();
-    for (const i of pool) {
-      for (const word of namesOf(i)) {
-        if (word.startsWith(start) && !before.includes(word)) counts.set(word, (counts.get(word) ?? 0) + 1);
+    pool = pool?.filter(i => { const tokens = tokensOf(i); return before.every(word => tokens.has(word)); });
+    let counts;
+    if (pool?.length) {
+      counts = new Map();
+      for (const i of pool) {
+        for (const word of namesOf(i)) {
+          if (word.startsWith(start) && !before.includes(word)) counts.set(word, (counts.get(word) ?? 0) + 1);
+        }
+      }
+    } else {
+      /* Across the whole list, the per-word listing counts already hold the answer. */
+      counts = new Map();
+      for (const [word, count] of countsTable.get()) {
+        if (word.startsWith(start) && !before.includes(word)) counts.set(word, count);
       }
     }
     let best = start;
@@ -264,23 +285,28 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
 
   /* Every product in the list, for suggestions: its name as shops write it, its words, how many
      shops sell it and how many listings it has. */
-  let products = null;
-  function suggest(typed) {
-    if (!products) {
-      const groups = new Map();
-      for (const entry of entries) {
-        const key = productKey(entry.name);
-        if (key.length < 3) continue;
+  const productsTable = stepwise(function* () {
+    const groups = new Map();
+    for (const entry of entries) {
+      const key = productKey(entry.name);
+      if (key.length >= 3) {
         const group = groups.get(key) ?? { key, names: [], shops: new Set(), count: 0 };
         if (group.names.length < 3) group.names.push(entry.name);
         group.shops.add(entry.shop);
         group.count++;
         groups.set(key, group);
       }
-      products = [...groups.values()]
-        .map(group => ({ name: displayName(group.key, group.names), words: group.key.split(' '), shops: group.shops.size, count: group.count }))
-        .sort((a, b) => b.shops - a.shops || b.count - a.count);
+      yield;
     }
+    const built = [];
+    for (const group of groups.values()) {
+      built.push({ name: displayName(group.key, group.names), words: group.key.split(' '), shops: group.shops.size, count: group.count });
+      yield;
+    }
+    return built.sort((a, b) => b.shops - a.shops || b.count - a.count);
+  });
+  function suggest(typed) {
+    const products = productsTable.get();
     const typedWords = String(typed).toLowerCase().split(/[^\p{L}\p{N}+]+/u).filter(Boolean);
     if (!typedWords.length) return [];
     const last = typedWords.pop();
@@ -421,50 +447,9 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
     /** Warms the search postings and suggestion tables in slices so the first visitor never waits. */
     warm() {
       return runInSlices((function* () {
-        if (!words) {
-          const builtWords = new Array(entries.length);
-          const builtPostings = new Map();
-          for (let i = 0; i < entries.length; i++) {
-            yield;
-            const set = wordSet(`${entries[i].name} ${entries[i].url}`);
-            builtWords[i] = set;
-            for (const word of set) {
-              const list = builtPostings.get(word);
-              if (list) list.push(i);
-              else builtPostings.set(word, [i]);
-            }
-          }
-          if (!words) { words = builtWords; postings = builtPostings; }
-        }
-        if (!products) {
-          const groups = new Map();
-          for (let i = 0; i < entries.length; i++) {
-            yield;
-            const entry = entries[i];
-            const key = productKey(entry.name);
-            if (key.length < 3) continue;
-            const group = groups.get(key) ?? { key, names: [], shops: new Set(), count: 0 };
-            if (group.names.length < 3) group.names.push(entry.name);
-            group.shops.add(entry.shop);
-            group.count++;
-            groups.set(key, group);
-          }
-          const builtProducts = [];
-          for (const group of groups.values()) {
-            yield;
-            builtProducts.push({ name: displayName(group.key, group.names), words: group.key.split(' '), shops: group.shops.size, count: group.count });
-          }
-          builtProducts.sort((a, b) => b.shops - a.shops || b.count - a.count);
-          if (!products) products = builtProducts;
-        }
-        if (!wordCounts) {
-          const builtCounts = new Map();
-          for (let i = 0; i < entries.length; i++) {
-            yield;
-            for (const name of namesOf(i)) builtCounts.set(name, (builtCounts.get(name) ?? 0) + 1);
-          }
-          if (!wordCounts) wordCounts = builtCounts;
-        }
+        yield* postingsTable.warm();
+        yield* productsTable.warm();
+        yield* countsTable.warm();
       })());
     }
   };
