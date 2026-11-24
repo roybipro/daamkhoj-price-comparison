@@ -137,11 +137,13 @@ export function createRechecker({
    */
   async function fillPhotos(index, { limit = 150 } = {}) {
     const tried = new Set();
-    const missing = () => index.browse().shelves.flatMap(shelf => shelf.cards).filter(card => !card.image);
-    const before = missing().length;
+    const missing = async () => (await index.browseSoon()).shelves.flatMap(shelf => shelf.cards).filter(card => !card.image);
+    const initial = await missing();
+    const before = initial.length;
     for (let pass = 0; pass < 2; pass++) {
+      const currentMissing = pass === 0 ? initial : await missing();
       const pages = new Map();
-      for (const card of missing()) {
+      for (const card of currentMissing) {
         if (pages.size >= limit) break;
         let offers;
         try {
@@ -157,11 +159,14 @@ export function createRechecker({
         pages.set(pageOf(pick.url), pick.shop);
       }
       if (!pages.size) break;
-      index.update(await readPages(pages));
-      /* A slice at a time, so the photos arriving never freeze searches. */
-      await index.rebuildShelves();
+      const fresh = await readPages(pages);
+      index.update(fresh);
+      if (fresh.some(item => item.image)) {
+        /* A slice at a time, so the photos arriving never freeze searches. */
+        await index.rebuildShelves();
+      }
     }
-    const after = missing().length;
+    const after = (await missing()).length;
     return { filled: before - after, missing: after };
   }
 

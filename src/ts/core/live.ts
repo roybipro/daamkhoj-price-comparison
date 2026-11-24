@@ -5,8 +5,8 @@ import type { BrowseData, BrowseState, LiveGroup, LiveOffer, LiveResult, LiveSta
 
 /* The server's worst case: 100 seconds searching, then up to 90 reading pages. */
 const TIMEOUT_MS = 200_000;
-/* The price list answers in milliseconds; anything slow means the server is struggling. */
-const QUICK_TIMEOUT_MS = 10_000;
+/* Generous enough to ride through a cold container spin-up on a small cloud host. */
+const QUICK_TIMEOUT_MS = 25_000;
 
 /* Re-reading a few shop pages takes seconds, not minutes. */
 const RECHECK_TIMEOUT_MS = 30_000;
@@ -26,24 +26,33 @@ export async function fetchLive(
   const params = new URLSearchParams({ q: query });
   if (options.partial) params.set('partial', '1');
   if (options.product) params.set('product', options.product);
-  try {
-    const response = await fetch(`${PATHS[kind]}?${params}`, {
-      signal: AbortSignal.any([cancel, AbortSignal.timeout(LIMITS[kind])]),
-      headers: { accept: 'application/json' }
-    });
-    if (response.status === 404 || response.status === 503) return { status: 'unavailable', query };
+  const attempts = kind === 'quick' ? 2 : 1;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const response = await fetch(`${PATHS[kind]}?${params}`, {
+        signal: AbortSignal.any([cancel, AbortSignal.timeout(LIMITS[kind])]),
+        headers: { accept: 'application/json' }
+      });
+      if (response.status === 404 || response.status === 503) return { status: 'unavailable', query };
 
-    const body = await response.json() as Partial<LiveResult> & { error?: string };
-    if (!response.ok) return { status: 'error', query, message: body.error ?? 'Live search could not finish.' };
-    if (!Array.isArray(body.groups)) return { status: 'error', query, message: 'Live search sent an unexpected answer.' };
-    return { status: 'done', query, result: body as LiveResult };
-  } catch (error) {
-    if (error instanceof SyntaxError) return { status: 'unavailable', query };
-    if (error instanceof DOMException && error.name === 'TimeoutError') {
-      return { status: 'error', query, message: 'Live search took too long. Please try again.' };
+      const body = await response.json() as Partial<LiveResult> & { error?: string };
+      if (!response.ok) return { status: 'error', query, message: body.error ?? 'Live search could not finish.' };
+      if (!Array.isArray(body.groups)) return { status: 'error', query, message: 'Live search sent an unexpected answer.' };
+      return { status: 'done', query, result: body as LiveResult };
+    } catch (error) {
+      if (cancel.aborted) return { status: 'error', query, message: 'Search cancelled.' };
+      if (error instanceof SyntaxError) return { status: 'unavailable', query };
+      if (attempt + 1 < attempts) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        continue;
+      }
+      if (error instanceof DOMException && error.name === 'TimeoutError') {
+        return { status: 'error', query, message: 'Live search took too long. Please try again.' };
+      }
+      return { status: 'error', query, message: 'Could not reach live search. Check your connection and try again.' };
     }
-    return { status: 'error', query, message: 'Could not reach live search. Check your connection and try again.' };
   }
+  return { status: 'error', query, message: 'Live search could not finish.' };
 }
 
 /** Shop pages supply these links, so only ordinary web addresses become clickable. */

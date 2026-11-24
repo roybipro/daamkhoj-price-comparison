@@ -25,9 +25,14 @@ const BRAND_LINE = /^(apple|samsung|xiaomi|mi|google|oneplus)\s+(?=(iphone|ipad|
 /* Words that tell versions apart, not products: the product page compares those versions. */
 const FILLER = /\b(new|original|official|unofficial|global|version|edition|price|in|bd|bangladesh|buy|online|best|gps|cellular|lte|5g|4g|wifi|wi fi|esim|dual sim|nfc)\b/g;
 
+const keyCache = new Map();
+
 /** The product a listing is for: its name up to the first detail, without colours or sizes. */
 export function productKey(name) {
-  return String(name)
+  const raw = String(name);
+  const cached = keyCache.get(raw);
+  if (cached !== undefined) return cached;
+  const computed = raw
     /* A model code's short capital prefix joins its number ("KM-205W", "F-91W" → "KM205W",
        "F91W"), so the number is not mistaken for a size ("205W" watts) and cut, which would
        put every Micropack KM-…W or Casio F-…W on one card. "Adapter-65W" is a size and stays. */
@@ -52,6 +57,9 @@ export function productKey(name) {
     .replace(/[^a-z0-9+ ]+/g, ' ')
     .replace(/\s+/g, ' ').trim()
     .split(' ').slice(0, 6).join(' ');
+  if (keyCache.size >= 120_000) keyCache.clear();
+  keyCache.set(raw, computed);
+  return computed;
 }
 
 /**
@@ -95,13 +103,15 @@ export function runNow(job) {
   }
 }
 
-export async function runInSlices(job, sliceMs = 15) {
+export async function runInSlices(job, sliceMs = 6) {
   let started = performance.now();
   for (;;) {
     const step = job.next();
     if (step.done) return step.value;
     if (performance.now() - started >= sliceMs) {
-      await new Promise(resolve => setImmediate(resolve));
+      /* Yield with a short timer rather than setImmediate alone so fractional-vCPU hosts keep
+         CPU quota headroom for live search requests while shelves rebuild. */
+      await new Promise(resolve => setTimeout(resolve, 3));
       started = performance.now();
     }
   }
