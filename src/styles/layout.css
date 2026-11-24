@@ -1,53 +1,56 @@
-/* Page frame and responsive rules. Loaded last so media queries win on equal specificity. */
+/* Page frame and responsive rules. */
 
 header.top {
   position: sticky; top: 0; z-index: 40;
   background: var(--header-bg);
-  backdrop-filter: saturate(160%) blur(16px); -webkit-backdrop-filter: saturate(160%) blur(16px);
+  backdrop-filter: saturate(180%) blur(18px); -webkit-backdrop-filter: saturate(180%) blur(18px);
   border-bottom: 1px solid var(--line-2);
 }
-.top-in { display: flex; align-items: center; gap: 20px; height: 68px; }
+.top-in { display: flex; align-items: center; gap: 20px; height: 64px; }
 
-.brand { display: flex; align-items: center; gap: 11px; text-decoration: none; flex: none; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; flex: none; }
 .brand-mark {
-  width: 38px; height: 38px; border-radius: 11px; flex: none;
-  background: var(--tag); color: var(--on-tag);
-  box-shadow: 0 4px 12px -4px rgba(232, 173, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .45);
+  width: 34px; height: 34px; border-radius: 10px; flex: none;
+  background: var(--mark-bg); color: var(--mark-fg);
+  border: 1px solid var(--line-2);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, .12);
   display: grid; place-items: center;
 }
-.brand-name { font-size: 22px; font-weight: 750; font-stretch: 80%; letter-spacing: -.005em; color: var(--text); white-space: nowrap; }
-.brand-name [lang="bn"] { font-weight: 500; color: var(--dim); margin-left: 4px; }
+.brand-mark .bm-dot { fill: var(--mark-dot); }
+.brand-name { font-size: 18.5px; font-weight: 700; letter-spacing: -.03em; color: var(--text); white-space: nowrap; }
+.brand-name [lang="bn"] { font-size: 15px; font-weight: 500; color: var(--dim); margin-inline-start: 4px; letter-spacing: 0; }
 
 nav.tabs {
-  display: flex; gap: 3px; margin-left: auto;
+  display: flex; gap: 2px; margin-inline-start: auto;
   background: var(--surface-2); border: 1px solid var(--line-2);
-  padding: 4px; border-radius: 13px;
+  padding: 3.5px; border-radius: 11px;
 }
 nav.tabs button {
-  position: relative; border: 0; background: none; padding: 8px 14px; cursor: pointer;
-  font-size: 15px; font-weight: 600; color: var(--muted); white-space: nowrap; border-radius: 9px;
+  position: relative; border: 0; background: none; padding: 6.5px 13px; cursor: pointer;
+  font-size: 14px; font-weight: 550; color: var(--muted); white-space: nowrap; border-radius: 8px;
 }
 nav.tabs button:hover { color: var(--text); }
 nav.tabs button[aria-selected="true"] {
-  color: var(--text); background: var(--surface);
-  box-shadow: 0 1px 3px rgba(15, 31, 51, .08);
-}
-nav.tabs button[aria-selected="true"]::after {
-  content: ""; position: absolute; left: 14px; right: 14px; bottom: 3px; height: 2.5px;
-  border-radius: 3px; background: var(--brand);
+  color: var(--text); font-weight: 600; background: var(--surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .06);
 }
 
-main { padding-bottom: 130px; }
+main { padding-bottom: 120px; }
 
-/* After a search, results lead and the headline steps aside. */
+/* Centered command-style hero on the home view; compact left-aligned bar once searching. */
+body[data-mode="home"] .search-zone { text-align: center; padding: 44px 0 14px; }
+body[data-mode="home"] .hero-en { margin-inline: auto; }
+body[data-mode="home"] .search-bar { margin-inline: auto; }
+body[data-mode="home"] .chips { justify-content: center; margin-inline: auto; }
+
 body[data-mode="search"] .hero,
 body[data-mode="search"] .hero-kicker { display: none; }
 body[data-mode="search"] .search-zone { padding-top: 18px; }
 
-footer { border-top: 1px solid var(--line-2); background: var(--surface-2); padding: 30px 0 44px; margin-top: 30px; }
-footer .in { display: flex; flex-wrap: wrap; gap: 18px 40px; font-size: 14.5px; color: var(--muted); }
-footer b { color: var(--text); }
-footer .fine { flex: 1 1 340px; max-width: 70ch; line-height: 1.6; }
+footer { border-top: 1px solid var(--line-2); background: var(--surface); padding: 32px 0 48px; margin-top: 44px; }
+footer .in { display: flex; flex-wrap: wrap; gap: 18px 44px; font-size: 13.5px; color: var(--muted); }
+footer b { color: var(--text); font-weight: 600; }
+footer .fine { flex: 1 1 340px; max-width: 70ch; line-height: 1.65; }
 
 #out:focus { outline: none; }
 
@@ -73,64 +76,59 @@ footer .fine { flex: 1 1 340px; max-width: 70ch; line-height: 1.6; }
 @media (max-width: 720px) {
   .wrap { padding: 0 16px; }
   .top-in { height: auto; flex-wrap: wrap; gap: 0 12px; padding-top: 10px; }
-  .theme-toggle { margin-left: auto; width: 38px; height: 38px; }
-  /* Tabs take their own row and slide sideways instead of wrapping. */
+  .theme-toggle { margin-inline-start: auto; width: 36px; height: 36px; }
   nav.tabs {
     order: 3; width: calc(100% + 32px); margin: 8px -16px 0; padding: 4px 12px;
     border-radius: 0; border-left: 0; border-right: 0; background: transparent;
     overflow-x: auto; scrollbar-width: none;
   }
   nav.tabs::-webkit-scrollbar { display: none; }
-  nav.tabs button { padding: 8px 12px 10px; font-size: 14.5px; }
+  nav.tabs button { padding: 7px 12px 9px; font-size: 14px; }
   nav.tabs button:hover { background: none; }
-  nav.tabs button[aria-selected="true"]::after { bottom: 2px; }
 
-  .search-zone { padding-top: 22px; }
+  body[data-mode="home"] .search-zone { padding-top: 26px; }
   .hero { margin-bottom: 16px; }
-  .field { padding: 5px 5px 5px 14px; border-radius: 14px; }
-  .field > svg { width: 20px; height: 20px; }
-  .field input { font-size: 17px; padding: 12px 0; }
-  .field .go { padding: 12px 16px; }
+  .field { padding: 5px 5px 5px 14px; border-radius: 13px; }
+  .field > svg { width: 19px; height: 19px; }
+  .field input { font-size: 16px; padding: 11px 0; }
+  .field .go { padding: 11px 16px; font-size: 14.5px; }
 
-  /* Popular searches and filters: one row each, sliding sideways. */
   .chips, .controls {
-    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+    flex-wrap: nowrap; justify-content: flex-start !important; overflow-x: auto; scrollbar-width: none;
     margin-left: -16px; margin-right: -16px; padding: 2px 16px;
   }
   .chips::-webkit-scrollbar, .controls::-webkit-scrollbar { display: none; }
-  .empty .chips { flex-wrap: wrap; margin: 0; padding: 0; }
-  /* One row of app-style shortcuts, so products start on the first screen. */
-  .quick { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 18px 0 18px; }
-  .quick-tile { flex-direction: column; justify-content: flex-start; text-align: center; gap: 6px; padding: 10px 4px; border-color: transparent; background: none; }
-  .quick-tile b { font-size: 13.5px; line-height: 1.2; font-weight: 600; }
+  .empty .chips { flex-wrap: wrap; justify-content: center !important; margin: 0; padding: 0; }
+  .quick { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 18px 0; }
+  .quick-tile { flex-direction: column; justify-content: flex-start; text-align: center; gap: 6px; padding: 10px 4px; border-color: transparent; background: none; box-shadow: none; }
+  .quick-tile b { font-size: 13px; line-height: 1.2; font-weight: 600; }
   .quick-tile span span { display: none; }
-  .qt-icon { width: 48px; height: 48px; border-radius: 14px; }
+  .qt-icon { width: 44px; height: 44px; border-radius: 12px; }
   .cat-tabs { margin: 0 -16px 8px; padding: 0 16px 4px; }
   .cards.row { grid-auto-columns: 164px; gap: 10px; margin: 0 -16px; padding: 2px 16px 12px; scroll-padding-inline: 16px; scroll-snap-type: x mandatory; }
   .grid-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .pc-body { padding: 10px 11px 12px; }
-  .pc-name { font-size: 15px; }
-  .pc-body .pricetag { font-size: 14px; }
+  .pc-name { font-size: 14.5px; }
+  .pc-body .pricetag { font-size: 13.5px; }
   .shop-strip { padding: 16px; }
   .gh-img { width: 64px; height: 64px; }
   .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .summary div:nth-child(3) { border-left: 0; }
   .summary div:nth-child(n+3) { border-top: 1px solid var(--line-2); }
   .gh-img.big { width: 84px; height: 84px; }
-  .detail-head { gap: 12px; }
-  /* On a phone, once a search runs, its results matter more than other suggestions. */
+  .detail-head { gap: 12px; padding: 14px 16px; }
   body[data-mode="search"] .search-zone .chips { display: none; }
-  .lead { margin-top: 24px; }
-  .lead p { font-size: 15px; }
+  .lead { margin-top: 22px; }
+  .lead p { font-size: 14.5px; }
 
   .group { border-radius: var(--r); }
   .group-head { padding: 16px; }
   .gh-price { align-items: flex-start; text-align: left; width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
-  .gh-price .pricetag { font-size: 19px; }
+  .gh-price .pricetag { font-size: 17px; }
   .offer { padding: 14px 16px; }
-  .store-name { font-size: 16px; }
-  .mono { width: 40px; height: 40px; }
-  .price b { font-size: 21px; }
+  .store-name { font-size: 15.5px; }
+  .mono { width: 38px; height: 38px; }
+  .price b { font-size: 19px; }
   .acts { flex-wrap: wrap; }
 
   .trend-panel { padding: 14px 16px; }
@@ -141,5 +139,5 @@ footer .fine { flex: 1 1 340px; max-width: 70ch; line-height: 1.6; }
 
 @media (max-width: 400px) {
   .brand-name [lang="bn"] { display: none; }
-  .field .go { padding: 12px 13px; }
+  .field .go { padding: 11px 13px; }
 }

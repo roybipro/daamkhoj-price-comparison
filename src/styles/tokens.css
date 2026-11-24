@@ -1,87 +1,89 @@
-/* Design tokens. The look is a shop price tag: ink on a cool mint page, Bangladesh's bottle
-   green for anything you can press, and turmeric yellow kept for one job, the lowest price.
-   :root is the light theme; [data-theme="dark"] overrides every colour token. Anything
-   theme-dependent must be a token here, so the two modes cannot drift apart. */
+/* Design tokens: minimal modern aesthetic — crisp neutral slate surfaces, Inter + Anek Bangla
+   geometric typography, obsidian brand mark, and emerald accents for actions & lowest prices. */
 
 :root {
   color-scheme: light;
 
-  --bg: #edf3f0;
-  --bg-mesh: radial-gradient(960px 420px at 12% -6%, rgba(0, 106, 78, .11), transparent 62%),
-             radial-gradient(760px 360px at 88% -8%, rgba(255, 199, 44, .16), transparent 58%);
+  --bg: #f8fafc;
+  --bg-mesh: radial-gradient(900px 380px at 50% -10%, rgba(16, 185, 129, .07), transparent 65%);
   --surface: #ffffff;
-  --surface-2: #f4f8f6;
+  --surface-2: #f1f5f9;
   --raised: #ffffff;
-  --line: #cdd8d4;
-  --line-2: #dfe7e4;
+  --line: #cbd5e1;
+  --line-2: #e2e8f0;
 
-  --text: #0f1f33;
-  --muted: #435568;
-  --dim: #556778;
+  --text: #090d16;
+  --muted: #475569;
+  --dim: #64748b;
 
-  --brand: #006a4e;
-  --brand-2: #00553f;
-  --brand-hover: #007d5c;
+  --brand: #059669;
+  --brand-2: #047857;
+  --brand-hover: #047857;
   --on-brand: #ffffff;
-  --btn-grad: linear-gradient(180deg, #007d5c 0%, #006248 100%);
+  --btn-grad: #090d16;
+  --btn-grad-hover: #1e293b;
+  --on-btn: #ffffff;
 
-  /* The price tag: only the lowest price wears it. */
-  --tag: #ffc72c;
-  --tag-edge: #e0a500;
-  --on-tag: #102034;
+  --mark-bg: #090d16;
+  --mark-fg: #ffffff;
+  --mark-dot: #10b981;
 
-  --price: #13233a;
-  --taka: #00704f;
-  --over: #b3401b;
-  --risk: #c8102e;
-  --warn: #8a5a00;
-  --sun: #e8ad00;
+  /* Minimal lowest-price pill */
+  --tag: #ecfdf5;
+  --tag-edge: #a7f3d0;
+  --on-tag: #065f46;
 
-  /* Older names, still used by generated markup. */
-  --ink: #13233a;
-  --ink-2: #33445a;
-  --ink-3: #526373;
-  --paper: #eef2f0;
-  --paper-2: #f4f7f6;
+  --price: #090d16;
+  --taka: #059669;
+  --over: #c2410c;
+  --risk: #dc2626;
+  --warn: #b45309;
+  --sun: #10b981;
+
+  /* Legacy aliases */
+  --ink: #090d16;
+  --ink-2: #334155;
+  --ink-3: #64748b;
+  --paper: #f8fafc;
+  --paper-2: #f1f5f9;
   --card: #ffffff;
 
   --tile: #ffffff;
-  --tile-line: #d3dcd9;
+  --tile-line: #e2e8f0;
 
-  --header-bg: rgba(237, 243, 240, .82);
-  --badge-glass: rgba(255, 255, 255, .9);
-  --row-hover: rgba(15, 31, 51, .028);
-  --head-tint: rgba(15, 31, 51, .03);
-  --brand-tint: rgba(0, 106, 78, .11);
-  --brand-tint-soft: rgba(0, 106, 78, .055);
-  --risk-tint: rgba(200, 16, 46, .06);
-  --risk-text: #a10d25;
-  --risk-line: rgba(200, 16, 46, .3);
-  --ok-tint: rgba(0, 106, 78, .09);
-  --ok-text: #005a42;
-  --ok-line: rgba(0, 106, 78, .26);
-  --tag-tint: rgba(255, 199, 44, .2);
+  --header-bg: rgba(248, 250, 252, .82);
+  --badge-glass: rgba(255, 255, 255, .92);
+  --row-hover: rgba(15, 23, 42, .024);
+  --head-tint: rgba(15, 23, 42, .025);
+  --brand-tint: rgba(5, 150, 105, .1);
+  --brand-tint-soft: rgba(5, 150, 105, .05);
+  --risk-tint: rgba(220, 38, 38, .06);
+  --risk-text: #b91c1c;
+  --risk-line: rgba(220, 38, 38, .25);
+  --ok-tint: rgba(5, 150, 105, .09);
+  --ok-text: #065f46;
+  --ok-line: rgba(5, 150, 105, .24);
+  --tag-tint: rgba(16, 185, 129, .06);
 
-  --tier-strong: #00704f;
-  --tier-good: #0f6b78;
-  --tier-caution: #8a5a00;
-  --tier-risk: #c8102e;
-  --tier-closed: #5c6873;
+  --tier-strong: #059669;
+  --tier-good: #0284c7;
+  --tier-caution: #b45309;
+  --tier-risk: #dc2626;
+  --tier-closed: #64748b;
 
-  --selection: rgba(255, 199, 44, .45);
+  --selection: rgba(16, 185, 129, .22);
 
-  --shadow: 0 1px 2px rgba(15, 31, 51, .04), 0 10px 26px -18px rgba(15, 31, 51, .2);
-  --shadow-hover: 0 4px 12px -4px rgba(0, 106, 78, .12), 0 18px 36px -18px rgba(15, 31, 51, .26);
-  --overlay-shadow: 0 24px 56px -20px rgba(15, 31, 51, .34);
+  --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px -16px rgba(15, 23, 42, .12);
+  --shadow-hover: 0 4px 14px -4px rgba(15, 23, 42, .08), 0 18px 36px -16px rgba(15, 23, 42, .16);
+  --overlay-shadow: 0 20px 48px -16px rgba(15, 23, 42, .22);
   --ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand);
 
-  --r-lg: 20px;
-  --r: 16px;
+  --r-lg: 18px;
+  --r: 14px;
   --r-sm: 10px;
-  --maxw: 1180px;
+  --maxw: 1200px;
 
-  --font: "Anek Bangla", "Hind Siliguri", "Noto Sans Bengali", system-ui, -apple-system, sans-serif;
-  /* The same family, narrowed: headlines and prices read as signage. */
+  --font: "Inter", "Anek Bangla", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --display: var(--font);
   --mono: var(--font);
 }
@@ -89,70 +91,75 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --bg: #0b1620;
-  --bg-mesh: radial-gradient(920px 400px at 14% -6%, rgba(69, 199, 156, .13), transparent 62%),
-             radial-gradient(740px 340px at 86% -8%, rgba(255, 199, 44, .09), transparent 58%);
-  --surface: #132230;
-  --surface-2: #192c3c;
-  --raised: #1e3447;
-  --line: #2a4155;
-  --line-2: #1f3446;
+  --bg: #090d16;
+  --bg-mesh: radial-gradient(900px 380px at 50% -10%, rgba(16, 185, 129, .1), transparent 65%);
+  --surface: #111726;
+  --surface-2: #172033;
+  --raised: #1c273d;
+  --line: #293548;
+  --line-2: #1e293b;
 
-  --text: #ecf2f7;
-  --muted: #b5c4d0;
-  --dim: #92a6b6;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --dim: #64748b;
 
-  --brand: #45c79c;
-  --brand-2: #2fae84;
-  --brand-hover: #63d6ae;
-  --on-brand: #052118;
-  --btn-grad: linear-gradient(180deg, #57d2a8 0%, #39b88d 100%);
+  --brand: #34d399;
+  --brand-2: #10b981;
+  --brand-hover: #6ee7b7;
+  --on-brand: #052e16;
+  --btn-grad: #10b981;
+  --btn-grad-hover: #34d399;
+  --on-btn: #042f1e;
 
-  --tag: #ffc72c;
-  --tag-edge: #f0b400;
-  --on-tag: #13233a;
+  --mark-bg: #172033;
+  --mark-fg: #f8fafc;
+  --mark-dot: #34d399;
 
-  --price: #f3f6f9;
-  --taka: #5fd3a9;
-  --over: #ff9a76;
-  --risk: #ff6b7d;
-  --warn: #f2c15b;
-  --sun: #ffc72c;
+  --tag: rgba(16, 185, 129, .14);
+  --tag-edge: rgba(52, 211, 153, .28);
+  --on-tag: #6ee7b7;
 
-  --ink: #0e1a24;
-  --ink-2: #c7d3dc;
-  --ink-3: #94a7b6;
-  --paper: #152532;
-  --paper-2: #1b2e3d;
-  --card: #152532;
+  --price: #f8fafc;
+  --taka: #34d399;
+  --over: #fb923c;
+  --risk: #f87171;
+  --warn: #fbbf24;
+  --sun: #34d399;
 
-  --tile: #f4f7f6;
-  --tile-line: #2b4155;
+  --ink: #090d16;
+  --ink-2: #cbd5e1;
+  --ink-3: #94a3b8;
+  --paper: #111726;
+  --paper-2: #172033;
+  --card: #111726;
 
-  --header-bg: rgba(11, 22, 32, .82);
-  --badge-glass: rgba(19, 34, 48, .88);
-  --row-hover: rgba(255, 255, 255, .03);
-  --head-tint: rgba(255, 255, 255, .03);
-  --brand-tint: rgba(69, 199, 156, .15);
-  --brand-tint-soft: rgba(69, 199, 156, .07);
-  --risk-tint: rgba(255, 107, 125, .08);
-  --risk-text: #ffb3bd;
-  --risk-line: rgba(255, 107, 125, .38);
-  --ok-tint: rgba(69, 199, 156, .13);
-  --ok-text: #8ee3c3;
-  --ok-line: rgba(69, 199, 156, .34);
-  --tag-tint: rgba(255, 199, 44, .08);
+  --tile: #ffffff;
+  --tile-line: #293548;
 
-  --tier-strong: #5fd3a9;
-  --tier-good: #5ac8d8;
-  --tier-caution: #f2c15b;
-  --tier-risk: #ff6b7d;
-  --tier-closed: #9aabb8;
+  --header-bg: rgba(9, 13, 22, .8);
+  --badge-glass: rgba(17, 23, 38, .88);
+  --row-hover: rgba(255, 255, 255, .025);
+  --head-tint: rgba(255, 255, 255, .025);
+  --brand-tint: rgba(52, 211, 153, .14);
+  --brand-tint-soft: rgba(52, 211, 153, .07);
+  --risk-tint: rgba(248, 113, 113, .08);
+  --risk-text: #fca5a5;
+  --risk-line: rgba(248, 113, 113, .32);
+  --ok-tint: rgba(52, 211, 153, .12);
+  --ok-text: #6ee7b7;
+  --ok-line: rgba(52, 211, 153, .28);
+  --tag-tint: rgba(16, 185, 129, .08);
 
-  --selection: rgba(255, 199, 44, .35);
+  --tier-strong: #34d399;
+  --tier-good: #38bdf8;
+  --tier-caution: #fbbf24;
+  --tier-risk: #f87171;
+  --tier-closed: #94a3b8;
 
-  --shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 14px 32px -20px rgba(0, 0, 0, .78);
-  --shadow-hover: 0 1px 0 rgba(255, 255, 255, .07) inset, 0 20px 40px -18px rgba(0, 0, 0, .88);
-  --overlay-shadow: 0 24px 56px -22px rgba(0, 0, 0, .86);
+  --selection: rgba(52, 211, 153, .28);
+
+  --shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 12px 28px -18px rgba(0, 0, 0, .7);
+  --shadow-hover: 0 1px 0 rgba(255, 255, 255, .07) inset, 0 20px 40px -18px rgba(0, 0, 0, .85);
+  --overlay-shadow: 0 24px 56px -20px rgba(0, 0, 0, .85);
   --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--brand);
 }
