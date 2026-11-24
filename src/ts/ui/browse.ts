@@ -31,13 +31,6 @@ const ICONS: Record<string, string> = {
 const icon = (id: string, size?: number): string =>
   size ? (ICONS[id] ?? ICONS.all).replace(/width="26" height="26"/, `width="${size}" height="${size}"`) : ICONS[id] ?? ICONS.all;
 
-const QUICK = [
-  { act: 'focusSearch', view: '', title: 'Compare prices', text: 'Search any product across shops', icon: stroke('<path d="M3.5 12.2 11.3 4.4a1.5 1.5 0 0 1 1.1-.4H19a1 1 0 0 1 1 1v6.6a1.5 1.5 0 0 1-.4 1.1l-7.8 7.8a1.4 1.4 0 0 1-2 0l-6.3-6.3a1.4 1.4 0 0 1 0-2z"/><circle cx="16" cy="8" r="1.4" fill="currentColor"/>') },
-  { act: 'shelf', view: '', id: 'popular', title: 'Popular & trending', text: 'Most compared products across shops', icon: stroke('<path d="M3 17 9.5 10.5l4 4L21 7"/><path d="M15 7h6v6"/>') },
-  { act: 'view', view: 'stores', title: 'Shops', text: 'Who we read prices from', icon: stroke('<path d="M4 9.5 5.5 4h13L20 9.5M4 9.5h16v10.5H4zM4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0M10 20v-5h4v5"/>') },
-  { act: 'view', view: 'how', title: 'How it works', text: 'Where every price comes from', icon: stroke('<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.4c-.7.3-1 .8-1 1.5v.6M12 17h.01"/>') }
-];
-
 /* Consumer-first shelf order on the home page, after Popular and Trending. */
 const SHELF_ORDER = ['phones', 'laptops', 'tablets', 'audio', 'watches', 'pc', 'screens', 'gaming', 'power', 'more'];
 
@@ -114,7 +107,7 @@ function card(item: BrowseCard, shelf: string): string {
   const badge = shelf === 'popular'
     ? `<span class="pc-badge">Popular · ${item.shops} shops</span>`
     : shelf === 'trending'
-      ? '<span class="pc-badge trend">Trending</span>'
+      ? '<span class="pc-badge trending">Trending</span>'
       : '';
   return `<button class="pcard" data-act="query" data-q="${escapeHtml(item.name)}" title="${escapeHtml(`Compare ${item.name} across ${item.shops} shops`)}">
     <span class="pc-img">${badge}${icon(shelf, 40)}${photo
@@ -178,11 +171,7 @@ export function browseView(ctx: RenderContext, data: BrowseData): string {
     ...allShelves.map(item => ({ id: item.id, label: item.label, count: item.cards.length }))
   ];
 
-  return `<nav class="quick" aria-label="What you can do here">${QUICK.map(item =>
-      `<button class="quick-tile" data-act="${item.act}"${item.view ? ` data-view="${item.view}"` : ''}${'id' in item ? ` data-id="${item.id}"` : ''}>
-        <span class="qt-icon">${item.icon}</span><span><b>${item.title}</b><span>${item.text}</span></span></button>`).join('')}</nav>
-
-    <div class="cat-tabs" role="tablist" aria-label="Categories">${tabs.map(tab =>
+  return `<div class="cat-tabs" role="tablist" aria-label="Categories">${tabs.map(tab =>
       `<button role="tab" class="cat-tab" data-act="shelf" data-id="${escapeHtml(tab.id)}" aria-selected="${tab.id === (chosen?.id ?? '')}">
         ${icon(tab.id || 'all', 22)}<span>${escapeHtml(tab.label)}</span><span class="n num">${tab.count}</span></button>`).join('')}</div>
 

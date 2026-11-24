@@ -1,167 +1,169 @@
-/* Design tokens: minimal modern aesthetic — crisp neutral slate surfaces, Inter + Anek Bangla
-   geometric typography, obsidian brand mark, and emerald accents for actions & lowest prices. */
+/* Design tokens: a plain price-list look. Warm paper and ink neutrals, one deep green for the
+   brand and lowest prices, flat surfaces with hairline borders, IBM Plex Sans + Hind Siliguri
+   for text and IBM Plex Mono for prices. */
 
 :root {
   color-scheme: light;
 
-  --bg: #f8fafc;
-  --bg-mesh: radial-gradient(900px 380px at 50% -10%, rgba(16, 185, 129, .07), transparent 65%);
+  --bg: #f7f5f0;
+  --bg-mesh: none;
   --surface: #ffffff;
-  --surface-2: #f1f5f9;
+  --surface-2: #f0ede6;
   --raised: #ffffff;
-  --line: #cbd5e1;
-  --line-2: #e2e8f0;
+  --line: #cfc9bb;
+  --line-2: #e4dfd4;
 
-  --text: #090d16;
-  --muted: #475569;
-  --dim: #64748b;
+  --text: #1b1a17;
+  --muted: #55514a;
+  --dim: #7a7468;
 
-  --brand: #059669;
-  --brand-2: #047857;
-  --brand-hover: #047857;
+  --brand: #11703f;
+  --brand-2: #0c5a32;
+  --brand-hover: #0c5a32;
   --on-brand: #ffffff;
-  --btn-grad: #090d16;
-  --btn-grad-hover: #1e293b;
+  --btn-grad: #11703f;
+  --btn-grad-hover: #0c5a32;
   --on-btn: #ffffff;
 
-  --mark-bg: #090d16;
+  --mark-bg: #1b1a17;
   --mark-fg: #ffffff;
-  --mark-dot: #10b981;
+  --mark-dot: #2f9e5f;
   --mark-ink: #ffffff;
 
-  /* Minimal lowest-price pill */
-  --tag: #ecfdf5;
-  --tag-edge: #a7f3d0;
-  --on-tag: #065f46;
+  /* Lowest prices are written in green, without a box around them. */
+  --tag: transparent;
+  --tag-edge: transparent;
+  --on-tag: #11703f;
 
-  --price: #090d16;
-  --taka: #059669;
-  --over: #c2410c;
-  --risk: #dc2626;
-  --warn: #b45309;
-  --sun: #10b981;
+  --price: #1b1a17;
+  --taka: #11703f;
+  --over: #b4410c;
+  --risk: #c62828;
+  --warn: #a15c07;
+  --sun: #2f9e5f;
 
   /* Legacy aliases */
-  --ink: #090d16;
-  --ink-2: #334155;
-  --ink-3: #64748b;
-  --paper: #f8fafc;
-  --paper-2: #f1f5f9;
+  --ink: #1b1a17;
+  --ink-2: #3d3a34;
+  --ink-3: #7a7468;
+  --paper: #f7f5f0;
+  --paper-2: #f0ede6;
   --card: #ffffff;
 
   --tile: #ffffff;
-  --tile-line: #e2e8f0;
+  --tile-line: #e4dfd4;
 
-  --header-bg: rgba(248, 250, 252, .82);
-  --badge-glass: rgba(255, 255, 255, .92);
-  --row-hover: rgba(15, 23, 42, .024);
-  --head-tint: rgba(15, 23, 42, .025);
-  --brand-tint: rgba(5, 150, 105, .1);
-  --brand-tint-soft: rgba(5, 150, 105, .05);
-  --risk-tint: rgba(220, 38, 38, .06);
-  --risk-text: #b91c1c;
-  --risk-line: rgba(220, 38, 38, .25);
-  --ok-tint: rgba(5, 150, 105, .09);
-  --ok-text: #065f46;
-  --ok-line: rgba(5, 150, 105, .24);
-  --tag-tint: rgba(16, 185, 129, .06);
+  --header-bg: #f7f5f0;
+  --badge-glass: #ffffff;
+  --row-hover: rgba(27, 26, 23, .025);
+  --head-tint: rgba(27, 26, 23, .03);
+  --brand-tint: rgba(17, 112, 63, .1);
+  --brand-tint-soft: rgba(17, 112, 63, .05);
+  --risk-tint: rgba(198, 40, 40, .06);
+  --risk-text: #a32020;
+  --risk-line: rgba(198, 40, 40, .25);
+  --ok-tint: rgba(17, 112, 63, .08);
+  --ok-text: #0c5a32;
+  --ok-line: rgba(17, 112, 63, .25);
+  --tag-tint: rgba(17, 112, 63, .05);
 
-  --tier-strong: #059669;
-  --tier-good: #0284c7;
-  --tier-caution: #b45309;
-  --tier-risk: #dc2626;
-  --tier-closed: #64748b;
+  --tier-strong: #11703f;
+  --tier-good: #1f6fa8;
+  --tier-caution: #a15c07;
+  --tier-risk: #c62828;
+  --tier-closed: #7a7468;
 
-  --selection: rgba(16, 185, 129, .22);
+  --selection: rgba(17, 112, 63, .2);
 
-  --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px -16px rgba(15, 23, 42, .12);
-  --shadow-hover: 0 4px 14px -4px rgba(15, 23, 42, .08), 0 18px 36px -16px rgba(15, 23, 42, .16);
-  --overlay-shadow: 0 20px 48px -16px rgba(15, 23, 42, .22);
+  --shadow: none;
+  --shadow-hover: none;
+  --overlay-shadow: 0 10px 30px -12px rgba(27, 26, 23, .25);
   --ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand);
 
-  --r-lg: 18px;
-  --r: 14px;
-  --r-sm: 10px;
+  --r-lg: 10px;
+  --r: 8px;
+  --r-sm: 6px;
   --maxw: 1200px;
 
-  --font: "Inter", "Anek Bangla", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font: "IBM Plex Sans", "Hind Siliguri", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --display: var(--font);
   --mono: var(--font);
+  --num: "IBM Plex Mono", "Hind Siliguri", ui-monospace, monospace;
 }
 
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --bg: #090d16;
-  --bg-mesh: radial-gradient(900px 380px at 50% -10%, rgba(16, 185, 129, .1), transparent 65%);
-  --surface: #111726;
-  --surface-2: #172033;
-  --raised: #1c273d;
-  --line: #293548;
-  --line-2: #1e293b;
+  --bg: #141311;
+  --bg-mesh: none;
+  --surface: #1c1b18;
+  --surface-2: #24231f;
+  --raised: #282722;
+  --line: #3d3b34;
+  --line-2: #2d2c27;
 
-  --text: #f8fafc;
-  --muted: #94a3b8;
-  --dim: #64748b;
+  --text: #f1eee6;
+  --muted: #b0aa9d;
+  --dim: #878174;
 
-  --brand: #34d399;
-  --brand-2: #10b981;
-  --brand-hover: #6ee7b7;
-  --on-brand: #052e16;
-  --btn-grad: #10b981;
-  --btn-grad-hover: #34d399;
-  --on-btn: #042f1e;
+  --brand: #5cc489;
+  --brand-2: #47b075;
+  --brand-hover: #7dd3a2;
+  --on-brand: #0b2616;
+  --btn-grad: #5cc489;
+  --btn-grad-hover: #7dd3a2;
+  --on-btn: #0b2616;
 
-  --mark-bg: #172033;
-  --mark-fg: #f8fafc;
-  --mark-dot: #34d399;
-  --mark-ink: #06281c;
+  --mark-bg: #24231f;
+  --mark-fg: #f1eee6;
+  --mark-dot: #5cc489;
+  --mark-ink: #0b2616;
 
-  --tag: rgba(16, 185, 129, .14);
-  --tag-edge: rgba(52, 211, 153, .28);
-  --on-tag: #6ee7b7;
+  --tag: transparent;
+  --tag-edge: transparent;
+  --on-tag: #6fd197;
 
-  --price: #f8fafc;
-  --taka: #34d399;
-  --over: #fb923c;
-  --risk: #f87171;
-  --warn: #fbbf24;
-  --sun: #34d399;
+  --price: #f1eee6;
+  --taka: #6fd197;
+  --over: #f0915a;
+  --risk: #f07a7a;
+  --warn: #e8b04a;
+  --sun: #5cc489;
 
-  --ink: #090d16;
-  --ink-2: #cbd5e1;
-  --ink-3: #94a3b8;
-  --paper: #111726;
-  --paper-2: #172033;
-  --card: #111726;
+  --ink: #141311;
+  --ink-2: #d4d0c6;
+  --ink-3: #b0aa9d;
+  --paper: #1c1b18;
+  --paper-2: #24231f;
+  --card: #1c1b18;
 
   --tile: #ffffff;
-  --tile-line: #293548;
+  --tile-line: #3d3b34;
 
-  --header-bg: rgba(9, 13, 22, .8);
-  --badge-glass: rgba(17, 23, 38, .88);
+  --header-bg: #141311;
+  --badge-glass: #1c1b18;
   --row-hover: rgba(255, 255, 255, .025);
-  --head-tint: rgba(255, 255, 255, .025);
-  --brand-tint: rgba(52, 211, 153, .14);
-  --brand-tint-soft: rgba(52, 211, 153, .07);
-  --risk-tint: rgba(248, 113, 113, .08);
-  --risk-text: #fca5a5;
-  --risk-line: rgba(248, 113, 113, .32);
-  --ok-tint: rgba(52, 211, 153, .12);
-  --ok-text: #6ee7b7;
-  --ok-line: rgba(52, 211, 153, .28);
-  --tag-tint: rgba(16, 185, 129, .08);
+  --head-tint: rgba(255, 255, 255, .03);
+  --brand-tint: rgba(92, 196, 137, .14);
+  --brand-tint-soft: rgba(92, 196, 137, .07);
+  --risk-tint: rgba(240, 122, 122, .08);
+  --risk-text: #f5a3a3;
+  --risk-line: rgba(240, 122, 122, .32);
+  --ok-tint: rgba(92, 196, 137, .12);
+  --ok-text: #7dd3a2;
+  --ok-line: rgba(92, 196, 137, .28);
+  --tag-tint: rgba(92, 196, 137, .07);
 
-  --tier-strong: #34d399;
-  --tier-good: #38bdf8;
-  --tier-caution: #fbbf24;
-  --tier-risk: #f87171;
-  --tier-closed: #94a3b8;
+  --tier-strong: #5cc489;
+  --tier-good: #6cb3e6;
+  --tier-caution: #e8b04a;
+  --tier-risk: #f07a7a;
+  --tier-closed: #b0aa9d;
 
-  --selection: rgba(52, 211, 153, .28);
+  --selection: rgba(92, 196, 137, .28);
 
-  --shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 12px 28px -18px rgba(0, 0, 0, .7);
-  --shadow-hover: 0 1px 0 rgba(255, 255, 255, .07) inset, 0 20px 40px -18px rgba(0, 0, 0, .85);
-  --overlay-shadow: 0 24px 56px -20px rgba(0, 0, 0, .85);
+  --shadow: none;
+  --shadow-hover: none;
+  --overlay-shadow: 0 14px 36px -14px rgba(0, 0, 0, .8);
   --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--brand);
 }
