@@ -115,8 +115,18 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
   const candidates = query => {
     const postings = postingsTable.get();
     const lists = requiredWords(query).map(word => postings.get(word) ?? []);
-    if (!lists.length) return entries.map((_, i) => i);
-    return lists.reduce((smallest, list) => (list.length < smallest.length ? list : smallest));
+    if (lists.length) return lists.reduce((smallest, list) => (list.length < smallest.length ? list : smallest));
+    /* Only numbers ("256gb", "65w", "15"): every way a name can match keeps each number's digits,
+       so a name whose digits, run together, lack one is skipped before the full check. That
+       check on all 77k names took ~0.45 s here, seconds on a small host. */
+    const numbers = String(query).match(/\p{N}+/gu);
+    if (!numbers) return entries.map((_, i) => i);
+    const out = [];
+    for (let i = 0; i < entries.length; i++) {
+      const digits = entries[i].name.replace(/\P{N}+/gu, '');
+      if (numbers.every(number => digits.includes(number))) out.push(i);
+    }
+    return out;
   };
   let speller = null;
 
