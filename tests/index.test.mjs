@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import { createApi } from '../server/api.mjs';
 import { crawlShop, readShopifyProduct } from '../server/crawler.mjs';
 import { mergeGroups } from '../server/live-search.mjs';
+import { matchesQuery } from '../server/matching.mjs';
 import { createPriceIndex, loadIndexFile, pullIndexFile, saveIndexFile, watchIndexFile } from '../server/price-index.mjs';
 import { parseSitemap, productPages } from '../server/sitemap.mjs';
 
@@ -784,4 +785,15 @@ test('compound searches merge joined and spaced spellings without splitting stro
   const magsafe = index.search('magsafe powerbank');
   assert.equal(magsafe.query, 'magsafe power bank', 'keeps magsafe whole while splitting powerbank');
   assert.equal(magsafe.priced, 1);
+});
+
+test('a search of only numbers finds what checking every name would, written any way', () => {
+  const names = ['Kingston NV2 256 GB SSD', 'Lexar 256GB microSD', 'Lexar 512GB microSD', 'Anker 65W Charger', 'Anker 65 W GaN',
+    'Casio F-91W', 'Xiaomi Power Bank 20000mAh', 'Romoss 10000 mAh', 'Galaxy S24 256GB', 'Phone 1256GB Case', 'Model A15 16 Kit'];
+  const index = createPriceIndex(listOf(...names.map((name, i) => entry(`s${i}.bd`, name, 1000 + i))), { now: () => NOW });
+  for (const query of ['256gb', '65w', '65', '20000', '91w', '1516', '512gb']) {
+    const everyName = names.filter(name => matchesQuery(name, query)).length;
+    assert.equal(index.search(query).found, everyName, query);
+  }
+  assert.equal(index.search('256gb').found, 3);
 });
