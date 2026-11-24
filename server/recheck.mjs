@@ -40,7 +40,7 @@ function productsInOrder(answer, product) {
  */
 export function createRechecker({
   fetchPage, robots, shops = INDEX_SHOPS, now = Date.now,
-  maxPages = 24, perShop = 12, concurrency = 2, freshForMs = 30 * 60 * 1000
+  maxPages = 30, perShop = 20, concurrency = 3, freshForMs = 30 * 60 * 1000
 }) {
   const kindOf = new Map(shops.map(shop => [shop.shop, shop.kind]));
   const reading = new Map();
