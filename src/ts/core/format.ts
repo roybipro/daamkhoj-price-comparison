@@ -10,7 +10,7 @@ export const pluralNoun = (count: number, singular: string): string =>
   count === 1 ? singular : `${singular}s`;
 
 export const pluralCount = (count: number, singular: string): string =>
-  `${count} ${pluralNoun(count, singular)}`;
+  `${count.toLocaleString('en-US')} ${pluralNoun(count, singular)}`;
 
 const ENTITIES: Readonly<Record<string, string>> = {
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'

@@ -31,6 +31,39 @@ const ICONS: Record<string, string> = {
 const icon = (id: string, size?: number): string =>
   size ? (ICONS[id] ?? ICONS.all).replace(/width="26" height="26"/, `width="${size}" height="${size}"`) : ICONS[id] ?? ICONS.all;
 
+/* What DaamKhoj promises, in the strip under the search. */
+const BENEFITS = [
+  { tone: 'violet', title: (shops: number) => `${shops} shops compared`, icon: stroke('<path d="M4 9.5 5.5 4h13L20 9.5M4 9.5h16v10.5H4zM10 20v-5h4v5"/>', 24) },
+  { tone: 'amber', title: () => 'Checked twice a day', icon: stroke('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>', 24) },
+  { tone: 'blue', title: () => 'Same version only', icon: stroke('<rect x="3.5" y="5" width="7" height="14" rx="1.5"/><rect x="13.5" y="5" width="7" height="14" rx="1.5"/><path d="M7 15.5h.01M17 15.5h.01"/>', 24) },
+  { tone: 'red', title: () => 'No commission', icon: stroke('<path d="M3.5 12.2 11.3 4.4a1.5 1.5 0 0 1 1.1-.4H19a1 1 0 0 1 1 1v6.6a1.5 1.5 0 0 1-.4 1.1l-7.8 7.8a1.4 1.4 0 0 1-2 0l-6.3-6.3a1.4 1.4 0 0 1 0-2z"/><path d="m9 9 6 6"/>', 24) },
+  { tone: 'green', title: () => "The shop's own price", icon: stroke('<path d="M12 3 4.5 6v5.5c0 4.5 3.2 8.3 7.5 9.5 4.3-1.2 7.5-5 7.5-9.5V6z"/><path d="m8.8 12 2.3 2.3 4.2-4.6"/>', 24) }
+];
+
+function benefits(data: BrowseData): string {
+  return `<ul class="benefits" aria-label="About these prices">${BENEFITS.map(item =>
+    `<li class="benefit ${item.tone}">${item.icon}<b>${escapeHtml(item.title(data.shops.length))}</b></li>`).join('')}</ul>`;
+}
+
+/* One photo card per category, from its most widely stocked pictured product. */
+function categoryTiles(shelves: BrowseShelf[]): string {
+  const tiles = shelves.filter(shelf => shelf.cards.length).map(shelf => {
+    const face = [...shelf.cards].filter(item => item.image).sort((a, b) => b.shops - a.shops)[0];
+    const photo = face?.image ? safeHttpUrl(face.image) : null;
+    return `<button class="cat-card" data-act="shelf" data-id="${escapeHtml(shelf.id)}">
+      <span class="cc-img">${icon(shelf.id, 44)}${photo
+        ? `<img src="${escapeHtml(photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span>
+      <span class="cc-body"><span><b>${escapeHtml(shelf.label)}</b><span class="cc-meta">${pluralCount(shelf.cards.length, 'product')}</span></span>
+        <span class="go-btn" aria-hidden="true">${ARROW}</span></span>
+    </button>`;
+  });
+  return `<section class="shelf cat-section" aria-labelledby="cat-h"><div class="shelf-head"><div><h2 id="cat-h">Shop by category</h2>
+    <span class="shelf-sub">Compare prices across shops in each category</span></div></div>
+    <div class="cat-grid">${tiles.join('')}</div></section>`;
+}
+
+const ARROW = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+
 /* Consumer-first shelf order on the home page, after Popular and Trending. */
 const SHELF_ORDER = ['phones', 'laptops', 'tablets', 'audio', 'watches', 'pc', 'screens', 'gaming', 'power', 'more'];
 
@@ -117,6 +150,7 @@ function card(item: BrowseCard, shelf: string): string {
       ${priceTag(item.from, 'from')}
       <span class="pc-meta">${pluralCount(item.shops, 'shop')}${item.versions > 1 ? `, ${pluralCount(item.versions, 'version')}` : ''}</span>
       <span class="pc-shop"><img src="${escapeHtml(shopLogo(item.shop))}" alt="" loading="lazy" onerror="this.remove()">Lowest at ${escapeHtml(item.shop.replace(/^www\./, ''))}</span>
+      <span class="go-btn" aria-hidden="true">${ARROW}</span>
     </span>
   </button>`;
 }
@@ -171,9 +205,12 @@ export function browseView(ctx: RenderContext, data: BrowseData): string {
     ...allShelves.map(item => ({ id: item.id, label: item.label, count: item.cards.length }))
   ];
 
-  return `<div class="cat-tabs" role="tablist" aria-label="Categories">${tabs.map(tab =>
-      `<button role="tab" class="cat-tab" data-act="shelf" data-id="${escapeHtml(tab.id)}" aria-selected="${tab.id === (chosen?.id ?? '')}">
-        ${icon(tab.id || 'all', 22)}<span>${escapeHtml(tab.label)}</span><span class="n num">${tab.count}</span></button>`).join('')}</div>
+  /* The home page opens with the promises and a card per category; once one is open, a row of
+     tabs switches between them. */
+  return `${chosen ? `<div class="cat-tabs" role="tablist" aria-label="Categories">${tabs.map(tab =>
+      `<button role="tab" class="cat-tab" data-act="shelf" data-id="${escapeHtml(tab.id)}" aria-selected="${tab.id === chosen.id}">
+        ${icon(tab.id || 'all', 22)}<span>${escapeHtml(tab.label)}</span><span class="n num">${tab.count}</span></button>`).join('')}</div>`
+      : `${benefits(data)}${categoryTiles(ordered)}`}
 
     ${chosen
       ? `<section class="shelf"><div class="shelf-head"><h2>${escapeHtml(chosen.label)}</h2>
