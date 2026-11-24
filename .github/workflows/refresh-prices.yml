@@ -1,4 +1,4 @@
-# Refreshes the price list every night and commits it to main; Render redeploys on that commit,
+# Refreshes the price list twice a day and commits it to main; Render redeploys on that commit,
 # so the live site's instant search never runs on prices older than a few days.
 #
 # A full crawl of every page takes longer than a GitHub job may run, so each run reads at most
@@ -10,6 +10,7 @@ name: Refresh price list
 on:
   schedule:
     - cron: '30 20 * * *' # 02:30 in Bangladesh, when the shops are quietest
+    - cron: '30 10 * * *' # 16:30 in Bangladesh: a second pass, so a day's price changes show by evening
   workflow_dispatch:
     inputs:
       limit:

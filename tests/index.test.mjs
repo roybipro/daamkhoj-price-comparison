@@ -12,6 +12,7 @@ import { crawlShop, readShopifyProduct } from '../server/crawler.mjs';
 import { mergeGroups } from '../server/live-search.mjs';
 import { matchesQuery } from '../server/matching.mjs';
 import { pageMeta, robotsTxt, sitemapXml, withMeta } from '../server/seo.mjs';
+import { createFreshener, freshenOrder } from '../server/freshen.mjs';
 import { createPriceIndex, loadIndexFile, pullIndexFile, saveIndexFile, watchIndexFile } from '../server/price-index.mjs';
 import { parseSitemap, productPages } from '../server/sitemap.mjs';
 
@@ -836,4 +837,22 @@ test('the shipped page is open to search engines and shows no sample trust score
   assert.ok(!/name="robots" content="noindex"/.test(html));
   assert.ok(!/trust score/i.test(html));
   assert.ok(!/data-view="compare"/.test(html));
+});
+
+test('between crawls, the most-stocked products are re-read every turn and the rest in rotation', async () => {
+  const card = (name, shops) => ({ name, shops });
+  const shelves = [{ cards: [card('A', 2), card('B', 9), card('C', 1)] }, { cards: [card('b', 9), card('D', 5)] }];
+  const order = freshenOrder(shelves);
+  assert.deepEqual(order.popular.slice(0, 2), ['B', 'D']);
+  assert.equal(order.popular.length + order.rest.length, 4);
+
+  const read = [];
+  const index = { browseSoon: async () => ({ shelves }) };
+  const freshener = createFreshener({ recheck: async (_, name) => { read.push(name); return { rechecked: 1, changed: 0 }; }, getIndex: async () => index });
+  await freshener.tick();
+  await freshener.tick();
+  assert.deepEqual(read, ['B', 'D']);
+  /* A tick that starts while one runs is skipped, never doubled. */
+  const slow = createFreshener({ recheck: () => new Promise(resolve => setTimeout(() => resolve({}), 20)), getIndex: async () => index });
+  await Promise.all([slow.tick(), slow.tick()]);
 });
