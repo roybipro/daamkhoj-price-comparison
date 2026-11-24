@@ -96,11 +96,13 @@ function resultCards(result: LiveResult): ResultCard[] {
     const key = keyOf(offer);
     const card = cards.get(key);
     const photo = offer.image ? safeHttpUrl(offer.image) : null;
+    const checkedAt = offer.checkedAt ?? result.checkedAt;
     if (!card) {
-      cards.set(key, { key, title: offer.title, image: photo, from: offer.price, to: offer.price, shops: [offer.shop], inStock: offer.inStock === false ? 0 : 1, pricedFrom: offer, checkedAt: offer.checkedAt ?? result.checkedAt });
+      cards.set(key, { key, title: offer.title, image: photo, from: offer.price, to: offer.price, shops: [offer.shop], inStock: offer.inStock === false ? 0 : 1, pricedFrom: offer, checkedAt });
       continue;
     }
-    if (offer.price < card.from) { card.from = offer.price; card.title = offer.title; card.checkedAt = offer.checkedAt ?? result.checkedAt; }
+    if (offer.price < card.from) { card.from = offer.price; card.title = offer.title; }
+    if (checkedAt > card.checkedAt) card.checkedAt = checkedAt;
     card.to = Math.max(card.to, offer.price);
     card.image ??= photo;
     if (!card.shops.includes(offer.shop)) card.shops.push(offer.shop);

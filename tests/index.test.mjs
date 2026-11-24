@@ -596,6 +596,27 @@ test('a live re-check reads only stale pages behind the first results, politely,
 
   const again = await recheck(index, 'galaxy a16');
   assert.equal(again.rechecked, 1, 'just-read pages are skipped; only the page robots refused stays stale');
+
+  /* Pictured multi-shop cards must not exhaust a shop's per-recheck quota before unpictured single-shop cards. */
+  const fanIndex = createPriceIndex(listOf(
+    entry('a.bd', 'JisuLife Handheld Fan Pro1', 3000, { checkedAt: stale }),
+    entry('b.bd', 'JisuLife Handheld Fan Pro1', 3100, { checkedAt: stale, image: 'https://b.bd/pro1.jpg' }),
+    entry('a.bd', 'AGX HF40 Portable Handheld Fan', 999, { checkedAt: stale })
+  ), { now: () => NOW });
+  const fanFetched = [];
+  const fanRecheck = createRechecker({
+    fetchPage: async url => {
+      fanFetched.push(url);
+      return { ok: true, status: 200, text: `<script type="application/ld+json">${JSON.stringify({ '@type': 'Product', name: 'AGX HF40', image: 'https://a.bd/agx.jpg', offers: { price: 999, priceCurrency: 'BDT' } })}</script>` };
+    },
+    robots: { allows: async () => true },
+    perShop: 1,
+    now: () => NOW
+  });
+  const fanAnswer = await fanRecheck(fanIndex, 'handheld fan');
+  assert.deepEqual(fanFetched, ['https://a.bd/product/agx-hf40-portable-handheld-fan', 'https://b.bd/product/jisulife-handheld-fan-pro1']);
+  const agx = fanAnswer.groups.flatMap(group => group.offers).find(offer => /AGX HF40/i.test(offer.title));
+  assert.equal(agx.image, 'https://a.bd/agx.jpg');
 });
 
 test('the re-check endpoint runs the server\'s re-check, and says so when there is none', async () => {
