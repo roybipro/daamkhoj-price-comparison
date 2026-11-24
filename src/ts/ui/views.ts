@@ -10,12 +10,21 @@ const TRENDING = ['iPhone 15', 'Galaxy A16', 'HP 250 G9', 'Miniket rice 5kg', 'S
 
 const showsLive = (ctx: RenderContext): boolean => ctx.state.live.status !== 'idle' && ctx.state.live.status !== 'unavailable';
 
+const placeholderCard = '<div class="pcard sk-card"><div class="pc-img"></div><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>';
+const shelvesLoadingView = (): string =>
+  `<div class="shelf-wait" role="status" aria-label="Loading prices">${[0, 1].map(() =>
+    `<section class="shelf" aria-hidden="true"><div class="shelf-head"><span class="sk sk-title"></span></div>
+      <div class="cards row">${placeholderCard.repeat(6)}</div></section>`).join('')}</div>`;
+
 export function resultsView(ctx: RenderContext): string {
   const { state, catalog, groups } = ctx;
   if (showsLive(ctx)) return liveView(state.live, { product: state.product, limit: state.resultLimit });
   /* With a price list, the shelves stay until the first typed results arrive; the sample
      catalogue below answers only on a host that has none. */
   if (state.browse.status === 'ready' && !state.storeId && (!state.q || state.live.status === 'idle')) return browseView(ctx, state.browse.data);
+  /* Until the shelves arrive, placeholders hold their place: drawing the sample catalogue for that
+     moment flashed an older-looking page on every reload. */
+  if (state.browse.status === 'loading' && !state.storeId && !state.q) return shelvesLoadingView();
   const priceCount = groups.reduce((n, g) => n + g.live.length + g.dropped.length, 0);
   const shopFilter = state.storeId ? catalog.stores.find(s => s.id === state.storeId) : undefined;
   const shopHints = state.q ? ctx.search.stores(state.q) : [];
@@ -189,7 +198,7 @@ export function howView(ctx: RenderContext): string {
 
 export function toolbarView(ctx: RenderContext): string {
   const { state, catalog } = ctx;
-  if (state.view !== 'results' || showsLive(ctx) || (state.browse.status === 'ready' && !state.storeId)) return '';
+  if (state.view !== 'results' || showsLive(ctx) || ((state.browse.status === 'ready' || (state.browse.status === 'loading' && !state.q)) && !state.storeId)) return '';
   return `<div class="toolbar">
     <p class="count" aria-live="polite"><b class="num">${catalog.totals.offers}</b> sample prices from <b class="num">${catalog.totals.stores}</b> shops for <b class="num">${catalog.totals.products}</b> products</p>
     <div class="controls">

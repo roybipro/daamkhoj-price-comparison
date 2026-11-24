@@ -576,3 +576,15 @@ select option { background: var(--surface); color: var(--text); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .offer.live .mono img { padding: 5.5px; }
+
+/* Placeholder shelves while the home page's prices load. */
+.sk { display: block; border-radius: 8px; background: var(--line-2); }
+.sk-title { width: min(240px, 60%); height: 24px; }
+.sk-card { cursor: default; pointer-events: none; gap: 10px; padding-bottom: 16px; }
+.sk-card .pc-img { background: var(--line-2); border-bottom: 0; }
+.sk-line { height: 12px; margin: 0 14px; }
+.sk-line.short { width: 45%; }
+@media (prefers-reduced-motion: no-preference) {
+  .sk, .sk-card .pc-img { animation: sk-pulse 1.1s ease-in-out infinite alternate; }
+}
+@keyframes sk-pulse { from { opacity: .55; } to { opacity: 1; } }
