@@ -1,7 +1,8 @@
 /* The price list: building it from sitemaps, and searching it. No network calls. */
 
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -10,6 +11,7 @@ import { createApi } from '../server/api.mjs';
 import { crawlShop, readShopifyProduct } from '../server/crawler.mjs';
 import { mergeGroups } from '../server/live-search.mjs';
 import { matchesQuery } from '../server/matching.mjs';
+import { pageMeta, robotsTxt, sitemapXml, withMeta } from '../server/seo.mjs';
 import { createPriceIndex, loadIndexFile, pullIndexFile, saveIndexFile, watchIndexFile } from '../server/price-index.mjs';
 import { parseSitemap, productPages } from '../server/sitemap.mjs';
 
@@ -796,4 +798,42 @@ test('a search of only numbers finds what checking every name would, written any
     assert.equal(index.search(query).found, everyName, query);
   }
   assert.equal(index.search('256gb').found, 3);
+});
+
+test('search engines get robots.txt, one sitemap address per product, and a head built from real prices', async () => {
+  const base = 'https://example.test';
+  assert.match(robotsTxt(base), /Disallow: \/api\/[\s\S]*Sitemap: https:\/\/example\.test\/sitemap\.xml/);
+
+  const map = sitemapXml(base, { updatedAt: '2026-11-24T05:00:00.000Z', shelves: [
+    { cards: [{ name: 'iPhone 17' }, { name: 'JBL Flip 7' }] }, { cards: [{ name: 'iphone 17' }] }
+  ] });
+  assert.equal((map.match(/<url>/g) ?? []).length, 5);
+  assert.ok(map.includes('<loc>https://example.test/?q=iphone+17</loc><lastmod>2026-11-24</lastmod>'));
+
+  const offers = [
+    { shop: 'a.bd', url: 'https://a.bd/1', title: 'LG 24MR400 Monitor', price: 12000, inStock: true },
+    { shop: 'b.bd', url: 'https://b.bd/1', title: 'LG 24MR400 IPS Monitor', price: 11500, inStock: false }
+  ];
+  const search = async query => ({ query, groups: query === 'lg monitor' ? [{ offers }] : [] });
+  const meta = await pageMeta(new URL('https://x/?q=lg+monitor'), { base, search });
+  assert.equal(meta.title, 'LG Monitor price in Bangladesh — from ৳11,500 at 2 shops | DaamKhoj');
+  assert.equal(meta.canonical, 'https://example.test/?q=lg+monitor');
+  assert.equal(meta.jsonLd.offers.lowPrice, 11500);
+  assert.equal(meta.jsonLd.offers.offers[1].availability, 'https://schema.org/OutOfStock');
+  assert.ok(!meta.noindex);
+  assert.equal((await pageMeta(new URL('https://x/?q=nothing+here'), { base, search })).noindex, true);
+
+  const page = '<html><head><title>Old</title><meta name="description" content="old"></head><body></body></html>';
+  const filled = withMeta(page, { title: '</title><script>x</script>', description: 'a "b"', canonical: `${base}/`, jsonLd: { name: '</script>' } });
+  assert.ok(filled.includes('<title>&lt;/title&gt;&lt;script&gt;x&lt;/script&gt;</title>'));
+  assert.ok(filled.includes('content="a &quot;b&quot;"'));
+  assert.ok(!filled.includes('"name":"</script>"'));
+  assert.ok(filled.includes('<link rel="canonical" href="https://example.test/">'));
+});
+
+test('the shipped page is open to search engines and shows no sample trust scores', async () => {
+  const html = await readFile(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'index.html'), 'utf8');
+  assert.ok(!/name="robots" content="noindex"/.test(html));
+  assert.ok(!/trust score/i.test(html));
+  assert.ok(!/data-view="compare"/.test(html));
 });

@@ -1,12 +1,7 @@
-import type { Offer, RenderContext, ShopProfile, TrustWeight } from '../types.js';
-import { escapeHtml, money, pluralCount, pluralNoun } from '../core/format.js';
-import { homeUrl } from '../core/links.js';
-import { UNDER_MARKET_RULE } from '../core/trust.js';
-import { groupCard, logo, OUT_ICON, shopLink } from './fragments.js';
-import { browseView } from './browse.js';
-import { liveUnavailableNote, liveView } from './live.js';
-
-const TRENDING = ['iPhone 15', 'Galaxy A16', 'HP 250 G9', 'Miniket rice 5kg', 'Soybean oil 5 litre', 'TP-Link Archer C6', 'Casio F91W', 'Romoss power bank 20000'];
+import type { RenderContext } from '../types.js';
+import { escapeHtml } from '../core/format.js';
+import { browseView, shopsView } from './browse.js';
+import { liveView } from './live.js';
 
 const showsLive = (ctx: RenderContext): boolean => ctx.state.live.status !== 'idle' && ctx.state.live.status !== 'unavailable';
 
@@ -17,228 +12,44 @@ const shelvesLoadingView = (): string =>
       <div class="cards row">${placeholderCard.repeat(6)}</div></section>`).join('')}</div>`;
 
 export function resultsView(ctx: RenderContext): string {
-  const { state, catalog, groups } = ctx;
+  const { state } = ctx;
   if (showsLive(ctx)) return liveView(state.live, { product: state.product, limit: state.resultLimit });
-  /* With a price list, the shelves stay until the first typed results arrive; the sample
-     catalogue below answers only on a host that has none. */
-  if (state.browse.status === 'ready' && !state.storeId && (!state.q || state.live.status === 'idle')) return browseView(ctx, state.browse.data);
-  /* Until the shelves arrive, placeholders hold their place: drawing the sample catalogue for that
-     moment flashed an older-looking page on every reload. */
-  if (state.browse.status === 'loading' && !state.storeId && !state.q) return shelvesLoadingView();
-  const priceCount = groups.reduce((n, g) => n + g.live.length + g.dropped.length, 0);
-  const shopFilter = state.storeId ? catalog.stores.find(s => s.id === state.storeId) : undefined;
-  const shopHints = state.q ? ctx.search.stores(state.q) : [];
-
-  const heading = state.q
-    ? `<div class="lead"><h2>${pluralCount(priceCount, 'price')} across ${pluralCount(groups.length, 'product')} for “${escapeHtml(state.q)}”</h2>
-        <p>Every shop selling it, side by side, with a trust score next to the price. The cheapest listing is not always the safest one — low scores stay visible, they are never hidden.</p></div>`
-    : `<div class="lead"><h2>See how DaamKhoj compares a deal</h2>
-        <p>Type a product above — in English, Bangla or Banglish. This demo lines up ${catalog.totals.offers} sample prices from ${catalog.totals.stores} shops across ${catalog.totals.products} products.</p></div>`;
-
-  const hints = shopHints.length ? `<div class="note">That matches a shop: ${shopHints.map(store =>
-    `<button class="chip" data-act="shop" data-id="${store.id}">${escapeHtml(store.name)}, trust ${store.score}</button>`).join(' ')}</div>` : '';
-
-  const applied = [
-    state.minTrust ? `trust ${state.minTrust}+` : '',
-    state.codOnly ? 'cash on delivery only' : ''
-  ].filter(Boolean).join(', ');
-
-  const showAll = Boolean(state.q) || state.showAll;
-  const shown = showAll ? groups : groups.slice(0, 6);
-
-  return `${state.live.status === 'unavailable' ? liveUnavailableNote() : ''}${heading}${hints}
-    ${shopFilter ? `<div class="note">Showing <b>${escapeHtml(shopFilter.name)}</b> only. <button class="chip" data-act="shop" data-id="">Back to all shops</button></div>` : ''}
-    ${applied ? `<div class="note">Filters active: ${escapeHtml(applied)}</div>` : ''}
-    ${shown.map((group, i) => groupCard(group, {
-      open: showAll || state.open.has(group.product.id) || i === 0,
-      showToggle: !state.q,
-      trend: state.trend === group.product.id,
-      weights: ctx.weights,
-      selected: state.compare,
-      maxCompare: state.maxCompare
-    })).join('')}
-    ${!groups.length ? `<div class="empty"><h3>${state.q ? `Nothing matches “${escapeHtml(state.q)}” yet` : 'No listing matches these filters'}</h3>
-      <p>The sample catalogue is still small. Try a broader word, or pick one of the searches below.</p>
-      <div class="chips" style="justify-content:center">${TRENDING.map(t =>
-        `<button class="chip" data-act="query" data-q="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join('')}</div></div>` : ''}
-    ${!showAll && groups.length > shown.length ? `<button class="more more-all" data-act="all">Show the other ${groups.length - shown.length} ${pluralNoun(groups.length - shown.length, 'product')}</button>` : ''}`;
+  if (state.browse.status === 'ready' && (!state.q || state.live.status === 'idle')) return browseView(ctx, state.browse.data);
+  /* Until the shelves arrive, placeholders hold their place. */
+  if (state.browse.status === 'loading' && !state.q) return shelvesLoadingView();
+  /* No price list answered. Sample prices beside real shop names are never shown in its place. */
+  return pricesUnavailableView(state.q);
 }
 
-function signalSummary(store: ShopProfile, weights: TrustWeight[]): string {
-  const signals = store.signals;
-  if (!signals) return '';
-  const rows = weights.slice(0, 4).map(weight => {
-    const signal = signals[weight.id];
-    return `<div class="sig"><span class="sig-n">${Math.round(signal.v * weight.weight)}<i>/${weight.weight}</i></span><span><b>${escapeHtml(weight.label)}</b><em>${escapeHtml(signal.why)}</em></span></div>`;
-  }).join('');
-  return `<div class="sig-list">${rows}</div>`;
-}
+const pricesUnavailableView = (query: string): string =>
+  `<div class="empty"><h3>Prices couldn't be loaded</h3>
+    <p>${query ? `We couldn't look up “${escapeHtml(query)}” just now. ` : ''}Please try again in a minute.</p>
+    <div class="chips" style="justify-content:center"><button class="chip" data-act="retry">Try again</button></div></div>`;
 
 export function storesView(ctx: RenderContext): string {
-  const { catalog, weights } = ctx;
-  const list = [...catalog.stores].sort((a, b) => b.score - a.score);
-  return `<div class="lead"><h2>The ${catalog.totals.stores} shops we track</h2>
-    <p>A price tells you what you pay; a shop tells you whether you get it. These scores come from business history, buyer reviews, payment safety, returns, warranty, delivery and support.</p></div>
-    <div class="grid">${list.map(store => `<article class="panel">
-      <div class="row1">
-        ${logo(store)}
-        <div><h4>${escapeHtml(store.name)}</h4><div class="site">${escapeHtml(store.url)}, ${store.closed ? `${store.since}–${store.closed}` : `since ${store.since}`}</div></div>
-        <div class="score-big"><div class="n num tier-${store.tier.id}">${store.score}</div><div class="l">${store.tier.label}</div></div>
-      </div>
-      <p class="blurb">${escapeHtml(store.blurb)}</p>
-      <div class="facts">
-        <span class="tag">${pluralCount(store.offerCount, 'offer')}</span>
-        <span class="tag">${store.kind === 'marketplace' ? 'Marketplace' : store.kind === 'brand' ? 'Manufacturer' : 'Retailer'}</span>
-        <span class="tag">${store.coverage === 'nationwide' ? 'Nationwide' : store.coverage === 'none' ? 'No delivery' : 'Limited area'}</span>
-        ${store.cod ? '<span class="tag ok">Cash on delivery</span>' : ''}
-        ${store.officialWarranty ? '<span class="tag ok">Official warranty</span>' : ''}
-        ${store.returnsDays ? `<span class="tag">${store.returnsDays}-day returns</span>` : ''}
-        ${store.incidents.map(i => `<span class="tag warn">${escapeHtml(i.t)}</span>`).join('')}
-      </div>
-      ${signalSummary(store, weights)}
-      <div class="facts" style="margin-top:10px">${store.categories.map(c =>
-        `<span class="tag cat">${escapeHtml(catalog.categories.get(c)?.en ?? c)}</span>`).join('')}</div>
-      <div class="panel-acts">
-        <button class="cmp" data-act="shop" data-id="${store.id}">See this shop's prices</button>
-        ${store.closed ? '' : store.siteDown ? '<span class="tag warn">Website not reachable</span>'
-          : `<a class="shop-link" href="${homeUrl(store)}" target="_blank" rel="noopener noreferrer nofollow">Website ${OUT_ICON}</a>`}
-      </div>
-    </article>`).join('')}</div>`;
+  const { browse } = ctx.state;
+  if (browse.status === 'ready') return shopsView(browse.data);
+  if (browse.status === 'loading') return shelvesLoadingView();
+  return pricesUnavailableView('');
 }
 
-export function compareView(ctx: RenderContext): string {
-  const picked = ctx.state.compare
-    .map(id => ctx.offersById.get(id))
-    .filter((offer): offer is Offer => Boolean(offer));
-
-  if (!picked.length) {
-    return `<div class="empty"><h3>Nothing selected yet</h3>
-      <p>Pick 2–4 shops for one product from the search results — the bar at the bottom then puts their prices and risk side by side.</p>
-      <button class="chip" data-act="view" data-view="results">Back to search</button></div>`;
-  }
-
-  const row = (label: string, format: (offer: Offer) => string, pick?: (offer: Offer) => number, dir: 'min' | 'max' = 'min'): string => {
-    let best: number | null = null;
-    if (pick) {
-      const values = picked.map(pick).filter(Number.isFinite);
-      if (values.length) best = dir === 'min' ? Math.min(...values) : Math.max(...values);
-    }
-    return `<tr><th scope="row">${label}</th>${picked.map(offer => {
-      const value = pick ? pick(offer) : null;
-      return `<td class="${best !== null && value === best ? 'win num' : 'num'}">${format(offer)}</td>`;
-    }).join('')}</tr>`;
-  };
-
-  const vsMedian = (offer: Offer): string => {
-    const gap = offer.market.median - offer.landed;
-    return gap > 0 ? `<span style="color:var(--taka);font-weight:700">−${money(gap)}</span>`
-      : gap < 0 ? `+${money(-gap)}` : 'At the median';
-  };
-
-  const cheapest = [...picked].sort((a, b) => a.landed - b.landed)[0];
-  const safest = [...picked].sort((a, b) => b.trust.score - a.trust.score)[0];
-
-  return `<div class="lead"><h2>${escapeHtml(picked[0].product.name)} — ${pluralCount(picked.length, 'shop')} side by side</h2>
-    <p>${escapeHtml(picked[0].product.spec)} · market median ${money(picked[0].market.median)}. Cheapest and safest are not always the same shop — ✦ marks the best value in each row.
-      <button class="toggle" data-act="copyLink" style="margin-left:6px">${ctx.state.linkCopied ? 'Link copied ✓' : 'Copy this comparison'}</button></p></div>
-    <div class="cmp-table"><table class="table cmp-grid">
-      <thead><tr><th></th>${picked.map(offer => `<th>${logo(offer.store, 'md')}<div style="margin-top:6px">${escapeHtml(offer.store.name)}</div></th>`).join('')}</tr></thead>
-      <tbody>
-        ${row('All-in price', o => money(o.landed), o => o.landed)}
-        ${row('Vs market median', vsMedian)}
-        ${row('Trust score', o => `${o.trust.score} <span class="tier-${o.trust.tier.id}" style="font-weight:700">(${o.trust.tier.label})</span>`, o => o.trust.score, 'max')}
-        ${row('Value score', o => `${o.value} <span style="color:var(--ink-3);font-weight:400">/100</span>`, o => o.value, 'max')}
-        ${row('Cash on delivery', o => o.store.cod ? 'Yes' : 'No')}
-        ${row('Return window', o => o.store.returnsDays ? `${o.store.returnsDays} days` : 'None', o => o.store.returnsDays, 'max')}
-        ${row('Warranty', o => o.store.officialWarranty ? 'Official' : o.store.kind === 'marketplace' ? 'Depends on the seller' : "Shop's own")}
-        ${row('Delivery', o => `${o.eta} days${o.ship ? ` · +${money(o.ship)}` : ''}`, o => o.eta)}
-        ${row('Payment methods', o => o.store.payments.length ? escapeHtml(o.store.payments.join(', ')) : '—')}
-        ${row('Seller', o => o.seller ? escapeHtml(o.seller) : "Shop's own stock")}
-        ${row('Seller rating', o => o.seller ? `${o.sellerRating.toFixed(1)}/5 (${o.sellerReviews})` : `${o.store.rating.toFixed(1)}/5`)}
-        ${row('Risk flags', o => o.trust.flags.length ? o.trust.flags.map(escapeHtml).join('<br>') : '<span style="color:var(--brand-2)">No risk flagged</span>')}
-        ${row('', o => shopLink(o))}
-      </tbody>
-    </table></div>
-    <div class="note" style="margin-top:16px">${cheapest.id === safest.id
-      ? `<b>Reading this:</b> ${escapeHtml(cheapest.store.name)} wins outright — lowest price at ${money(cheapest.landed)} and the highest trust score of the set (${safest.trust.score}).`
-      : `<b>Reading this:</b> the lowest price is ${escapeHtml(cheapest.store.name)} at ${money(cheapest.landed)}, the safest is ${escapeHtml(safest.store.name)} at ${money(safest.landed)} with a trust score of ${safest.trust.score}. Whether the gap is worth the risk is yours to decide — that judgement is the whole point of the score.`}</div>`;
-}
-
-export function howView(ctx: RenderContext): string {
-  const { weights, snapshot } = ctx;
-  const total = weights.reduce((sum, w) => sum + w.weight, 0);
-  const tiers: [string, string][] = [
-    ['Trusted · 82+', 'tier-strong'], ['Good · 68–81', 'tier-good'], ['Caution · 50–67', 'tier-caution'],
-    ['Risky · under 50', 'tier-risk'], ['Closed — do not buy', 'tier-closed']
-  ];
-  return `<div class="lead"><h2>How the trust score is built</h2>
-    <p>Not a black box. Seven signals add up to 100, then risk rules take points away. Hover or focus any score in the results to see its breakdown.</p></div>
-    <table class="table"><thead><tr><th>Signal</th><th>What we look at</th><th style="text-align:right">Weight</th></tr></thead><tbody>
-      ${weights.map(w => `<tr><td class="w">${escapeHtml(w.label)}</td><td>${escapeHtml(w.check)}</td><td class="num" style="text-align:right">${w.weight}</td></tr>`).join('')}
-      <tr><td class="w">Total</td><td></td><td class="num" style="text-align:right">${total}</td></tr>
-    </tbody></table>
+export function howView(): string {
+  return `<div class="lead"><h2>How DaamKhoj works</h2>
+    <p>Every price comes from a shop's own website, with the time it was read. We line them up so you can see who sells the same product for less.</p></div>
     <div class="grid" style="margin-top:16px">
-      <div class="panel"><h4>Risk rules</h4><p class="blurb">
-        • A price more than ${Math.round(UNDER_MARKET_RULE * 100)}% under the market median loses authenticity points and gets a visible warning.<br>
-        • On a marketplace the shop is not the seller — listings from sellers with under 60 reviews are flagged separately.<br>
-        • If a business has shut down, its offers are dropped from the comparison but still shown, in red, with the reason.<br>
-        • Any other recorded incident takes 25 points off the score.
-      </p></div>
-      <div class="panel"><h4>How best value ranks</h4><p class="blurb">
-        Value is trust × 0.5 + savings × 0.35 + speed × 0.15. Savings are measured against the market median and stop counting at ${Math.round(UNDER_MARKET_RULE * 100)}% under it. A listing below the Good tier never ranks above one that reached it.
-      </p></div>
-      <div class="panel"><h4>What the numbers mean</h4><div class="facts">
-        ${tiers.map(([label, tierClass]) => `<span class="tag ${tierClass}">${label}</span>`).join('')}
-      </div></div>
-      <div class="panel"><h4>Where the data comes from</h4><p class="blurb"><b>${escapeHtml(snapshot.label)}</b> — every price, rating and policy outside live results is sample data placed for the demo. Trust scores still need verified shop details, such as IMEI warranty checks and trade-licence and BTRIS registration lookups.</p></div>
-      <div class="panel"><h4>How live prices work</h4><p class="blurb">When you submit a search, we first check our price list, built ahead of time by reading every product page some shops list in their sitemaps, so those prices show at once, each with the time it was read. At the same time we run a web search, then open the shop pages it finds and read the price each page publishes. We skip pages that ask not to be read automatically, and any page without one clear taka price for the product you searched. Only the same version is compared. Shops in live results show as not rated, because their trust details have not been verified.</p></div>
-      <div class="panel"><h4>What we don't do</h4><p class="blurb">This demo takes no commissions from shops and has no paid rankings. It sells nothing, and it does not check any shop's claims yet.</p></div>
+      <div class="panel"><h4>Where prices come from</h4><p class="blurb">Every night we read the product pages that Bangladeshi online shops list for search engines, and save each page's taka price, stock and photo. Prices older than a week are left out.</p></div>
+      <div class="panel"><h4>When you search</h4><p class="blurb">Results come from that list at once. We then open the shops' pages again and update any price that changed, so each card says when its price was checked. We skip pages that ask not to be read automatically, and pages without one clear taka price.</p></div>
+      <div class="panel"><h4>Only the same product is compared</h4><p class="blurb">Storage, memory and model are matched, so a 128 GB phone is never compared with a 256 GB one, and accessories are kept apart from the product itself.</p></div>
+      <div class="panel"><h4>What we don't do</h4><p class="blurb">DaamKhoj sells nothing, takes no commission and has no paid rankings. We don't rate shops. A price can still be out of date or wrong, so check it on the shop's site before you pay.</p></div>
     </div>`;
 }
 
-export function toolbarView(ctx: RenderContext): string {
-  const { state, catalog } = ctx;
-  if (state.view !== 'results' || showsLive(ctx) || ((state.browse.status === 'ready' || (state.browse.status === 'loading' && !state.q)) && !state.storeId)) return '';
-  return `<div class="toolbar">
-    <p class="count" aria-live="polite"><b class="num">${catalog.totals.offers}</b> sample prices from <b class="num">${catalog.totals.stores}</b> shops for <b class="num">${catalog.totals.products}</b> products</p>
-    <div class="controls">
-    <label class="control">Sort
-      <select id="sort">${Object.entries(state.sortLabels).map(([id, label]) =>
-        `<option value="${id}"${state.sort === id ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select>
-    </label>
-    <label class="control">Min trust
-      <select id="minTrust">${[0, 60, 70, 80].map(v =>
-        `<option value="${v}"${state.minTrust === v ? ' selected' : ''}>${v ? `${v}+` : 'Any'}</option>`).join('')}</select>
-    </label>
-    <label class="control">Shop
-      <select id="storeId"><option value="">All shops</option>${catalog.stores.map(s =>
-        `<option value="${s.id}"${state.storeId === s.id ? ' selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}</select>
-    </label>
-    <button class="toggle" data-act="cod" aria-pressed="${state.codOnly}"><input type="checkbox" ${state.codOnly ? 'checked' : ''} tabindex="-1">Cash on delivery only</button>
-    ${state.minTrust || state.codOnly || state.storeId ? '<button class="toggle" data-act="reset">Clear filters</button>' : ''}
-    <button class="toggle" data-act="copyLink">${state.linkCopied ? 'Link copied' : 'Copy link'}</button>
-    </div>
-  </div>`;
+export function toolbarView(): string {
+  return '';
 }
 
-export function trayView(ctx: RenderContext): string {
-  const { state, offersById } = ctx;
-  if (!state.compare.length || state.view === 'compare') return '';
-  const picked = state.compare
-    .map(id => offersById.get(id))
-    .filter((offer): offer is Offer => Boolean(offer));
-  const lowest = Math.min(...picked.map(o => o.landed));
-
-  return `<div class="tray"><div class="wrap tray-in">
-    <span class="lbl"><b>${escapeHtml(picked[0].product.name)}</b> ${picked.length} of ${state.maxCompare} picked</span>
-    <div class="slots">${picked.map(offer => `<span class="slot">${logo(offer.store, 'xs')}${escapeHtml(offer.store.name)}
-      <b class="num">${money(offer.landed)}</b>
-      <button data-act="remove" data-id="${offer.id}" aria-label="Remove ${escapeHtml(offer.store.name)}">×</button></span>`).join('')}</div>
-    <div class="actions">
-      <button class="btn-ghost" data-act="clear">Clear</button>
-      <button class="btn-primary" data-act="view" data-view="compare" ${picked.length < 2 ? 'disabled' : ''}>${picked.length < 2 ? 'Pick one more' : `Compare, from ${money(lowest)}`}</button>
-    </div>
-  </div></div>`;
+export function trayView(): string {
+  return '';
 }
 
 export function suggestionsView(ctx: RenderContext): string {
@@ -249,31 +60,17 @@ export function suggestionsView(ctx: RenderContext): string {
     return '';
   }
 
-  /* Real products from the price list while it answers; the sample catalogue's only without one. */
-  const live = ctx.state.liveSuggest.map(item => ({
+  /* Products from the price list only. */
+  const items = ctx.state.liveSuggest.map(item => ({
     kind: 'live' as const, id: item.name, label: item.name, sub: item.shops > 1 ? `${item.shops} shops` : '1 shop'
   }));
-  const items = live.length || ctx.state.browse.status === 'ready' ? live : [
-    ...ctx.search.products(query).slice(0, 6).map(hit => ({
-      kind: 'product' as const, id: hit.product.id, label: hit.product.name,
-      sub: ctx.catalog.categories.get(hit.product.cat)?.en ?? ''
-    })),
-    ...ctx.search.stores(query).slice(0, 3).map(store => ({
-      kind: 'store' as const, id: store.id, label: store.name, sub: `Shop, trust ${store.score}`
-    }))
-  ];
   ctx.state.suggest = items;
   if (!items.length) return '';
 
-  let section = '';
-  return `<div class="suggest" id="suggest" role="listbox" aria-label="Search suggestions">${items.map((item, i) => {
-    const head = item.kind !== section ? `<div class="sgroup">${item.kind === 'store' ? 'Shops' : 'Products'}</div>` : '';
-    section = item.kind;
+  return `<div class="suggest" id="suggest" role="listbox" aria-label="Search suggestions"><div class="sgroup">Products</div>${items.map((item, i) => {
     const active = ctx.state.suggestIndex === i;
-    const tile = item.kind === 'store'
-      ? logo(ctx.catalog.stores.find(s => s.id === item.id) ?? ctx.catalog.stores[0], 'xs')
-      : '<span class="mono xs">✦</span>';
-    return `${head}<div role="option" id="opt-${i}" class="${active ? 'on' : ''}" data-i="${i}" aria-selected="${active}">
+    const tile = '<span class="mono xs">✦</span>';
+    return `<div role="option" id="opt-${i}" class="${active ? 'on' : ''}" data-i="${i}" aria-selected="${active}">
       ${tile}<span>${escapeHtml(item.label)}</span><span class="k">${escapeHtml(item.sub)}</span></div>`;
   }).join('')}</div>`;
 }

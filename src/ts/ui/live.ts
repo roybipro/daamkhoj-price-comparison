@@ -223,5 +223,5 @@ export function liveView(live: LiveState, view: { product: string; limit: number
 }
 
 export function liveUnavailableNote(): string {
-  return '<div class="note">Live prices are not available on this server, so these are <b>sample prices</b>.</div>';
+  return '<div class="note">Prices couldn\'t be loaded. Please try again in a minute.</div>';
 }

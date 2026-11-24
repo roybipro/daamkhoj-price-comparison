@@ -5,7 +5,7 @@ import { createSearch } from './core/search.js';
 import { decodeState, encodeState } from './core/urlstate.js';
 import { toggleTheme } from './core/theme.js';
 import type { Group, LiveState, Offer, RenderContext, SortKey, State, ViewName } from './types.js';
-import { compareView, howView, resultsView, storesView, suggestionsView, toolbarView, trayView } from './ui/views.js';
+import { howView, resultsView, storesView, suggestionsView, toolbarView, trayView } from './ui/views.js';
 
 const catalog = buildCatalog();
 const search = createSearch(catalog);
@@ -19,7 +19,7 @@ const SORTS: Record<SortKey, (a: Offer, b: Offer) => number> = {
 };
 
 const VIEWS: Record<ViewName, (ctx: RenderContext) => string> = {
-  results: resultsView, stores: storesView, compare: compareView, how: howView
+  results: resultsView, stores: storesView, compare: resultsView, how: howView
 };
 
 const state: State = {
@@ -275,8 +275,8 @@ function focusedControl(): string | null {
 function render(): void {
   const focused = focusedControl();
   const ctx = context();
-  dom.out.innerHTML = `${toolbarView(ctx)}${VIEWS[state.view](ctx)}`;
-  dom.tray.innerHTML = trayView(ctx);
+  dom.out.innerHTML = `${toolbarView()}${VIEWS[state.view](ctx)}`;
+  dom.tray.innerHTML = trayView();
   /* Once a search is submitted, or another tab is open, the headline steps aside so the content
      starts on the first screen. Not while typing: the box would jump under the reader's thumb. */
   const typedResults = state.live.status === 'done' && state.live.instant;
@@ -419,7 +419,12 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
     }, () => { state.linkCopied = false; });
   },
   reset: () => { state.codOnly = false; state.minTrust = 0; state.storeId = ''; render(); },
-  clearQuery: () => { state.q = ''; dom.input.value = ''; clearLive(); render(); dom.input.focus(); }
+  clearQuery: () => { state.q = ''; dom.input.value = ''; clearLive(); render(); dom.input.focus(); },
+  retry: () => {
+    state.browse = { status: 'loading' };
+    render();
+    void fetchBrowse().then(browse => { state.browse = browse; if (state.q) void startLive(); else render(); });
+  }
 };
 
 dom.input.addEventListener('input', event => onQueryChange((event.target as HTMLInputElement).value));
