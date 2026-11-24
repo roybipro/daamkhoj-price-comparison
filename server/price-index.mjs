@@ -72,6 +72,7 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
   const loadedAt = now();
   const entries = Object.values(data?.shops ?? {}).flatMap(shop => shop.entries ?? [])
     .filter(entry => !(loadedAt - Date.parse(entry.checkedAt) > maxAgeMs));
+  const checkedMs = Float64Array.from(entries, entry => Date.parse(entry.checkedAt));
   let shelves = null;
   let shelvedAt = -Infinity;
   let rebuilding = null;
@@ -81,18 +82,22 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
      from its rarest word's entries instead of reading every name in the list. */
   let words = null;
   let postings = null;
-  const candidates = query => {
-    if (!words) {
-      words = entries.map(entry => wordSet(`${entry.name} ${entry.url}`));
-      postings = new Map();
-      words.forEach((set, i) => {
-        for (const word of set) {
-          const list = postings.get(word);
-          if (list) list.push(i);
-          else postings.set(word, [i]);
-        }
-      });
+  function buildPostings() {
+    if (words) return;
+    words = new Array(entries.length);
+    postings = new Map();
+    for (let i = 0; i < entries.length; i++) {
+      const set = wordSet(`${entries[i].name} ${entries[i].url}`);
+      words[i] = set;
+      for (const word of set) {
+        const list = postings.get(word);
+        if (list) list.push(i);
+        else postings.set(word, [i]);
+      }
     }
+  }
+  const candidates = query => {
+    buildPostings();
     const lists = requiredWords(query).map(word => postings.get(word) ?? []);
     if (!lists.length) return entries.map((_, i) => i);
     return lists.reduce((smallest, list) => (list.length < smallest.length ? list : smallest));
@@ -104,7 +109,7 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
     const query = validQuery(rawQuery);
     const oldest = now() - maxAgeMs;
     const matched = candidates(query)
-      .filter(i => mentionsInTokens(words[i], query) && Date.parse(entries[i].checkedAt) >= oldest && matchesQuery(entries[i].name, query))
+      .filter(i => checkedMs[i] >= oldest && mentionsInTokens(words[i], query) && matchesQuery(entries[i].name, query))
       .map(i => entries[i]);
 
     const offers = matched.map(entry => ({
@@ -324,16 +329,18 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
   /* Prices re-read from the shops' pages, applied to the list in memory until the next one loads. */
   let byUrl = null;
   function update(fresh) {
-    byUrl ??= new Map(entries.map(entry => [entry.url, entry]));
+    byUrl ??= new Map(entries.map((entry, i) => [entry.url, i]));
     let changed = 0;
     let pictured = 0;
     for (const item of fresh) {
-      const entry = byUrl.get(item.url);
-      if (!entry || !(item.price > 0)) continue;
+      const idx = byUrl.get(item.url);
+      if (idx === undefined || !(item.price > 0)) continue;
+      const entry = entries[idx];
       if (entry.price !== item.price || entry.inStock !== item.inStock) changed++;
       entry.price = item.price;
       entry.inStock = item.inStock ?? null;
       entry.checkedAt = item.checkedAt;
+      checkedMs[idx] = Date.parse(item.checkedAt);
       if (item.image && !entry.image) {
         entry.image = item.image;
         pictured++;
@@ -409,7 +416,57 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
       }
     },
 
-    currentShelves: () => shelves
+    currentShelves: () => shelves,
+
+    /** Warms the search postings and suggestion tables in slices so the first visitor never waits. */
+    warm() {
+      return runInSlices((function* () {
+        if (!words) {
+          const builtWords = new Array(entries.length);
+          const builtPostings = new Map();
+          for (let i = 0; i < entries.length; i++) {
+            yield;
+            const set = wordSet(`${entries[i].name} ${entries[i].url}`);
+            builtWords[i] = set;
+            for (const word of set) {
+              const list = builtPostings.get(word);
+              if (list) list.push(i);
+              else builtPostings.set(word, [i]);
+            }
+          }
+          if (!words) { words = builtWords; postings = builtPostings; }
+        }
+        if (!products) {
+          const groups = new Map();
+          for (let i = 0; i < entries.length; i++) {
+            yield;
+            const entry = entries[i];
+            const key = productKey(entry.name);
+            if (key.length < 3) continue;
+            const group = groups.get(key) ?? { key, names: [], shops: new Set(), count: 0 };
+            if (group.names.length < 3) group.names.push(entry.name);
+            group.shops.add(entry.shop);
+            group.count++;
+            groups.set(key, group);
+          }
+          const builtProducts = [];
+          for (const group of groups.values()) {
+            yield;
+            builtProducts.push({ name: displayName(group.key, group.names), words: group.key.split(' '), shops: group.shops.size, count: group.count });
+          }
+          builtProducts.sort((a, b) => b.shops - a.shops || b.count - a.count);
+          if (!products) products = builtProducts;
+        }
+        if (!wordCounts) {
+          const builtCounts = new Map();
+          for (let i = 0; i < entries.length; i++) {
+            yield;
+            for (const name of namesOf(i)) builtCounts.set(name, (builtCounts.get(name) ?? 0) + 1);
+          }
+          if (!wordCounts) wordCounts = builtCounts;
+        }
+      })());
+    }
   };
 
   function shelvesDue() {
@@ -420,8 +477,41 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
     const fresh = now() - maxAgeMs;
     const counts = Object.fromEntries(Object.entries(data?.shops ?? {}).map(([shop, { entries: listed = [] }]) =>
       [shop, listed.filter(entry => Date.parse(entry.checkedAt) >= fresh).length]));
-    const categories = yield* discoverCategoriesSteps(entries.filter(entry => Date.parse(entry.checkedAt) >= fresh));
-    return yield* buildBrowseSteps(query => searchExactly(query), counts, categories);
+    const freshEntries = [];
+    const byKey = new Map();
+    for (let i = 0; i < entries.length; i++) {
+      if (checkedMs[i] < fresh) continue;
+      yield;
+      const entry = entries[i];
+      freshEntries.push(entry);
+      const key = productKey(entry.name);
+      if (key.split(' ').length < 2 || key.length < 5) continue;
+      const bucket = byKey.get(key);
+      if (bucket) bucket.push(entry);
+      else byKey.set(key, [entry]);
+    }
+    const categories = yield* discoverCategoriesSteps(freshEntries);
+    /* Shelf cards filter offers down to `offer.product === productKey(name)`, so checking only
+       that key's own bucket avoids scanning 75k+ postings 8,000 separate times. */
+    const searchBucket = rawQuery => {
+      const query = validQuery(rawQuery);
+      const bucket = byKey.get(productKey(query)) ?? [];
+      const matched = bucket.filter(entry => matchesQuery(entry.name, query));
+      const offers = matched.map(entry => ({
+        shop: entry.shop,
+        url: entry.url,
+        title: entry.name,
+        price: entry.price,
+        inStock: entry.inStock,
+        checkedAt: entry.checkedAt,
+        image: entry.image,
+        variant: variantOf(entry.name, query)
+      }));
+      const { kept } = dropSuspiciousPrices(offers);
+      const shown = kept.sort((a, b) => a.price - b.price).slice(0, maxOffers);
+      return { query, groups: groupOffers(shown) };
+    };
+    return yield* buildBrowseSteps(searchBucket, counts, categories);
   }
   return index;
 }
@@ -451,6 +541,7 @@ export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, lo
       loaded.adoptShelves(previous);
       setTimeout(async () => {
         try {
+          await loaded.warm();
           await loaded.rebuildShelves();
         } catch {
           /* Reported when asked for. */
