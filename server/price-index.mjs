@@ -86,6 +86,10 @@ const SCHEMA = `
   CREATE INDEX entries_by_url ON entries (url);
   CREATE INDEX entries_by_key ON entries (pkey);`;
 
+const ANSWER_TTL_MS = 5 * 60 * 1000;
+/* About 60 × 150 KB at most, for the broadest answers. */
+const MAX_ANSWERS = 60;
+
 /* Above every character, so `word >= start AND word < start || END` is "starts with". */
 const END = String.fromCodePoint(0x10ffff);
 
@@ -196,6 +200,11 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
     return built;
   });
   const ready = () => (db ??= database.get());
+
+  /* Recent answers. A broad search ("samsung", "15") checks over a thousand listings, which took
+     0.5–1 s on Render's small share of a CPU; many shoppers type the same ones. Kept a few
+     minutes, and dropped as soon as a price they show is read again. */
+  const answers = new Map();
 
   /* Statements are prepared once per shape: a search with three words has its own. */
   const statements = new Map();
@@ -437,6 +446,7 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
       image = coalesce(nullif(image, ''), ?) WHERE id = ?`);
     let changed = 0;
     let pictured = 0;
+    const written = new Set();
     db.exec('BEGIN');
     try {
       for (const item of fresh) {
@@ -446,6 +456,7 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
         if (row.price !== item.price || row.in_stock !== inStock) changed++;
         if (item.image && !row.image) pictured++;
         write.run(item.price, inStock, item.checkedAt, Date.parse(item.checkedAt) || null, item.image || null, row.id);
+        written.add(item.url);
       }
       db.exec('COMMIT');
     } catch (error) {
@@ -453,6 +464,12 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
       throw error;
     }
     if (changed || pictured) shelvesStale = true;
+    /* An answer that shows a page just read again is worked out afresh next time. */
+    if (written.size) {
+      for (const [key, saved] of answers) {
+        if ([...written].some(url => saved.urls.has(url))) answers.delete(key);
+      }
+    }
     return changed;
   }
 
@@ -468,10 +485,21 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
       /* A search typed in Bangla runs in the shops' English and says what it was read as, the way
          a spelling correction does: "আইফোন ১৫" → "iphone 15". */
       const typed = cleanQuery(rawQuery);
+      const key = `${partial ? 'p' : '-'}${closest ? 'c' : '-'}${typed}`;
+      const saved = answers.get(key);
+      if (saved && now() - saved.at < ANSWER_TTL_MS) {
+        answers.delete(key);
+        answers.set(key, saved);
+        return saved.answer;
+      }
       const query = fromBangla(typed, { partial });
       ready();
-      const answer = partial ? searchAsTyped(query, closest) : closest ? searchClosest(query) : searchCorrecting(query);
-      return query === typed ? answer : { ...answer, correctedFrom: typed };
+      const found = partial ? searchAsTyped(query, closest) : closest ? searchClosest(query) : searchCorrecting(query);
+      const answer = query === typed ? found : { ...found, correctedFrom: typed };
+      answers.delete(key);
+      if (answers.size >= MAX_ANSWERS) answers.delete(answers.keys().next().value);
+      answers.set(key, { at: now(), answer, urls: new Set(answer.groups.flatMap(group => group.offers.map(offer => offer.url))) });
+      return answer;
     },
     update: fresh => {
       ready();
