@@ -25,7 +25,7 @@ npm run fetch-logos      # logos for listed shops that have none (-- --shop=x.co
 
 TypeScript is compiled, not transpiled at runtime: `src/ts/**/*.ts` → `dist/js/**/*.js` as
 plain ES modules. The shipped site has **zero runtime dependencies** — no framework, no
-polyfills, no bundler. Requires Node 22+ to build (CI, the nightly crawl and the live site run
+polyfills, no bundler. Requires Node 22.13+ (for its built-in `node:sqlite`) (CI, the nightly crawl and the live site run
 Node 26); TypeScript 7 compiles it. Copy `.env.example` to `.env` to turn on
 live search; without it the site runs on sample prices.
 
@@ -210,6 +210,14 @@ share of them each night, and progress is saved as it goes.
 npm run crawl                                   # every shop in server/index-shops.mjs
 npm run crawl -- --shop=dazzle.com.bd --limit=50  # one shop, a sample
 ```
+
+**The list is searched from disk.** The file is committed as JSON; when the server loads it, it
+copies the list into a private SQLite database (Node's built-in `node:sqlite`, no package) with a
+table of every listing's words, and lets the JSON go. A search looks up its words there, then
+applies the same matching rules as before. At 109k prices this cut the server's heap from about
+100 MB to 16 MB (Render's free plan allows about 252 MB). The database is built a slice at a time,
+so the site never pauses for long; a newer list is built in the background while the last one
+keeps answering.
 
 **The home page browses the list.** `GET /api/browse` returns shelves of popular products by
 category, found by grouping the list's listings under their product names (`server/browse.mjs`;

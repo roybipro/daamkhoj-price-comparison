@@ -280,6 +280,36 @@ test('the server picks up a new crawl without restarting, and keeps the last goo
   await writeFile(file, 'damaged');
   time += 5000;
   assert.equal((await search('iphone 15')).priced, 1);
+
+  /* A newer list is built in the background: the last one answers until it takes over. */
+  await saveIndexFile(file, listOf(entry('a.bd', 'iPhone 15 128GB', 82000), entry('b.bd', 'iPhone 15 128GB', 81000)));
+  time += 1001;
+  assert.equal((await search('iphone 15')).priced, 1, 'the last list answers while the new one is built');
+  let priced = 1;
+  for (let tries = 0; priced === 1 && tries < 200; tries++) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+    priced = (await search('iphone 15')).priced;
+  }
+  assert.equal(priced, 2);
+});
+
+test('the list is searched from disk: updates, completions and suggestions read the same database', () => {
+  const index = createPriceIndex(listOf(
+    entry('a.bd', 'Samsung Galaxy A16 4/128GB', 19000),
+    entry('b.bd', 'Samsung Galaxy A16 4/128GB', 19500),
+    entry('a.bd', 'Samsung Galaxy A55 8/256GB', 45000)
+  ), { now: () => NOW });
+  const typed = index.search('galaxy a1', { partial: true });
+  assert.equal(typed.completedFrom, 'galaxy a1');
+  assert.equal(typed.query, 'galaxy a16');
+  assert.ok(typed.suggestions.some(item => /a16/i.test(item.name)));
+
+  const [offer] = typed.groups[0].offers;
+  const changed = index.update([{ url: offer.url, price: 18000, inStock: false, checkedAt: new Date(NOW).toISOString(), image: 'https://a.bd/a16.jpg' }]);
+  assert.equal(changed, 1);
+  const after = index.search('galaxy a16').groups[0].offers.find(item => item.url === offer.url);
+  assert.deepEqual([after.price, after.inStock, after.image], [18000, false, 'https://a.bd/a16.jpg']);
+  index.close();
 });
 
 function call(api, pathname, query = 'iphone 15') {

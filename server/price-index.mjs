@@ -6,10 +6,11 @@
    with times as ISO strings. Searching it needs no network and no paid request. */
 
 import { readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { DatabaseSync } from 'node:sqlite';
 import { fromBangla } from './bangla.mjs';
 import { cleanQuery, dropSuspiciousPrices, groupOffers, mergeGroups, validQuery } from './live-search.mjs';
 import { buildBrowseSteps, discoverCategoriesSteps, displayName, productKey, runInSlices, runNow } from './browse.mjs';
-import { createSpeller, matchesQuery, mentionsInTokens, requiredWords, variantOf, wordSet } from './matching.mjs';
+import { countSpellings, createSpeller, matchesQuery, mentionsInTokens, requiredWords, variantOf, wordSet } from './matching.mjs';
 
 const EMPTY = { version: 1, shops: {} };
 
@@ -62,25 +63,66 @@ export async function pullIndexFile(url, file, { fetchImpl = fetch, timeoutMs = 
   return true;
 }
 
+/* Where the list lives while it is searched: a private SQLite database on disk, built from the
+   file when it loads and deleted when it closes. On Render's 512 MB plan the list held in memory,
+   with the tables that made it fast, used about 100 MB of a 252 MB heap at 109k prices and once
+   ran it out. On disk it costs a few MB of cache, however long the list grows. */
+const SCHEMA = `
+  PRAGMA journal_mode = OFF;
+  PRAGMA synchronous = OFF;
+  PRAGMA temp_store = FILE;
+  PRAGMA cache_size = -8000;
+  CREATE TABLE entries (
+    id INTEGER PRIMARY KEY, shop TEXT, url TEXT, name TEXT, price REAL, in_stock INTEGER,
+    checked_at TEXT, checked_ms REAL, image TEXT, pkey TEXT, digits TEXT);
+  -- Every word of a listing's name and address; in_name marks the name's own.
+  CREATE TABLE words (word TEXT, id INTEGER, in_name INTEGER, PRIMARY KEY (word, id)) WITHOUT ROWID;
+  -- How many listings' names use each word.
+  CREATE TABLE word_counts (word TEXT PRIMARY KEY, n INTEGER) WITHOUT ROWID;
+  -- Products for suggestions, id in the order they are offered: most shops first.
+  CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, words TEXT, shops INTEGER);
+  CREATE TABLE product_words (word TEXT, pid INTEGER, PRIMARY KEY (word, pid)) WITHOUT ROWID;
+  -- Built as rows arrive, never in one long step at the end: that froze the site for seconds.
+  CREATE INDEX entries_by_url ON entries (url);
+  CREATE INDEX entries_by_key ON entries (pkey);`;
+
+/* Above every character, so `word >= start AND word < start || END` is "starts with". */
+const END = String.fromCodePoint(0x10ffff);
+
+const rowToEntry = row => ({
+  shop: row.shop,
+  url: row.url,
+  name: row.name,
+  price: row.price,
+  inStock: row.in_stock === null ? null : row.in_stock === 1,
+  checkedAt: row.checked_at,
+  ...(row.image && { image: row.image })
+});
+
 /**
  * Instant search over a loaded list. Prices older than `maxAgeMs` are left out rather than
  * shown as current, and at most `maxOffers` are returned, cheapest first within each version.
  */
-export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 * 60 * 1000, maxOffers = 300 } = {}) {
-  /* Prices too old to show are not kept in memory at all: the file keeps them for the crawl, but
-     a server holding every price twenty-odd shops ever listed would outgrow a small host. */
+export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60 * 60 * 1000, maxOffers = 300 } = {}) {
+  const shopNames = Object.keys(input?.shops ?? {});
+  const updatedAt = input?.updatedAt ?? null;
+  /* Prices too old to show are not kept at all: the file keeps them for the crawl. */
   const loadedAt = now();
-  const entries = Object.values(data?.shops ?? {}).flatMap(shop => shop.entries ?? [])
+  let source = Object.values(input?.shops ?? {}).flatMap(shop => shop.entries ?? [])
     .filter(entry => !(loadedAt - Date.parse(entry.checkedAt) > maxAgeMs));
-  const checkedMs = Float64Array.from(entries, entry => Date.parse(entry.checkedAt));
+  const size = source.length;
+
+  let db = null;
+  /* Learned from the names while the database is built. */
+  let speller = null;
   let shelves = null;
   let shelvedAt = -Infinity;
   let rebuilding = null;
   /* Set when a re-check changed a price, so the shelves catch up within minutes, not an hour. */
   let shelvesStale = false;
-  /* A table built one step at a time. The warm-up after loading advances it a slice at a time; a
-     request that needs it sooner finishes that same build. Two copies never exist at once: on
-     Render's 512 MB plan they did, when a search arrived mid-warm-up, and the heap ran out. */
+
+  /* A job done one step at a time: the warm-up after loading advances it a slice at a time, and a
+     request that needs it sooner finishes that same job. */
   function stepwise(build) {
     let steps = null;
     let done = false;
@@ -96,47 +138,97 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
     };
   }
 
-  /* For each word, the entries that use it: a search starts from its rarest word's entries
-     instead of reading every name in the list. An entry's own words are worked out again when
-     needed rather than kept: 77k word sets cost more memory than the host can spare. */
-  const tokensOf = i => wordSet(`${entries[i].name} ${entries[i].url}`);
-  const postingsTable = stepwise(function* () {
-    const built = new Map();
-    for (let i = 0; i < entries.length; i++) {
-      for (const word of tokensOf(i)) {
-        const list = built.get(word);
-        if (list) list.push(i);
-        else built.set(word, [i]);
+  /* The database, filled a few hundred listings per step. The listings are then let go: from
+     here on they are read from disk. */
+  const database = stepwise(function* () {
+    const built = new DatabaseSync('');
+    built.exec(SCHEMA);
+    const addEntry = built.prepare(`INSERT INTO entries VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const addWord = built.prepare(`INSERT INTO words VALUES (?, ?, ?)`);
+    const products = new Map();
+    const counts = new Map();
+    const spellings = new Map();
+    built.exec('BEGIN');
+    for (let id = 0; id < source.length; id++) {
+      const entry = source[id];
+      const name = String(entry.name ?? '');
+      const key = productKey(name);
+      addEntry.run(id, entry.shop ?? null, entry.url ?? null, name, entry.price ?? null,
+        typeof entry.inStock === 'boolean' ? Number(entry.inStock) : null, entry.checkedAt ?? null,
+        Date.parse(entry.checkedAt) || null, entry.image || null, key, name.replace(/\P{N}+/gu, ''));
+      const inName = wordSet(name);
+      const all = wordSet(`${name} ${entry.url}`);
+      for (const word of inName) all.add(word);
+      for (const word of all) addWord.run(word, id, inName.has(word) ? 1 : 0);
+      for (const word of inName) counts.set(word, (counts.get(word) ?? 0) + 1);
+      countSpellings(name, spellings);
+      if (key.length >= 3) {
+        const product = products.get(key) ?? { key, names: [], shops: new Set(), count: 0 };
+        if (product.names.length < 3) product.names.push(name);
+        product.shops.add(entry.shop);
+        product.count++;
+        products.set(key, product);
       }
-      yield;
+      if (id % 250 === 249) yield;
     }
+    source = null;
+    const ranked = [...products.values()].sort((a, b) => b.shops.size - a.shops.size || b.count - a.count);
+    products.clear();
+    const addProduct = built.prepare(`INSERT INTO products VALUES (?, ?, ?, ?)`);
+    const addProductWord = built.prepare(`INSERT INTO product_words VALUES (?, ?)`);
+    for (let pid = 0; pid < ranked.length; pid++) {
+      const { key, names, shops } = ranked[pid];
+      addProduct.run(pid, displayName(key, names), key, shops.size);
+      for (const word of new Set(key.split(' '))) addProductWord.run(word, pid);
+      if (pid % 1000 === 999) yield;
+    }
+    ranked.length = 0;
+    const addCount = built.prepare('INSERT INTO word_counts VALUES (?, ?)');
+    let step = 0;
+    for (const [word, n] of counts) {
+      addCount.run(word, n);
+      if (++step % 2000 === 0) yield;
+    }
+    counts.clear();
+    built.exec('COMMIT');
+    yield;
+    speller = createSpeller([], spellings);
     return built;
   });
-  const candidates = query => {
-    const postings = postingsTable.get();
-    const lists = requiredWords(query).map(word => postings.get(word) ?? []);
-    if (lists.length) return lists.reduce((smallest, list) => (list.length < smallest.length ? list : smallest));
-    /* Only numbers ("256gb", "65w", "15"): every way a name can match keeps each number's digits,
-       so a name whose digits, run together, lack one is skipped before the full check. That
-       check on all 77k names took ~0.45 s here, seconds on a small host. */
-    const numbers = String(query).match(/\p{N}+/gu);
-    if (!numbers) return entries.map((_, i) => i);
-    const out = [];
-    for (let i = 0; i < entries.length; i++) {
-      const digits = entries[i].name.replace(/\P{N}+/gu, '');
-      if (numbers.every(number => digits.includes(number))) out.push(i);
+  const ready = () => (db ??= database.get());
+
+  /* Statements are prepared once per shape: a search with three words has its own. */
+  const statements = new Map();
+  const statement = sql => {
+    let prepared = statements.get(sql);
+    if (!prepared) {
+      prepared = ready().prepare(sql);
+      statements.set(sql, prepared);
     }
-    return out;
+    return prepared;
   };
-  let speller = null;
+  /* The listings holding every one of these words, as SQL and its values. */
+  const holdingAll = words => [words.map(() => 'SELECT id FROM words WHERE word = ?').join(' INTERSECT '), words];
+
+  const candidates = (query, oldest) => {
+    const required = [...new Set(requiredWords(query))];
+    if (required.length) {
+      const [ids, values] = holdingAll(required);
+      return statement(`SELECT * FROM entries WHERE id IN (${ids}) AND checked_ms >= ? ORDER BY id`).all(...values, oldest);
+    }
+    /* Only numbers ("256gb", "65w", "15"): every way a name can match keeps each number's digits,
+       so a name whose digits, run together, lack one is skipped before the full check. */
+    const numbers = [...new Set(String(query).match(/\p{N}+/gu) ?? [])];
+    const digits = numbers.map(() => ' AND instr(digits, ?) > 0').join('');
+    return statement(`SELECT * FROM entries WHERE checked_ms >= ?${digits} ORDER BY id`).all(oldest, ...numbers);
+  };
 
   /** Prices whose names hold every word of the query, freshest list only. */
   function searchExactly(rawQuery) {
     const query = validQuery(rawQuery);
-    const oldest = now() - maxAgeMs;
-    const matched = candidates(query)
-      .filter(i => checkedMs[i] >= oldest && matchesQuery(entries[i].name, query) && mentionsInTokens(tokensOf(i), query))
-      .map(i => entries[i]);
+    const matched = candidates(query, now() - maxAgeMs)
+      .filter(row => matchesQuery(row.name, query))
+      .map(rowToEntry);
 
     const offers = matched.map(entry => ({
       shop: entry.shop,
@@ -166,16 +258,8 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
     };
   }
 
-  /* How many product names use each word, for telling known words from slips. */
-  const countsTable = stepwise(function* () {
-    const built = new Map();
-    for (let i = 0; i < entries.length; i++) {
-      for (const name of namesOf(i)) built.set(name, (built.get(name) ?? 0) + 1);
-      yield;
-    }
-    return built;
-  });
-  const countOf = word => countsTable.get().get(word) ?? 0;
+  /* How many product names use a word, for telling known words from slips. */
+  const countOf = word => statement('SELECT n FROM word_counts WHERE word = ?').get(word)?.n ?? 0;
 
   /** Words shops write both joined and apart, written the other way: "powerbank" → "power bank",
       "ear buds" → "earbuds". Only words the list's names use count. */
@@ -222,7 +306,6 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
       }
     }
     if (answer.found) return answer;
-    speller ??= createSpeller(entries.map(entry => entry.name));
     const corrected = speller(answer.query);
     if (corrected.toLowerCase() === answer.query.toLowerCase()) return answer;
     const retried = searchExactly(corrected);
@@ -258,76 +341,41 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
     return best ? { ...best, broadenedFrom: answer.query } : answer;
   }
 
-  /* Each listing's words as its name uses them (URLs left out, so "prod" never becomes "product"
-     from every shop's web address), worked out each time rather than kept for every listing. */
-  const namesOf = i => wordSet(entries[i].name);
-
   /** The commonest word that starts with `start` (itself included) among the listings holding
       every word in `before`: "a1" after "galaxy" is "a16", while "ip" alone is "iphone". */
   function completeWord(start, before) {
-    const postings = postingsTable.get();
-    let pool = before.length
-      ? before.map(word => postings.get(word) ?? []).reduce((smallest, list) => (list.length < smallest.length ? list : smallest))
-      : null;
-    pool = pool?.filter(i => { const tokens = tokensOf(i); return before.every(word => tokens.has(word)); });
-    let counts;
-    if (pool?.length) {
-      counts = new Map();
-      for (const i of pool) {
-        for (const word of namesOf(i)) {
-          if (word.startsWith(start) && !before.includes(word)) counts.set(word, (counts.get(word) ?? 0) + 1);
-        }
-      }
-    } else {
-      /* Across the whole list, the per-word listing counts already hold the answer. */
-      counts = new Map();
-      for (const [word, count] of countsTable.get()) {
-        if (word.startsWith(start) && !before.includes(word)) counts.set(word, count);
+    const range = [start, start + END];
+    let counts = null;
+    if (before.length) {
+      const [ids, values] = holdingAll([...new Set(before)]);
+      /* A pool with no listings falls back to the whole list. */
+      if (statement(`SELECT 1 FROM (${ids}) LIMIT 1`).get(...values)) {
+        counts = statement(`SELECT word, count(*) AS n FROM words WHERE in_name = 1 AND word >= ? AND word < ?
+          AND id IN (${ids}) GROUP BY word`).all(...range, ...values);
       }
     }
+    counts ??= statement('SELECT word, n FROM word_counts WHERE word >= ? AND word < ?').all(...range);
     let best = start;
     let bestCount = 0;
-    for (const [word, count] of counts) {
-      if (count > bestCount || (count === bestCount && word.length < best.length)) { best = word; bestCount = count; }
+    for (const { word, n } of counts) {
+      if (before.includes(word)) continue;
+      if (n > bestCount || (n === bestCount && word.length < best.length)) { best = word; bestCount = n; }
     }
     return best;
   }
 
-  /* Every product in the list, for suggestions: its name as shops write it, its words, how many
-     shops sell it and how many listings it has. */
-  const productsTable = stepwise(function* () {
-    const groups = new Map();
-    for (const entry of entries) {
-      const key = productKey(entry.name);
-      if (key.length >= 3) {
-        const group = groups.get(key) ?? { key, names: [], shops: new Set(), count: 0 };
-        if (group.names.length < 3) group.names.push(entry.name);
-        group.shops.add(entry.shop);
-        group.count++;
-        groups.set(key, group);
-      }
-      yield;
-    }
-    const built = [];
-    for (const group of groups.values()) {
-      built.push({ name: displayName(group.key, group.names), words: group.key.split(' '), shops: group.shops.size, count: group.count });
-      yield;
-    }
-    return built.sort((a, b) => b.shops - a.shops || b.count - a.count);
-  });
+  /* Up to six products for the list under the box, most widely sold first: each holds every
+     finished word, and a word that starts with the one still being typed. */
   function suggest(typed) {
-    const products = productsTable.get();
     const typedWords = String(typed).toLowerCase().split(/[^\p{L}\p{N}+]+/u).filter(Boolean);
     if (!typedWords.length) return [];
     const last = typedWords.pop();
-    const found = [];
-    for (const product of products) {
-      if (typedWords.every(word => product.words.includes(word)) && product.words.some(word => word.startsWith(last))) {
-        found.push(product);
-        if (found.length === 6) break;
-      }
-    }
-    return found;
+    const finished = [...new Set(typedWords)];
+    const each = finished.map(() => ' AND id IN (SELECT pid FROM product_words WHERE word = ?)').join('');
+    return statement(`SELECT name, words, shops FROM products
+      WHERE id IN (SELECT pid FROM product_words WHERE word >= ? AND word < ?)${each} ORDER BY id LIMIT 6`)
+      .all(last, last + END, ...finished)
+      .map(row => ({ name: row.name, words: row.words.split(' '), shops: row.shops }));
   }
 
   /* While a word is still being typed, it is completed to the commonest word that starts that
@@ -362,35 +410,37 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
     return { ...fallback(typed), suggestions };
   }
 
-  /* Prices re-read from the shops' pages, applied to the list in memory until the next one loads. */
-  let byUrl = null;
+  /* Prices re-read from the shops' pages, written to the list until the next one loads. */
   function update(fresh) {
-    byUrl ??= new Map(entries.map((entry, i) => [entry.url, i]));
+    const find = statement('SELECT id, price, in_stock, image FROM entries WHERE url = ? ORDER BY id DESC LIMIT 1');
+    const write = statement(`UPDATE entries SET price = ?, in_stock = ?, checked_at = ?, checked_ms = ?,
+      image = coalesce(nullif(image, ''), ?) WHERE id = ?`);
     let changed = 0;
     let pictured = 0;
-    for (const item of fresh) {
-      const idx = byUrl.get(item.url);
-      if (idx === undefined || !(item.price > 0)) continue;
-      const entry = entries[idx];
-      if (entry.price !== item.price || entry.inStock !== item.inStock) changed++;
-      entry.price = item.price;
-      entry.inStock = item.inStock ?? null;
-      entry.checkedAt = item.checkedAt;
-      checkedMs[idx] = Date.parse(item.checkedAt);
-      if (item.image && !entry.image) {
-        entry.image = item.image;
-        pictured++;
+    db.exec('BEGIN');
+    try {
+      for (const item of fresh) {
+        const row = item?.url ? find.get(item.url) : undefined;
+        if (!row || !(item.price > 0)) continue;
+        const inStock = typeof item.inStock === 'boolean' ? Number(item.inStock) : null;
+        if (row.price !== item.price || row.in_stock !== inStock) changed++;
+        if (item.image && !row.image) pictured++;
+        write.run(item.price, inStock, item.checkedAt, Date.parse(item.checkedAt) || null, item.image || null, row.id);
       }
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
     }
     if (changed || pictured) shelvesStale = true;
     return changed;
   }
 
   const index = {
-    size: entries.length,
-    shops: Object.keys(data?.shops ?? {}).length,
+    size,
+    shops: shopNames.length,
     /** When the list was saved, for a health check to see how old the prices are. */
-    updatedAt: data?.updatedAt ?? null,
+    updatedAt,
 
     /** `partial` while the last word may still be half typed; `closest` to fall back to a broader
         search rather than nothing, for a shopper (never for merging with a web search). */
@@ -399,10 +449,14 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
          a spelling correction does: "আইফোন ১৫" → "iphone 15". */
       const typed = cleanQuery(rawQuery);
       const query = fromBangla(typed, { partial });
+      ready();
       const answer = partial ? searchAsTyped(query, closest) : closest ? searchClosest(query) : searchCorrecting(query);
       return query === typed ? answer : { ...answer, correctedFrom: typed };
     },
-    update,
+    update: fresh => {
+      ready();
+      return update(fresh);
+    },
 
     /** Builds the shelves again at the next ask, as after a batch of photos arrives. */
     reshelve() {
@@ -454,13 +508,18 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
 
     currentShelves: () => shelves,
 
-    /** Warms the search postings and suggestion tables in slices so the first visitor never waits. */
+    /** Builds the database in slices so the first visitor never waits. */
     warm() {
       return runInSlices((function* () {
-        yield* postingsTable.warm();
-        yield* productsTable.warm();
-        yield* countsTable.warm();
+        yield* database.warm();
+        ready();
       })());
+    },
+
+    /** Lets the database go, deleting its file. */
+    close() {
+      statements.clear();
+      if (db?.isOpen) db.close();
     }
   };
 
@@ -469,29 +528,31 @@ export function createPriceIndex(data, { now = Date.now, maxAgeMs = 7 * 24 * 60 
   }
 
   function* shelfSteps() {
+    ready();
     const fresh = now() - maxAgeMs;
-    const counts = Object.fromEntries(Object.entries(data?.shops ?? {}).map(([shop, { entries: listed = [] }]) =>
-      [shop, listed.filter(entry => Date.parse(entry.checkedAt) >= fresh).length]));
-    const freshEntries = [];
-    const byKey = new Map();
-    for (let i = 0; i < entries.length; i++) {
-      if (checkedMs[i] < fresh) continue;
-      yield;
-      const entry = entries[i];
-      freshEntries.push(entry);
-      const key = productKey(entry.name);
-      if (key.split(' ').length < 2 || key.length < 5) continue;
-      const bucket = byKey.get(key);
-      if (bucket) bucket.push(entry);
-      else byKey.set(key, [entry]);
+    const counts = Object.fromEntries(shopNames.map(shop => [shop, 0]));
+    for (const { shop, n } of statement('SELECT shop, count(*) AS n FROM entries WHERE checked_ms >= ? GROUP BY shop').all(fresh)) {
+      if (shop in counts) counts[shop] = n;
     }
+    /* A page of listings at a time, so the list is never all in memory at once. */
+    const page = statement('SELECT id, shop, name FROM entries WHERE id > ? AND checked_ms >= ? ORDER BY id LIMIT 2000');
+    const freshEntries = (function* () {
+      for (let after = -1; ;) {
+        const rows = page.all(after, fresh);
+        if (!rows.length) return;
+        yield* rows;
+        after = rows.at(-1).id;
+      }
+    })();
     const categories = yield* discoverCategoriesSteps(freshEntries);
-    /* Shelf cards filter offers down to `offer.product === productKey(name)`, so checking only
-       that key's own bucket avoids scanning 75k+ postings 8,000 separate times. */
+    /* Shelf cards filter offers down to `offer.product === productKey(name)`, so only that key's
+       own listings are read. */
+    const bucket = statement('SELECT * FROM entries WHERE pkey = ? AND checked_ms >= ? ORDER BY id');
     const searchBucket = rawQuery => {
       const query = validQuery(rawQuery);
-      const bucket = byKey.get(productKey(query)) ?? [];
-      const matched = bucket.filter(entry => matchesQuery(entry.name, query));
+      const key = productKey(query);
+      const rows = key.split(' ').length < 2 || key.length < 5 ? [] : bucket.all(key, fresh);
+      const matched = rows.filter(row => matchesQuery(row.name, query)).map(rowToEntry);
       const offers = matched.map(entry => ({
         shop: entry.shop,
         url: entry.url,
@@ -526,20 +587,33 @@ export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, lo
     const version = await stat(file).then(info => `${info.mtimeMs}:${info.size}`, () => 'none');
     if (version === loadedVersion) return;
     try {
-      const previous = index;
-      index = createPriceIndex(await loadIndexFile(file), { now, ...options });
+      const loaded = createPriceIndex(await loadIndexFile(file), { now, ...options });
       loadedVersion = version;
-      log(`price list: ${index.size} prices from ${index.shops} shops`);
-      /* Searches use the new list at once; the home page keeps the last list's shelves until the
-         new ones are built, a slice at a time, so no request waits on them. */
-      const loaded = index;
-      loaded.adoptShelves(previous);
+      /* The first list is searched at once, built on demand if a search comes first. A newer one
+         is built a slice at a time in the background while the last keeps answering, so no
+         search waits on it; then it takes over. */
+      const takeOver = () => {
+        const previous = index;
+        index = loaded;
+        log(`price list: ${loaded.size} prices from ${loaded.shops} shops`);
+        /* The home page keeps the last list's shelves until the new ones are built. */
+        loaded.adoptShelves(previous);
+        /* A price re-check that started on the last list may still be reading shop pages. */
+        setTimeout(() => previous.close(), 10 * 60 * 1000).unref?.();
+      };
+      const first = index.size === 0;
+      if (first) takeOver();
       setTimeout(async () => {
         try {
           await loaded.warm();
+          if (!first) takeOver();
           await loaded.rebuildShelves();
-        } catch {
-          /* Reported when asked for. */
+        } catch (error) {
+          if (!first && index !== loaded) {
+            log(`price list not reloaded: ${error.message}`);
+            loaded.close();
+            return;
+          }
         }
         /* Then whatever should follow a new list, such as finding photos its cards lack. */
         Promise.resolve().then(() => onLoad(loaded)).catch(error => log(`after loading the price list: ${error.message}`));

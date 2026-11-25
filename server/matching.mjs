@@ -183,18 +183,20 @@ function editDistance(a, b, limit) {
   return previous[b.length];
 }
 
+/** Adds a name's words to a speller's counts, for a caller that reads the names one at a time. */
+export function countSpellings(name, counts) {
+  for (const token of tokensOf(name)) {
+    if (/^\p{L}{3,}$/u.test(token)) counts.set(token, (counts.get(token) ?? 0) + 1);
+  }
+}
+
 /**
  * A spelling corrector for searches, learned from the product names it will search: a word the
  * names never use is swapped for the closest one they do ("onplus" → "oneplus"), the commonest
  * when several are as close. Words with digits are model numbers and sizes, and stay as typed.
  */
-export function createSpeller(names) {
-  const counts = new Map();
-  for (const name of names) {
-    for (const token of tokensOf(name)) {
-      if (/^\p{L}{3,}$/u.test(token)) counts.set(token, (counts.get(token) ?? 0) + 1);
-    }
-  }
+export function createSpeller(names, counts = new Map()) {
+  for (const name of names) countSpellings(name, counts);
   const known = [...counts].sort((a, b) => b[1] - a[1]).map(([token]) => token);
 
   const fix = token => {

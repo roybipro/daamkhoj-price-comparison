@@ -161,7 +161,9 @@ export function createApi({
       const ageHours = updatedAt ? Math.round((Date.now() - Date.parse(updatedAt)) / 360_000) / 10 : null;
       return send(res, prices ? 200 : 503, {
         ok: prices > 0, prices, shops: index?.shops ?? 0, listUpdatedAt: updatedAt, listAgeHours: ageHours,
-        uptimeSeconds: Math.round(process.uptime()), memoryMB: Math.round(process.memoryUsage().rss / 1e6)
+        uptimeSeconds: Math.round(process.uptime()), memoryMB: Math.round(process.memoryUsage().rss / 1e6),
+        /* The part that can run out: Node's heap is capped at about half the host's memory. */
+        heapMB: Math.round(process.memoryUsage().heapUsed / 1e6)
       });
     } catch (error) {
       log(`health check failed: ${error.message}`);
