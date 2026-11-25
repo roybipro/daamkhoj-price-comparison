@@ -135,7 +135,10 @@ const OTHER_WORDS = [
 /* Sizes after a number: "১২৮ জিবি" → "128gb". */
 const UNITS = [
   ['gb', 'জিবি'], ['tb', 'টিবি'], ['mah', 'এমএএইচ', 'মিলিঅ্যাম্পিয়ার'], ['w', 'ওয়াট', 'ওয়াটের'],
-  ['mm', 'মিমি'], ['inch', 'ইঞ্চি', 'ইঞ্চির'], ['hz', 'হার্জ']
+  ['mm', 'মিমি'], ['inch', 'ইঞ্চি', 'ইঞ্চির'], ['hz', 'হার্জ'],
+  /* "৫জি" is a 5G phone and "৪কে" a 4K screen: the letter's name right after a number. */
+  ['g', 'জি'], ['k', 'কে'],
+  ['kg', 'কেজি', 'কিলো'], ['g', 'গ্রাম'], ['l', 'লিটার'], ['ml', 'মিলি', 'এমএল']
 ];
 
 /* English letters as Bangla says them, for model codes: "এ১৬" → "a16", "এস ২৪" → "s24". */
