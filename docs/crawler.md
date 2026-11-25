@@ -65,13 +65,15 @@ npm run crawl -- --limit=8000 --minutes=270            # what the nightly job ru
 2. Refuse to save a list with fewer than 1,000 prices.
 3. Merge shop by shop onto whatever reached `main` meanwhile (`tools/merge-lists.mjs`), so a
    commit made during the crawl never conflicts with it.
-4. Commit to `main` as `github-actions[bot]` and call the Render deploy hook.
+4. Commit to `main` as `github-actions[bot]`. It doesn't redeploy: the server picks the list up
+   itself (below), so the site isn't restarted twice a day.
 5. Write a per-shop table to the run's summary (`tools/crawl-report.mjs`). The run fails, so
    GitHub emails the owner, if the list lost 30% of its current prices or a third of the shops
    went unrefreshed.
 
 The server also downloads the newest list from GitHub on start and every
-`PRICE_INDEX_PULL_HOURS` (6) when `PRICE_INDEX_URL` is set, so prices arrive without a deploy.
+`PRICE_INDEX_PULL_HOURS` (1) when `PRICE_INDEX_URL` is set, so prices arrive without a deploy. An
+unchanged list costs one "not modified" answer; only a changed one is downloaded.
 It picks up a changed file within 30 seconds.
 
 **Never commit `data/price-index.json` while a refresh run is in progress**

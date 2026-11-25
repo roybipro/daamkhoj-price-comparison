@@ -16,7 +16,8 @@ How the live site at <https://daamkhoj.onrender.com> is built, deployed, watched
 
 The normal path: branch → PR → CI green → merge to `main`. CI (`.github/workflows/ci.yml`) runs
 `npm run check` and `npm test`, and on `main` calls the `RENDER_DEPLOY_HOOK` secret, which
-deploys. The nightly price refresh calls the same hook after it commits.
+deploys. The price refresh does **not** deploy: the server downloads the new list itself within
+the hour. A deploy restarts the free instance, and the site is starting up for about a minute.
 
 Render's own auto-deploy doesn't fire for this repository, so the hook is the only automatic
 trigger. To deploy by hand: Render dashboard → *daamkhoj* → *Manual Deploy*. Changing an
@@ -35,8 +36,8 @@ Set on Render; for local runs copy `.env.example` to `.env`.
 | `SITE_URL` | `https://daamkhoj.onrender.com` | Base for canonical links and the sitemap |
 | `CLIENT_IP_HEADER` | none | Header holding each visitor's real address; `cf-connecting-ip` on Render |
 | `PRICE_INDEX_FILE` | `data/price-index.json` | Where the list is read and saved |
-| `PRICE_INDEX_URL` | none | Raw GitHub URL of the list: downloaded on start and every… |
-| `PRICE_INDEX_PULL_HOURS` | `6` | …this many hours, only when newer |
+| `PRICE_INDEX_URL` | none | Raw GitHub URL of the list: checked on start and every… |
+| `PRICE_INDEX_PULL_HOURS` | `1` | …this many hours; downloaded only when it changed (ETag) and newer |
 | `PRICE_INDEX_REFRESH_HOURS` | none | Let the server crawl by itself (needs a persistent disk) |
 | `FRESHEN_EVERY_SECONDS` | `60` | Background re-check of popular products; `0` turns it off |
 | `BRIGHTDATA_API_KEY`, `BRIGHTDATA_SERP_ZONE` | none | Turn on the paid web search |
@@ -49,7 +50,7 @@ Set on Render; for local runs copy `.env.example` to `.env`.
 
 | Workflow | When | Does |
 |---|---|---|
-| `refresh-prices.yml` | 02:30 and 16:30 Bangladesh time | Crawls, saves the list to `main`, deploys. See [crawler.md](crawler.md#the-nightly-job) |
+| `refresh-prices.yml` | 02:30 and 16:30 Bangladesh time | Crawls and saves the list to `main`; the server picks it up within the hour. See [crawler.md](crawler.md#the-nightly-job) |
 | `uptime.yml` | every 30 min | Fails (so GitHub emails) if `/api/health` doesn't answer, serves under 1,000 prices, or the list is over 48 h old |
 | `ci.yml` | every push and PR | Check, test, and deploy from `main` |
 

@@ -37,15 +37,17 @@ const searchIndex = watchIndexFile(indexFile, {
 });
 void searchIndex.browse().catch(() => {});
 
-/* PRICE_INDEX_URL pulls the list the nightly crawl publishes, on start and every
-   PRICE_INDEX_PULL_HOURS (6 by default), so the site stays current without a redeploy. */
+/* PRICE_INDEX_URL pulls the list the crawl publishes, on start and every PRICE_INDEX_PULL_HOURS
+   (1 by default), so the site stays current without a redeploy. An unchanged list costs one
+   "not modified" answer, not a download. */
 if (process.env.PRICE_INDEX_URL) {
-  const pull = () => pullIndexFile(process.env.PRICE_INDEX_URL, indexFile).then(
+  const pulled = {};
+  const pull = () => pullIndexFile(process.env.PRICE_INDEX_URL, indexFile, { cache: pulled }).then(
     changed => console.log(`price list: ${changed ? 'downloaded a newer list' : 'already current'}`),
     error => console.log(`price list: download failed (${error.message}); keeping the last one`)
   );
   void pull();
-  setInterval(pull, (Number(process.env.PRICE_INDEX_PULL_HOURS) || 6) * 60 * 60 * 1000).unref();
+  setInterval(pull, (Number(process.env.PRICE_INDEX_PULL_HOURS) || 1) * 60 * 60 * 1000).unref();
 }
 const recheck = async (query, options) => rechecker(await searchIndex.index(), query, options);
 /* Between nightly crawls, the pages behind the home page's products are re-read in the

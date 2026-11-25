@@ -475,6 +475,21 @@ test('a published list is pulled over the local one, and a bad download never re
   assert.equal((await loadIndexFile(file)).shops['a.bd'].entries[0].price, 19000);
 });
 
+test('an unchanged published list is not downloaded again: its ETag is asked about instead', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'pull-'));
+  const file = path.join(dir, 'price-index.json');
+  const body = JSON.stringify({ version: 1, shops: { 'a.bd': { crawledAt: '2026-11-21T00:00:00.000Z', entries: [entry('a.bd', 'Galaxy A16', 20000)] } } });
+  const asked = [];
+  const github = async (_url, { headers }) => {
+    asked.push(headers['if-none-match'] ?? null);
+    return headers['if-none-match'] === '"v1"' ? new Response(null, { status: 304 }) : new Response(body, { headers: { etag: '"v1"' } });
+  };
+  const cache = {};
+  assert.equal(await pullIndexFile('https://x/list.json', file, { fetchImpl: github, cache }), true);
+  assert.equal(await pullIndexFile('https://x/list.json', file, { fetchImpl: github, cache }), false);
+  assert.deepEqual(asked, [null, '"v1"'], 'the second check only asks whether it changed');
+});
+
 test('shelves are rebuilt as prices age, so a card never offers a price its search leaves out', () => {
   let time = NOW;
   const index = createPriceIndex({ version: 1, shops: {

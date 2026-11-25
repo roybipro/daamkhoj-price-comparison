@@ -44,15 +44,19 @@ export async function saveIndexFile(file, data) {
  * Fetches a published copy of the list (the one the nightly crawl commits) and saves it over the
  * local file when it is newer, so a server that is never redeployed still gets each night's
  * prices. A download that is not a price list, or not newer, leaves the file alone. Says whether
- * it changed.
+ * it changed. With `cache` (an object kept between calls), the copy last seen is named by its
+ * ETag, so an unchanged list answers "not modified" instead of sending 38 MB again.
  */
-export async function pullIndexFile(url, file, { fetchImpl = fetch, timeoutMs = 60_000, maxBytes = 100_000_000 } = {}) {
-  const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
+export async function pullIndexFile(url, file, { fetchImpl = fetch, timeoutMs = 60_000, maxBytes = 100_000_000, cache = null } = {}) {
+  const headers = cache?.etag ? { 'if-none-match': cache.etag } : {};
+  const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs), headers });
+  if (response.status === 304) return false;
   if (!response.ok) throw new Error(`price list download answered ${response.status}`);
   const text = await response.text();
   if (text.length > maxBytes) throw new Error('price list download is too large');
   const data = JSON.parse(text);
   if (data?.version !== 1 || typeof data.shops !== 'object' || data.shops === null) throw new Error('the download is not a price list');
+  if (cache) cache.etag = response.headers?.get?.('etag') ?? null;
   /* Only ever forward: a cache can hand back yesterday's copy, which must not replace a newer
      list deployed with the site. */
   const current = await readFile(file, 'utf8').then(JSON.parse).catch(() => null);
