@@ -338,6 +338,30 @@ test('the list is searched from disk: updates, completions and suggestions read 
   index.close();
 });
 
+test('repeat searches are answered from recent answers until a price they show is read again', () => {
+  let time = NOW;
+  const index = createPriceIndex(listOf(
+    entry('a.bd', 'Samsung Galaxy A16 4/128GB', 19000),
+    entry('b.bd', 'Samsung Galaxy A16 4/128GB', 19500),
+    entry('a.bd', 'Xiaomi Redmi Note 13 8/256GB', 25000)
+  ), { now: () => time });
+  const first = index.search('galaxy a16');
+  assert.equal(index.search('galaxy a16'), first, 'the same answer, not worked out again');
+  const other = index.search('redmi note 13');
+
+  /* A re-read price drops only the answers that show that page. */
+  const [cheapest] = first.groups[0].offers;
+  index.update([{ url: cheapest.url, price: 18000, inStock: true, checkedAt: new Date(NOW).toISOString() }]);
+  const fresh = index.search('galaxy a16');
+  assert.notEqual(fresh, first);
+  assert.equal(fresh.groups[0].offers[0].price, 18000);
+  assert.equal(index.search('redmi note 13'), other);
+
+  time += 5 * 60 * 1000;
+  assert.notEqual(index.search('redmi note 13'), other, 'kept five minutes at most');
+  index.close();
+});
+
 function call(api, pathname, query = 'iphone 15') {
   return new Promise(resolve => {
     const res = { writeHead(status) { this.status = status; }, end(body) { resolve({ status: this.status, body: JSON.parse(body) }); } };
