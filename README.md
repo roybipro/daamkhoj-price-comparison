@@ -1,344 +1,81 @@
 # DaamKhoj — দামখোঁজ
 
-Price and trust comparison for Bangladeshi online shops. Search a product, see every
-retailer's price side by side, and read a trust score you can actually argue with next
-to each one — because the cheapest listing in Bangladesh is not always the safest.
+Price comparison for Bangladeshi online shops. Search a product in English or Bangla and see
+every shop's price side by side, cheapest first, with each price read from the shop's own page.
 
-**Search results marked Live are real prices** read from shops' own pages (see
-[Live search](#live-search)). **Everything else in this repository is sample data**, labelled
-as such in a banner on every page, the header, the footer and the *How it works* tab. The page
-is marked `noindex` for the same reason. Shop identities are real; the numbers are placeholders until live feeds are wired in (see [Going live](#going-live)).
+**Live:** <https://daamkhoj.onrender.com>
+
+- **30 shops, about 130,000 prices**, crawled twice a day from the shops' sitemaps.
+- **Instant search**: results follow your typing, in milliseconds, with suggestions, spelling
+  correction ("onplus" → OnePlus) and Bangla ("আইফোন ১৫" → iPhone 15).
+- **Fresh prices**: the pages behind your results are re-read while you look at them.
+- **Fair comparisons**: only the same version is compared (an i5 laptop is never "cheaper" than
+  an i7), accessories aren't the product, and suspicious prices are left out.
+- **Web search** on Enter finds shops the crawl doesn't cover.
 
 ## Quick start
 
-```bash
-npm install       # one dev dependency: typescript
-npm run dev       # build, then serve dist/ at http://127.0.0.1:5173/
-npm run check     # strict typecheck, build, then catalogue and reference integrity
-npm test          # build, then the regression tests in tests/
-npm run build     # emit dist/ (the deployable artifact)
-npm run typecheck # tsc --noEmit only
-npm run crawl     # build the price list behind instant search (hours; see below)
-npm run backfill-images  # photos for the home page's shelves (minutes)
-npm run fetch-logos      # logos for listed shops that have none (-- --shop=x.com.bd to refetch one)
-```
-
-TypeScript is compiled, not transpiled at runtime: `src/ts/**/*.ts` → `dist/js/**/*.js` as
-plain ES modules. The shipped site has **zero runtime dependencies** — no framework, no
-polyfills, no bundler. Requires Node 22.13+ (for its built-in `node:sqlite`) (CI, the nightly crawl and the live site run
-Node 26); TypeScript 7 compiles it. Copy `.env.example` to `.env` to turn on
-live search; without it the site runs on sample prices.
-
-## Design
-
-The look is a shop's price tag. Ink navy on a cool mint page, Bangladesh's bottle green for
-anything you can press, and turmeric yellow kept for one job: the lowest price wears a notched
-swing tag, with its punched hole, and nothing else on the page is that loud. One typeface,
-[Anek Bangla](https://fonts.google.com/specimen/Anek+Bangla), sets Bangla and Latin alike; its
-width axis narrows headlines and prices into a sign-like cut, and the home page leads with the
-question shoppers ask, «কোথায় সবচেয়ে কম দাম?». Once a search runs, or another tab is open, that
-headline steps aside so results start on the first screen of a phone.
-
-Two palettes, light and dark, come from one token file. `src/styles/tokens.css` holds every
-colour as a custom property, and `[data-theme="dark"]` overrides them wholesale; nothing
-below that file hard-codes a colour, so the modes cannot drift apart. The header toggle
-writes the choice to `localStorage`, and an inline script in `index.html` resolves
-`stored → prefers-color-scheme → light` before first paint so the page never flashes the
-wrong theme. Trust tiers are CSS classes rather than inline hex, because the greens and
-ambers that read well on night navy do not read well on paper.
-
-Both themes hold at least 5:1 contrast on every text element — comfortably past WCAG AA.
-
-## Architecture
-
-```
-src/
-├── index.html            shell: header, search, tabs, footer
-├── assets/favicon-taka.svg
-├── styles/               tokens → base → components → layout (cascade order matters)
-└── ts/
-    ├── types.ts              the domain model everything else speaks
-    ├── app.ts                entry: state, event wiring, render loop
-    ├── data/             hand-maintained catalogue, nothing derived
-    │   ├── meta.ts           snapshot date, categories, trust weight table
-    │   ├── stores.ts         23 shops and their trust signals
-    │   ├── products.ts       21 products, with Bangla/Banglish search aliases
-    │   ├── offers.ts         104 listings as compact tuples
-    │   └── search-patterns.ts  per-shop search URL templates
-    ├── core/             pure logic, no DOM — reusable server-side
-    │   ├── format.ts         money, escaping, normalisation
-    │   ├── trust.ts          seven weighted signals + risk rules → 0–100
-    │   ├── links.ts          product deep links and logo URLs
-    │   ├── price-history.ts  deterministic 12-week series for the trend chart
-    │   ├── trend.ts          chart geometry from those series — coordinates, never markup
-    │   ├── catalog.ts        joins data into offers with market stats
-    │   ├── urlstate.ts       encode/restore a shareable comparison in the query string
-    │   └── search.ts         tolerant search (English, Bangla, Banglish)
-    └── ui/               HTML string rendering, no DOM access beyond what it's given
-        ├── fragments.ts      offer rows, group cards, meters, logos
-        └── views.ts          results, shops, compare, methodology, chrome
-tools/
-├── build.mjs             clean → tsc → copy static files (the clean step is skipped for `--no-emit`)
-├── serve.mjs             zero-dependency static server for dist/
-├── crawl.mjs             npm run crawl: refreshes the price list
-└── check.mjs             integrity gate (see below)
-server/
-├── api.mjs               GET /api/search, rate limits, error handling
-├── live-search.mjs       the two-step search, saved results, daily limit
-├── providers/            the search vendor, in one replaceable file
-├── page-price.mjs        reads one clear taka price from a page
-├── sitemap.mjs           product pages from a shop's sitemap
-├── crawler.mjs           builds the price list, one shop at a time
-├── index-shops.mjs       the shops the price list reads, checked by hand
-├── price-index.mjs       the saved price list and the instant search over it
-├── matching.mjs          is it this product, and which version?
-├── robots.mjs            robots.txt rules
-└── safe-fetch.mjs        keeps page fetches off private networks and size-limited
-tests/
-├── core.test.mjs         regression tests for scoring, search and rendering rules
-├── live.test.mjs         live search rules, with no network calls
-└── index.test.mjs        the price list and instant search, with no network calls
-```
-
-`tsconfig.json` runs `strict` plus `noUnusedLocals`, `noUnusedParameters`,
-`noImplicitOverride` and `verbatimModuleSyntax` (type-only imports must be marked `import type`).
-
-Data flows one way: `data → core → ui → DOM`. Rendering is string templates into one
-container with a single delegated click handler — no virtual DOM, and the whole page is
-about 37 KB gzipped.
-
-The address bar is part of that flow rather than an extra: `core/urlstate.ts` turns the
-state into a query string (`?q=`, `view=`, `sort=`, `trust=`, `shop=`, `cod=`, `pick=`) and
-reads it back, so any search, filter or shortlist is a link you can paste to someone. It
-uses `replaceState`, never `pushState` — filtering is one continuous view. Unknown shop ids,
-out-of-range trust steps and hand-edited `pick=` listings that don't exist are dropped on
-read, and a shortlist mixing products is ignored rather than half-restored. `app.ts` is the
-only module that touches `window.history`.
-
-### What `npm run check` guards
-
-It builds first, then inspects the artifact the browser will actually load: every emitted
-module's imports resolve, every `src`/`href` in `index.html` points at a file that exists,
-trust weights sum to exactly 100, no listing references an unknown shop or product, no
-shop lists a product twice, prices and ratings are in range, no product is left without listings, and any closed shop must carry a documented reason.
-
-## The trust model
-
-Seven signals add to 100; risk rules subtract. The weights live in
-`src/ts/data/meta.ts` and are printed verbatim in the *How it works* tab, so a shop can
-dispute a specific number rather than the whole score.
-
-| Signal | Weight | What it measures |
-| --- | --- | --- |
-| Business history | 20 | Years trading, type of business, physical shops |
-| Buyer rating & review volume | 20 | The shop — or the exact marketplace seller — weighted by review count |
-| Payment & refund safety | 15 | Card gateway, mobile wallets, and marketplaces, assumed to hold funds |
-| Return & exchange window | 15 | Published days to send an item back |
-| Authenticity & warranty | 15 | Official warranty, type of seller, and how far the price sits under market |
-| Delivery coverage & speed | 5 | Districts served and quoted days |
-| Reachable support | 10 | A published hotline, plus a service desk |
-
-Risk rules:
-- More than **18% under the market median** cuts the authenticity score and raises a warning.
-- Marketplace listings from sellers with **under 60 reviews** are flagged separately — the
-  platform is not the one who ships your order.
-- A **shut-down business** has its offers dropped from the median but still displayed, in
-  red, with the reason. They can't be shortlisted or followed to the shop's site.
-- Any other recorded incident takes **25 points** off the score. Evaly is in the catalogue specifically for this case.
-
-Every product sold by more than one shop can expand a 12-week price chart, plotting up to
-six shops against the market median and ring-marking each one's cheapest week. The series
-comes from `core/price-history.ts` — a hash of the listing id, so the chart is identical for
-every visitor — and the panel labels it as generated sample history, not recorded prices.
-
-`value = trust × 0.5 + savings × 0.35 + speed × 0.15` ranks "best deal", which is why the
-top-ranked row is sometimes not the cheapest one. A listing below the Good tier (68) never
-ranks above one that reached it.
-
-## Adding a shop or a product
-
-1. Add the record to `src/ts/data/stores.ts` or `products.ts`.
-2. Add listings to `src/ts/data/offers.ts`: `[productId, storeId, price, mrp, etaDays, deliveryFee, sellerName, sellerRating, sellerReviews]`.
-3. If you know the shop's own search URL works, add a template to
-   `data/search-patterns.ts` (`{q}` is the encoded query). Otherwise leave it out and the
-   link falls back to a site-scoped search — a guessed deep link only ever 404s.
-4. `npm run check` catches typos in ids, unknown categories and products with no offers.
-
-## Live search
-
-Submitting a search (not typing) calls `GET /api/search?q=…`, which:
-
-1. Runs a web search through a third-party SERP provider, currently Bright Data, because Google
-   has no official API for this. `LIVE_SEARCH_ENGINE` picks `bing` (default) or `google`. Most
-   Google results link through `google.com/goto`, which throttled the server after about three
-   links in testing, so few shop pages get opened. Google sued one such provider, SerpApi, in
-   December 2025, and scraping-based search carries similar risk on any engine.
-2. Opens each shop page found, honouring `robots.txt` and refusing private network addresses.
-3. Keeps a price only if the page states one clear price in BDT, for the product searched.
-4. Groups by version (CPU, RAM, storage, or brand and pack size), and only names a lowest price
-   between in-stock offers of the same version. Pages that don't state a version are shown but
-   not compared.
-
-Shops show as *Not rated*: no trust data has been verified, and a real price must not sit beside
-an invented score.
-
-A new search takes about a minute, nearly all of it waiting for the search provider (37 to 86
-seconds in testing, against 3 to 18 for reading pages). So most customers shouldn't trigger one:
-results are saved for 3 hours (`LIVE_SEARCH_CACHE_MINUTES`), and `LIVE_SEARCH_WARM` keeps a list
-of popular searches refreshed in the background. Each new search costs 2 paid requests on Bing, because Bing is unreliable on any one wording,
-so both run and merge. Identical searches share them, each client gets 20 searches a minute,
-and a daily limit (`LIVE_SEARCH_DAILY_LIMIT`, default 300 requests) pauses paid searches,
-including background ones. These
-counters and saved results are in memory, so they reset on restart and aren't shared between
-server instances. Bing runs with `safesearch=strict`, and adult domains are refused before any
-request, because an unfiltered grocery search returned adult sites in testing.
-
-This needs a host that can run Node (`npm run build && HOST=0.0.0.0 npm start`), with the two
-Bright Data variables set as environment variables. On a purely static host the site still works,
-and search falls back to sample prices with a notice.
-
-## Instant search: the price list
-
-A web search takes a minute, so searches are answered first from a price list built ahead of
-time. `npm run crawl` reads each shop's sitemap (its own list of product pages), then opens each
-page and reads its price by the same rules as live search: `robots.txt` honoured, one clear BDT
-price, the product named on the page. Each shop is read one page at a time with a one-second
-pause, shops side by side; the 21 shops list well over 100,000 product pages, so a crawl reads a
-share of them each night, and progress is saved as it goes.
+Requires Node 22.13 or later (the live site runs Node 26).
 
 ```bash
-npm run crawl                                   # every shop in server/index-shops.mjs
-npm run crawl -- --shop=dazzle.com.bd --limit=50  # one shop, a sample
+npm install         # one dev dependency: typescript
+npm run dev         # build, then serve at http://127.0.0.1:5173/
+npm test            # build, then the tests (no network calls)
+npm run check       # strict typecheck, build, integrity checks
 ```
 
-**The list is searched from disk.** The file is committed as JSON; when the server loads it, it
-copies the list into a private SQLite database (Node's built-in `node:sqlite`, no package) with a
-table of every listing's words, and lets the JSON go. A search looks up its words there, then
-applies the same matching rules as before. At 109k prices this cut the server's heap from about
-100 MB to 16 MB (Render's free plan allows about 252 MB). The database is built a slice at a time,
-so the site never pauses for long; a newer list is built in the background while the last one
-keeps answering.
+The repository includes the latest price list, so search works at once. Copy `.env.example` to
+`.env` and add Bright Data keys to turn on the paid web search; without them everything else
+works.
 
-**The home page browses the list.** `GET /api/browse` returns shelves of popular products by
-category, found by grouping the list's listings under their product names (`server/browse.mjs`;
-nothing is picked by hand) and keeping every product two or more shops sell. Each is answered from
-the list: the lowest price of any
-version, how many shops sell it, the shop with that price, and a photo. A product only shows when
-at least two shops sell it. Opening a card runs that search, which compares versions properly. On a
-host with no price list the home page falls back to the sample demo. Building the shelves runs a
-search per product, seconds of work on a small server, so the server rebuilds them hourly a few
-milliseconds at a time between requests, and keeps answering from the last ones meanwhile.
+| Command | |
+|---|---|
+| `npm run dev` / `npm start` | Build and serve / serve the existing build (`PORT`, `HOST`) |
+| `npm run build` | Emit `dist/` |
+| `npm run typecheck` | `tsc --noEmit` only |
+| `npm test` | Build, then `tests/*.test.mjs` |
+| `npm run check` | Build, then check the built site's references |
+| `npm run crawl` | Refresh the price list (hours; `-- --shop=x.com.bd --limit=50` for a sample) |
+| `npm run backfill-images` | Photos for home page cards (minutes) |
+| `npm run fetch-logos` | Logos for listed shops that have none |
 
-**Search is instant and live.** Results follow the typing: each pause asks the price list
-(`/api/search/quick?partial=1`), which completes a half-typed last word the way its suggestions do
-("iph" → iPhone, "galaxy a1" → Galaxy A18) and answers in milliseconds with real products and
-real suggestions. A last word the list knows in full is searched as typed ("ryzen 5 5600" stays
-the 5600, not the 5600GT), spelling slips are corrected ("onplus" → OnePlus), joined and split
-spellings are merged ("powerbank" = "power bank"), and a search with no exact match shows the
-closest one with a note. **Searches typed in Bangla work too:** `server/bangla.mjs` reads them in
-the shops' English first ("আইফোন ১৫ প্রো ম্যাক্স এর দাম কত" → iphone 15 pro max, "স্যামসাং
-গ্যালাক্সি এ১৬" → samsung galaxy a16), knowing the common spellings of brands and products,
-Bangla digits, letter names in model codes and sizes, and the answer says what it was read as. A second later `/api/recheck` reads the shops' pages behind the first results
-again (no paid search: the list knows each page), so prices on screen show "checked just now";
-opening a product re-reads every shop for it. Re-checks stay polite: a page read in the last half
-hour is not read again, at most six pages per shop and 24 per check, two at a time, robots.txt
-honoured. The paid web search runs only when a search is submitted.
+## Documentation
 
-**Shop logos** are each listed shop's own icon, saved under `src/assets/shops/` by
-`npm run fetch-logos` and served from this site; shops a web search finds use a favicon service.
+| | |
+|---|---|
+| [Architecture](docs/architecture.md) | The parts, how a price reaches the screen, where everything lives |
+| [Search](docs/search.md) | Instant search on SQLite, matching rules, Bangla, re-checks, web search |
+| [Crawler](docs/crawler.md) | The price list file, how a crawl works, the nightly job, adding a shop |
+| [API](docs/api.md) | Every endpoint, its parameters and answers |
+| [Operations](docs/operations.md) | Hosting, deploys, environment variables, monitoring, troubleshooting |
+| [Frontend](docs/frontend.md) | The browser app: build, rendering, tabs, URL state, look |
 
-**Photos** come from each product page's structured data, else its sharing image, else Shopify's
-product JSON, and the crawl saves them with each price. `npm run backfill-images` fetches photos
-for the products on the shelves without waiting for the nightly crawls to reach them.
+## Stack
 
-Submitting a search answers from the list as well (`GET /api/search/quick`), in milliseconds and
-with no paid request or Bright Data key needed. The paid web search (`GET /api/search?q=…`) runs
-only when the shopper presses *Search the web*, or on a host with no price list; its answer
-includes the list's. Each price shows when it was read, and prices more than a week old are left out.
-A shop selling one version in several colours counts once, at its cheapest price in stock.
+| | |
+|---|---|
+| Browser | TypeScript 7 → plain ES modules; no framework, no bundler, no runtime dependencies |
+| Server | Node's built-in `http`, no framework; price list searched from SQLite (`node:sqlite`) on disk |
+| Web search | Bright Data's search API on Bing (`server/providers/bright-data.mjs`) |
+| Hosting | Render (free plan) |
+| Automation | GitHub Actions: CI and deploy, a price crawl twice a day, an uptime check every 30 min |
 
-The list is saved to `data/price-index.json` (`PRICE_INDEX_FILE`), and the server picks up a new
-crawl within 30 seconds. The file is committed, so a fresh deploy answers at once even on a host
-that wipes its disk, such as Render's free plan.
+## Working on it
 
-**It refreshes itself.** `.github/workflows/refresh-prices.yml` crawls every night at 02:30
-Bangladesh time and commits the new list to `main`. A GitHub job may run at most six hours, so
-each run reads up to 8,000 pages per shop, never-read pages first, then the longest unread, and
-starts no page after 270 minutes (`npm run crawl -- --minutes=270`) so it always has time to save.
-A run that leaves fewer than 1,000 prices is not saved. Each run's summary page has a table of
-every shop (`tools/crawl-report.mjs`), and the run fails, so GitHub emails the owner, if the list
-lost 30% of its current prices or a third of the shops went unrefreshed. If Render's
-GitHub app can't see the repository, pushes don't redeploy; then save the service's deploy hook
-(Render: *Settings → Deploy Hook*) as the `RENDER_DEPLOY_HOOK` repository secret, and the workflow
-calls it after each refresh. Run it by hand
-from the Actions tab (*Refresh price list → Run workflow*), with a smaller limit for a quick test.
+- Branch → PR → CI green → merge to `main`. Merging to `main` deploys.
+- Don't commit `data/price-index.json` while the *Refresh price list* workflow is running.
+- Put no invented data next to real shop names. Prices come only from shops' own pages.
+- Be polite to shops: check `robots.txt`, send about one request a second per shop, and don't
+  re-read a page within half an hour.
+- Server changes that hold more in memory must be measured under the host's heap cap (see
+  [Operations](docs/operations.md#memory)).
 
-A server that isn't redeployed can still follow those nightly commits: set `PRICE_INDEX_URL` to
-the list's raw GitHub address and it downloads the newest list on start and every
-`PRICE_INDEX_PULL_HOURS` (6), refusing anything that isn't a price list.
+## Before promoting it
 
-On a server with a persistent disk you can instead set `PRICE_INDEX_REFRESH_HOURS=24` and point
-`PRICE_INDEX_FILE` at that disk, and the server crawls on that schedule itself.
-
-Shops in the list were checked by hand: their `robots.txt` allows product pages, and a sample of
-25 pages gave a clear price for Apple Gadgets (25), Dazzle (25), Sumash Tech (22) and iStock
-(13 from the pages; iStock is a Shopify shop, so it is read through Shopify's product JSON,
-which prices each version). Searching shops' own search pages was tried first and dropped: of
-the shops whose `robots.txt` allows it, only iStock's search page returns results without
-running JavaScript. Seven more were added on 2026-11-23 after
-a 12-page sample each (priced of 12): Trust Tech 12, Star Tech 11, Binary Logic 11, Gadget & Gear
-11, Techland 10, Global Brand 8 and Gadget Breeze 8; Ryans (4) and Computer Source (1) did not pass.
-Ten more joined the same day after the same check plus 20 prices read by hand from each: Ryans
-(10/12 on a second sample), PC House, Ultra Tech, Smart, UCC, Vertech, KRY International, Diamu,
-Gadget Mart and Transcom Digital, 21 shops in all. Mobile Dokan BD passed the price check but is a
-price guide with no cart, so it is left out. Sumash Tech refuses GitHub's and Render's servers, so
-its prices only refresh from a crawl run elsewhere.
-
-## Keeping it running
-
-- **`GET /api/health`** says how many prices are served, from how many shops, how old the list is,
-  and the server's uptime and memory. It answers 503 only when no prices are served. On Render,
-  set it as the service's health check path so a stuck server is restarted.
-- **`.github/workflows/uptime.yml`** asks for it every 30 minutes and fails, so GitHub emails the
-  owner, if the site does not answer, serves fewer than 1,000 prices, or the list is over two days
-  old (the nightly crawl has stopped saving). Set the `SITE_URL` repository variable if the site
-  moves.
-- **Rate limits** tell visitors apart by `CLIENT_IP_HEADER` (on Render, `cf-connecting-ip`), never
-  by the first `X-Forwarded-For` entry, which a visitor can write.
-- **Static files** are revalidated with an ETag (a tiny "not modified" when unchanged), so a deploy
-  never mixes old and new modules; shop logos and icons are kept for a day.
-- **Memory:** the server keeps only prices young enough to show, about 1.6 KB each; Render's free
-  plan (512 MB) holds roughly 100,000 comfortably.
-
-## Going live
-
-Real prices need real sources, in rough order of difficulty:
-
-1. **Marketplace APIs** — Daraz and Pickaboo publish seller/catalogue APIs under an app key.
-2. **Direct partnerships or published feeds** for retailers such as Star Tech and Ryans.
-3. **A scheduled collector** writing to a store database, with per-listing `lastSeen` timestamps
-   so the UI can show price age instead of a static snapshot date.
-4. **Warranty verification** by IMEI against brand portals, and trade-licence/BTRIS lookups
-   to replace the sampled `since`/`showrooms` fields.
-
-Collection must run server-side: browser requests to those domains are blocked by CORS and
-bot protection, and any credentials have to stay off the client.
-
-## Before going public
-
-The code is ready to deploy as a demo, and CI runs `npm run check` and `npm test` on every
-push. Sample scores still sit next to real shop names, so before removing `noindex` or
-promoting the site, replace them with real data or get the shops' names out of the demo.
-Live search also reads shops' pages and depends on a scraping provider, so check each shop's
-terms and get legal advice on both before launch.
-The Evaly shutdown text in `data/stores.ts` is a factual claim and needs a citable source.
-
-## Deployment
-
-`npm run build` emits `dist/`, which is already the shape Qoder Sites and any static host
-expects (`index.html` at the root, relative assets, no server runtime), though live search
-needs Node as described above. The site is a single route, so no SPA fallback is needed.
+The site reads shops' public pages and uses a scraping-based search provider. Check each shop's
+terms and get legal advice on both before promoting the site widely. Shops show as *Not rated*:
+no trust data has been verified.
 
 ## Licence
 
-Unlicensed for now — private project, all rights reserved.
+Unlicensed for now. Private project, all rights reserved.
