@@ -5,7 +5,10 @@
 
    with times as ISO strings. Searching it needs no network and no paid request. */
 
-import { readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { DatabaseSync } from 'node:sqlite';
 import { fromBangla } from './bangla.mjs';
 import { cleanQuery, dropSuspiciousPrices, groupOffers, mergeGroups, validQuery } from './live-search.mjs';
@@ -47,24 +50,45 @@ export async function saveIndexFile(file, data) {
  * it changed. With `cache` (an object kept between calls), the copy last seen is named by its
  * ETag, so an unchanged list answers "not modified" instead of sending 38 MB again.
  */
-export async function pullIndexFile(url, file, { fetchImpl = fetch, timeoutMs = 60_000, maxBytes = 100_000_000, cache = null } = {}) {
+export async function pullIndexFile(url, file, { fetchImpl = fetch, timeoutMs = 10 * 60_000, maxBytes = 200_000_000, cache = null } = {}) {
   const headers = cache?.etag ? { 'if-none-match': cache.etag } : {};
+  /* At 54 MB, reading the whole answer into memory first took over a minute on Render's small
+     share of a CPU, so every pull since 2026-11-24 timed out: it is written to disk as it
+     arrives, with ten minutes to finish. */
   const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs), headers });
   if (response.status === 304) return false;
   if (!response.ok) throw new Error(`price list download answered ${response.status}`);
-  const text = await response.text();
-  if (text.length > maxBytes) throw new Error('price list download is too large');
-  const data = JSON.parse(text);
-  if (data?.version !== 1 || typeof data.shops !== 'object' || data.shops === null) throw new Error('the download is not a price list');
-  if (cache) cache.etag = response.headers?.get?.('etag') ?? null;
-  /* Only ever forward: a cache can hand back yesterday's copy, which must not replace a newer
-     list deployed with the site. */
-  const current = await readFile(file, 'utf8').then(JSON.parse).catch(() => null);
-  if (current && listVersion(data) <= listVersion(current)) return false;
   const temporary = `${file}.${process.pid}.pull.tmp`;
-  await writeFile(temporary, text);
-  await rename(temporary, file);
-  return true;
+  try {
+    let bytes = 0;
+    const counted = async function* (chunks) {
+      for await (const chunk of chunks) {
+        bytes += chunk.length;
+        if (bytes > maxBytes) throw new Error('price list download is too large');
+        yield chunk;
+      }
+    };
+    await pipeline(Readable.fromWeb(response.body ?? new Response('').body), counted, createWriteStream(temporary));
+    const data = JSON.parse(await readFile(temporary, 'utf8'));
+    if (data?.version !== 1 || typeof data.shops !== 'object' || data.shops === null) throw new Error('the download is not a price list');
+    const etag = response.headers?.get?.('etag') ?? null;
+    /* Only ever forward: a cache can hand back yesterday's copy, which must not replace a newer
+       list deployed with the site. The local list's version is read from its file once. */
+    const incoming = listVersion(data);
+    const current = cache?.version
+      ?? await readFile(file, 'utf8').then(text => listVersion(JSON.parse(text)), () => null);
+    if (cache) Object.assign(cache, { etag, version: current });
+    if (current !== null && incoming <= current) {
+      await unlink(temporary).catch(() => {});
+      return false;
+    }
+    await rename(temporary, file);
+    if (cache) cache.version = incoming;
+    return true;
+  } catch (error) {
+    await unlink(temporary).catch(() => {});
+    throw error;
+  }
 }
 
 /* Where the list lives while it is searched: a private SQLite database on disk, built from the

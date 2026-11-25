@@ -1,7 +1,7 @@
 /* The price list: building it from sitemaps, and searching it. No network calls. */
 
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -460,6 +460,7 @@ test('a published list is pulled over the local one, and a bad download never re
   assert.equal(await pullIndexFile('https://x/list.json', file, { fetchImpl: serve(good) }), false, 'the same list is not rewritten');
 
   await assert.rejects(pullIndexFile('https://x/list.json', file, { fetchImpl: serve('<html>rate limited</html>') }));
+  assert.deepEqual(await readdir(dir), ['price-index.json'], 'a bad download leaves nothing behind');
   await assert.rejects(pullIndexFile('https://x/list.json', file, { fetchImpl: serve(JSON.stringify({ version: 2 })) }), /not a price list/);
   await assert.rejects(pullIndexFile('https://x/list.json', file, { fetchImpl: serve('', 404) }), /404/);
   assert.equal((await loadIndexFile(file)).shops['a.bd'].entries.length, 1, 'the last good list stays');
