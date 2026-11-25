@@ -10,7 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { fromBangla } from './bangla.mjs';
 import { cleanQuery, dropSuspiciousPrices, groupOffers, mergeGroups, validQuery } from './live-search.mjs';
 import { buildBrowseSteps, discoverCategoriesSteps, displayName, productKey, runInSlices, runNow } from './browse.mjs';
-import { countSpellings, createSpeller, matchesQuery, mentionsInTokens, requiredWords, variantOf, wordSet } from './matching.mjs';
+import { countSpellings, createSpeller, matchesQuery, mentionsInTokens, queryTokens, requiredWords, variantOf, wordSet } from './matching.mjs';
 
 const EMPTY = { version: 1, shops: {} };
 
@@ -74,7 +74,7 @@ const SCHEMA = `
   PRAGMA cache_size = -8000;
   CREATE TABLE entries (
     id INTEGER PRIMARY KEY, shop TEXT, url TEXT, name TEXT, price REAL, in_stock INTEGER,
-    checked_at TEXT, checked_ms REAL, image TEXT, pkey TEXT, digits TEXT);
+    checked_at TEXT, checked_ms REAL, image TEXT, pkey TEXT);
   -- Every word of a listing's name and address; in_name marks the name's own.
   CREATE TABLE words (word TEXT, id INTEGER, in_name INTEGER, PRIMARY KEY (word, id)) WITHOUT ROWID;
   -- How many listings' names use each word.
@@ -143,7 +143,7 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
   const database = stepwise(function* () {
     const built = new DatabaseSync('');
     built.exec(SCHEMA);
-    const addEntry = built.prepare(`INSERT INTO entries VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const addEntry = built.prepare(`INSERT INTO entries VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     const addWord = built.prepare(`INSERT INTO words VALUES (?, ?, ?)`);
     const products = new Map();
     const counts = new Map();
@@ -155,7 +155,7 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
       const key = productKey(name);
       addEntry.run(id, entry.shop ?? null, entry.url ?? null, name, entry.price ?? null,
         typeof entry.inStock === 'boolean' ? Number(entry.inStock) : null, entry.checkedAt ?? null,
-        Date.parse(entry.checkedAt) || null, entry.image || null, key, name.replace(/\P{N}+/gu, ''));
+        Date.parse(entry.checkedAt) || null, entry.image || null, key);
       const inName = wordSet(name);
       const all = wordSet(`${name} ${entry.url}`);
       for (const word of inName) all.add(word);
@@ -216,11 +216,31 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
       const [ids, values] = holdingAll(required);
       return statement(`SELECT * FROM entries WHERE id IN (${ids}) AND checked_ms >= ? ORDER BY id`).all(...values, oldest);
     }
-    /* Only numbers ("256gb", "65w", "15"): every way a name can match keeps each number's digits,
-       so a name whose digits, run together, lack one is skipped before the full check. */
-    const numbers = [...new Set(String(query).match(/\p{N}+/gu) ?? [])];
-    const digits = numbers.map(() => ' AND instr(digits, ?) > 0').join('');
-    return statement(`SELECT * FROM entries WHERE checked_ms >= ?${digits} ORDER BY id`).all(oldest, ...numbers);
+    /* Only numbers and sizes ("256gb", "65w", "15"). Nearly every name has a "1" in it, so
+       filtering names by their digits read most of the list ("1tb" took ~1.8 s on Render).
+       Instead, each word is looked up the ways matchesQuery can find it, and only listings
+       holding every word are read:
+       - the word itself, or the word with a unit after it ("65" → "65w"): a word that starts with it;
+       - a model code shops write apart ("f91w" as "F-91W"): a word that is its start, followed by
+         a word that starts what is left. */
+    const parts = [];
+    const values = [];
+    for (const token of [...new Set(queryTokens(query))]) {
+      const ways = ['SELECT id FROM words WHERE word >= ? AND word < ?'];
+      values.push(token, token + END);
+      if (/\p{L}/u.test(token) && /\d/.test(token) && token.length >= 4) {
+        for (let cut = 1; cut < token.length; cut++) {
+          const rest = token.slice(cut);
+          const starts = Array.from(rest, (_, i) => rest.slice(0, i + 1));
+          ways.push(`SELECT id FROM (SELECT id FROM words WHERE word = ?
+            INTERSECT SELECT id FROM words WHERE word IN (${starts.map(() => '?').join(', ')}))`);
+          values.push(token.slice(0, cut), ...starts);
+        }
+      }
+      parts.push(`SELECT id FROM (${ways.join(' UNION ')})`);
+    }
+    return statement(`SELECT * FROM entries WHERE id IN (${parts.join(' INTERSECT ')}) AND checked_ms >= ? ORDER BY id`)
+      .all(...values, oldest);
   };
 
   /** Prices whose names hold every word of the query, freshest list only. */
@@ -581,6 +601,7 @@ export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, lo
   let loadedVersion = null;
   let checkedAt = -Infinity;
   let refreshing = null;
+  let loads = 0;
 
   async function doRefresh() {
     checkedAt = now();
@@ -589,10 +610,17 @@ export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, lo
     try {
       const loaded = createPriceIndex(await loadIndexFile(file), { now, ...options });
       loadedVersion = version;
+      /* A list that changes again while this one is built is built too; only the newest may
+         take over, or a slower older build would finish last and replace it. */
+      const generation = ++loads;
       /* The first list is searched at once, built on demand if a search comes first. A newer one
          is built a slice at a time in the background while the last keeps answering, so no
          search waits on it; then it takes over. */
       const takeOver = () => {
+        if (generation !== loads) {
+          loaded.close();
+          return false;
+        }
         const previous = index;
         index = loaded;
         log(`price list: ${loaded.size} prices from ${loaded.shops} shops`);
@@ -600,16 +628,17 @@ export function watchIndexFile(file, { now = Date.now, checkEveryMs = 30_000, lo
         loaded.adoptShelves(previous);
         /* A price re-check that started on the last list may still be reading shop pages. */
         setTimeout(() => previous.close(), 10 * 60 * 1000).unref?.();
+        return true;
       };
       const first = index.size === 0;
       if (first) takeOver();
       setTimeout(async () => {
         try {
           await loaded.warm();
-          if (!first) takeOver();
+          if (!first && !takeOver()) return;
           await loaded.rebuildShelves();
         } catch (error) {
-          if (!first && index !== loaded) {
+          if (index !== loaded) {
             log(`price list not reloaded: ${error.message}`);
             loaded.close();
             return;

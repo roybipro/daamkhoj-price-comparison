@@ -221,6 +221,11 @@ test('a search typed in Bangla finds the English listings and says what it was r
   assert.equal(skeleton('শাওমী'), skeleton('শাওমি'));
   assert.equal(skeleton('অ্যাপল'), skeleton('এপল'));
   assert.equal(fromBangla('আইফোন ১৫ ১২৮ জিবি কালো'), 'iphone 15 128gb black');
+  /* 5G phones, 4K screens and grocery packs, glued to the number or apart. */
+  assert.equal(fromBangla('স্যামসাং ৫জি'), 'samsung 5g');
+  assert.equal(fromBangla('৪কে টিভি'), '4k tv');
+  assert.equal(fromBangla('২ কেজি'), '2kg');
+  assert.equal(fromBangla('২৫০ মিলি'), '250ml');
   assert.equal(fromBangla('অ্যাংকার পাওয়ার ব্যাংক'), 'anker power bank');
   /* A half-typed name completes, but never into a colour; English is left alone. */
   assert.equal(fromBangla('স্যাম', { partial: true }), 'samsung');
@@ -291,6 +296,27 @@ test('the server picks up a new crawl without restarting, and keeps the last goo
     priced = (await search('iphone 15')).priced;
   }
   assert.equal(priced, 2);
+});
+
+test('a list that changes again while it is built ends on the newest, even if an older build finishes last', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'daamkhoj-'));
+  const file = path.join(dir, 'list.json');
+  let time = NOW;
+  const search = watchIndexFile(file, { now: () => time, checkEveryMs: 1000 });
+  await saveIndexFile(file, listOf(entry('a.bd', 'iPhone 15 128GB', 82000)));
+  assert.equal((await search('iphone 15')).found, 1);
+
+  /* A big list takes many slices to build; the small newer one finishes first. */
+  const big = Array.from({ length: 4000 }, (_, i) => entry(`s${i % 40}.bd`, `Phone Model ${i} 8/128GB`, 10000 + i));
+  await saveIndexFile(file, listOf(entry('a.bd', 'iPhone 15 128GB', 82000), entry('b.bd', 'iPhone 15 128GB', 81000), ...big));
+  time += 1001;
+  await search('iphone 15');
+  await saveIndexFile(file, listOf(...['a', 'b', 'c'].map(shop => entry(`${shop}.bd`, 'iPhone 15 128GB', 80000))));
+  time += 1001;
+  await search('iphone 15');
+
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  assert.equal((await search('iphone 15')).found, 3, 'the newest list is served');
 });
 
 test('the list is searched from disk: updates, completions and suggestions read the same database', () => {
@@ -822,9 +848,12 @@ test('compound searches merge joined and spaced spellings without splitting stro
 
 test('a search of only numbers finds what checking every name would, written any way', () => {
   const names = ['Kingston NV2 256 GB SSD', 'Lexar 256GB microSD', 'Lexar 512GB microSD', 'Anker 65W Charger', 'Anker 65 W GaN',
-    'Casio F-91W', 'Xiaomi Power Bank 20000mAh', 'Romoss 10000 mAh', 'Galaxy S24 256GB', 'Phone 1256GB Case', 'Model A15 16 Kit'];
+    'Casio F-91W', 'Xiaomi Power Bank 20000mAh', 'Romoss 10000 mAh', 'Galaxy S24 256GB', 'Phone 1256GB Case', 'Model A15 16 Kit',
+    'Casio F 91 W Classic', 'Seagate 1 TB HDD', 'WD 1TB SSD', 'Ryzen 7 7800X3D', 'Galaxy A-15 Cover'];
   const index = createPriceIndex(listOf(...names.map((name, i) => entry(`s${i}.bd`, name, 1000 + i))), { now: () => NOW });
-  for (const query of ['256gb', '65w', '65', '20000', '91w', '1516', '512gb']) {
+  /* The list finds number searches through its word table: a word, the word with a unit after
+     it, or a model code written in two or three pieces. */
+  for (const query of ['256gb', '65w', '65', '20000', '91w', '1516', '512gb', 'f91w', '1tb', '7800x3d', 'a15', '15']) {
     const everyName = names.filter(name => matchesQuery(name, query)).length;
     assert.equal(index.search(query).found, everyName, query);
   }
