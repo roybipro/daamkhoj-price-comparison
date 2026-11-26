@@ -139,7 +139,7 @@ function cpuOf(text) {
 }
 
 function memoryOf(text) {
-  const lower = joinUnits(text);
+  const lower = joinUnits(text).replace(/\b\d+(?:\.\d+)?\s*(?:gb|tb)\s*\/\s*s\b|\b\d+(?:\.\d+)?\s*gbps\b/g, ' ');
   const pair = lower.match(/\b(\d{1,3})(?:gb)?\s*\/\s*(\d{1,4})\s*(gb|tb)\b/);
   if (pair && (pair[3] === 'tb' || Number(pair[1]) < Number(pair[2]))) {
     return { ram: `${pair[1]}GB`, storage: `${pair[2]}${pair[3].toUpperCase()}` };
