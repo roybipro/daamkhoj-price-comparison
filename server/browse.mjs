@@ -178,7 +178,9 @@ export function* buildBrowseSteps(search, shopCounts, categories) {
       const signature = offers.map(offer => offer.url).sort().join(' ');
       if (seen.has(signature)) continue;
       seen.add(signature);
-      const cheapest = offers.reduce((low, offer) => (offer.price < low.price ? offer : low));
+      /* "From" is a price you can pay: the cheapest in stock, or the cheapest at all when none is. */
+      const buyable = offers.filter(offer => offer.inStock !== false);
+      const cheapest = (buyable.length ? buyable : offers).reduce((low, offer) => (offer.price < low.price ? offer : low));
       const pictured = [cheapest, ...offers].find(offer => offer.image);
       cards.push({
         name,
