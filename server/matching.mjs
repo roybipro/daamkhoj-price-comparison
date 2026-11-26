@@ -172,7 +172,8 @@ export function variantOf(name, query) {
   }
 
   const cpu = cpuOf(name);
-  const generation = name.match(/\b(\d{1,2})(?:st|nd|rd|th)[\s-]*gen/i)?.[1];
+  const generation = name.match(/\b(\d{1,2})(?:st|nd|rd|th)[\s-]*gen/i)?.[1]
+    ?? name.match(/\bairpods pro\s+(\d)\b/i)?.[1];
   const { ram, storage } = memoryOf(name);
   const stock = name.match(/\b(unofficial|official)\b/i)?.[1];
 
