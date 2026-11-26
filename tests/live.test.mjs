@@ -8,7 +8,7 @@ import { gzipSync } from 'node:zlib';
 import { clientAddressFrom, createApi, createRateLimiter } from '../server/api.mjs';
 import { cleanQuery, createLiveSearch, groupOffers, LiveSearchError } from '../server/live-search.mjs';
 import { matchesQuery, variantOf } from '../server/matching.mjs';
-import { readPage } from '../server/page-price.mjs';
+import { decodeEntities, readPage } from '../server/page-price.mjs';
 import { createBrightDataSearch } from '../server/providers/bright-data.mjs';
 import { createRobots, isAllowed, parseRobots } from '../server/robots.mjs';
 import { assertPublicUrl, fetchPublic, isPrivateAddress, publicRequest, resolveResultLink } from '../server/safe-fetch.mjs';
@@ -133,6 +133,13 @@ test('a graphics card or memory module\'s "8G" is 8 GB, not a pack of 8 grams; a
   assert.equal(matchesQuery('Leadtek WinFast RTX 4060 HURRICANE 8G Graphics Card', 'rtx 4060 8gb'), true);
   assert.equal(variantOf('Pran Chanachur 300g', 'chanachur').label, 'Pran · 300g');
   assert.equal(variantOf('Galaxy A16 5G 8/256GB', 'galaxy a16').label, '8GB RAM · 256GB · 5G');
+});
+
+test('HTML codes in names are decoded, even when a shop encoded them twice', () => {
+  assert.equal(decodeEntities('GIGABYTE GeForce RTX&amp;#x2122; 4060'), 'GIGABYTE GeForce RTX™ 4060');
+  assert.equal(decodeEntities('Dahua E800 128GB 2.5&amp;quot; SATA III SSD'), 'Dahua E800 128GB 2.5" SATA III SSD');
+  assert.equal(decodeEntities('Adapter &amp; Card Reader'), 'Adapter & Card Reader');
+  assert.equal(decodeEntities('Tom & Jerry'), 'Tom & Jerry');
 });
 
 test('robots rules follow the standard', () => {

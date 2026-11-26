@@ -11,6 +11,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { DatabaseSync } from 'node:sqlite';
 import { fromBangla } from './bangla.mjs';
+import { decodeEntities } from './page-price.mjs';
 import { cleanQuery, dropSuspiciousPrices, groupOffers, mergeGroups, validQuery } from './live-search.mjs';
 import { buildBrowseSteps, discoverCategoriesSteps, displayName, productKey, runInSlices, runNow } from './browse.mjs';
 import { countSpellings, createSpeller, matchesQuery, mentionsInTokens, queryTokens, requiredWords, variantOf, wordSet } from './matching.mjs';
@@ -223,7 +224,8 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
     built.exec('BEGIN');
     for (let id = 0; id < source.length; id++) {
       const entry = source[id];
-      const name = String(entry.name ?? '');
+      /* Lists crawled before names were fully decoded still hold "&quot;" and "&#x2122;". */
+      const name = decodeEntities(String(entry.name ?? ''));
       const key = productKey(name);
       addEntry.run(id, entry.shop ?? null, entry.url ?? null, name, entry.price ?? null,
         typeof entry.inStock === 'boolean' ? Number(entry.inStock) : null, entry.checkedAt ?? null,

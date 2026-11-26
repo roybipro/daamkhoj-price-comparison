@@ -7,11 +7,21 @@ const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', 
 /* A page can write any number here; one past Unicode's range must not lose the whole page. */
 const character = (whole, code) => (code <= 0x10ffff ? String.fromCodePoint(code) : whole);
 
+const decodeOnce = text => text
+  .replace(/&#(\d+);/g, (whole, code) => character(whole, Number(code)))
+  .replace(/&#x([\da-f]+);/gi, (whole, code) => character(whole, parseInt(code, 16)))
+  .replace(/&([a-z]+);/gi, (whole, name) => ENTITIES[name.toLowerCase()] ?? whole);
+
+/* Some shops encode twice: "RTX&amp;#x2122;" decoded once still read "RTX&#x2122;", and
+   "2.5&amp;quot;" read "2.5&quot;". Decoded until nothing changes, three times at most. */
 export function decodeEntities(text) {
-  return String(text)
-    .replace(/&#(\d+);/g, (whole, code) => character(whole, Number(code)))
-    .replace(/&#x([\da-f]+);/gi, (whole, code) => character(whole, parseInt(code, 16)))
-    .replace(/&([a-z]+);/gi, (whole, name) => ENTITIES[name.toLowerCase()] ?? whole);
+  let decoded = String(text);
+  for (let round = 0; round < 3 && decoded.includes('&'); round++) {
+    const next = decodeOnce(decoded);
+    if (next === decoded) break;
+    decoded = next;
+  }
+  return decoded;
 }
 
 const toNumber = value => Number(String(value).replace(/,/g, ''));
