@@ -70,7 +70,9 @@ export function dropSuspiciousPrices(offers) {
 /* Sorted cheapest first; the lowest price is only named where there is a real choice. */
 function finishGroups(groups) {
   for (const group of groups) {
-    group.offers.sort((a, b) => a.price - b.price);
+    /* Prices you can buy first, then out of stock, each cheapest first: "rtx 4060" opened on
+       six cards no shop could sell. */
+    group.offers.sort((a, b) => Number(a.inStock === false) - Number(b.inStock === false) || a.price - b.price);
     /* One shop selling a version in several colours or pages is still one shop: its cheapest
        price you can buy stands for it, or its cheapest at all when none is in stock. */
     /* Per product, not per group: where versions are unclear, one group holds many products, and

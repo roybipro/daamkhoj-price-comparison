@@ -9,7 +9,9 @@ const OTHER_PRODUCT = new Set([
   'pro', 'plus', 'max', 'mini', 'ultra', 'lite', 'series', 'fe', 'neo',
   'case', 'cover', 'protector', 'glass', 'strap', 'cable', 'charger', 'adapter', 'pouch', 'skin', 'battery', 'replacement', 'parts',
   'sleeve', 'film', 'lens', 'folio', 'keyboard', 'pen', 'pencil', 'stylus', 'tip', 'tips', 'loop', 'holder', 'mount', 'stand', 'dock', 'hub', 'bag', 'guard', 'shield',
-  'used', 'refurbished', 'preowned', 'secondhand', 'renewed'
+  'used', 'refurbished', 'preowned', 'secondhand', 'renewed',
+  /* Copies sold under the real name: "AirPods Pro ANC Dubai Version" at ৳750. */
+  'replica', 'clone'
 ]);
 
 const GENERIC_BRAND = new Set(['premium', 'fresh', 'pure', 'local', 'organic', 'special', 'best', 'buy', 'new', 'original', 'quality', 'super', 'loose']);
@@ -22,6 +24,7 @@ const joinUnits = text => text
   .replace(/([\p{L}\p{N}])\+(?![\p{L}\p{N}])/gu, '$1 plus')
   .replace(/pre[\s-]owned/g, 'preowned')
   .replace(/second[\s-]hand/g, 'secondhand')
+  .replace(/\b(?:dubai|master|first)[\s-]+copy\b|\bdubai[\s-]+version\b/g, 'replica')
   .replace(/\bsoya\s?bean\b/g, 'soybean')
   .replace(/(\d)\s*(kgs?|gms?|grams?|g|ltrs?|litres?|liters?|l|ml)\b/g, (_, digit, unit) => `${digit}${PACK_UNIT[unit]}`)
   .replace(/(\d)\s+(gb|tb)\b/g, '$1$2');
@@ -80,8 +83,29 @@ export function matchesQuery(name, query) {
   const withUnit = token => /^\d+$/.test(token) && [...tokens].some(word => word.startsWith(token) && UNIT_AFTER.test(word.slice(token.length)));
   const found = wanted.every(token => tokens.has(token) || withUnit(token) || (/\p{L}/u.test(token) && /\d/.test(token) && token.length >= 4 && joined.has(token)));
   if (!found) return false;
-  return ![...tokens].some(token => OTHER_PRODUCT.has(token) && !asked.has(token));
+  const askedOthers = new Set([...asked].map(otherProduct));
+  /* What comes after "with" or "built-in" is in the box, not what is sold: "Power Bank with
+     Built-in Cables", "Power Bank 10000mAh Built-In Dual USB-C Cables", "AirPods Pro with MagSafe
+     Charging Case". */
+  const sold = new Set(tokensOf(name.split(/\s+(?:with|built[\s-]?in)\s+/i)[0]));
+  return ![...sold].some(token => {
+    const other = otherProduct(token);
+    return other && !askedOthers.has(other);
+  });
 }
+
+/* The word in OTHER_PRODUCT that a word is, written singly or as a plural: a shop's "Cases" is a
+   case ("Speck Presidio Pro AirPods Cases" isn't AirPods Pro). Null when it is none of them. */
+function otherProduct(word) {
+  if (OTHER_PRODUCT.has(word)) return word;
+  for (const single of [word.replace(/ies$/, 'y'), word.replace(/es$/, ''), word.replace(/s$/, '')]) {
+    if (single !== word && OTHER_PRODUCT.has(single)) return single;
+  }
+  return null;
+}
+
+/* 1 → "1st", 2 → "2nd", 13 → "13th": a label read "2th gen". */
+const ordinal = n => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
 
 const UNIT_LABEL = { kg: 'kg', g: 'g', l: 'L', ml: 'ml' };
 
@@ -150,7 +174,7 @@ export function variantOf(name, query) {
 
   const parts = [
     cpu,
-    generation && `${generation}th gen`,
+    generation && `${ordinal(Number(generation))} gen`,
     ram && `${ram} RAM`,
     storage
   ].filter(Boolean);

@@ -99,10 +99,32 @@ test('names a lowest price only for a real choice between buyable offers', () =>
   });
   const [group, unclear] = groupOffers([offer('c', 300), offer('a', 100, false), offer('b', 200), offer('d', 50, true, false)]);
   assert.equal(group.lowest, 'b');
-  assert.deepEqual(group.offers.map(item => item.url), ['a', 'b', 'c']);
+  assert.deepEqual(group.offers.map(item => item.url), ['b', 'c', 'a'], 'prices you can pay first, then out of stock');
   assert.equal(unclear.comparable, false);
   assert.equal(unclear.lowest, null);
   assert.equal(groupOffers([offer('solo', 10)])[0].lowest, null);
+});
+
+test('an accessory written as a plural is still not the product, and generations read 1st, 2nd, 3rd', () => {
+  assert.equal(matchesQuery('Speck Presidio Pro Apple AirPods (1st/2nd generation) Cases', 'airpods pro'), false);
+  assert.equal(matchesQuery('Spigen Covers for Galaxy S24', 'galaxy s24'), false);
+  assert.equal(matchesQuery('Spigen Cases for AirPods Pro', 'airpods pro cases'), true, 'asked for');
+  assert.equal(matchesQuery('Apple AirPods Pro 2nd Gen', 'airpods pro'), true);
+  assert.equal(variantOf('AirPods Pro (2nd Generation)', 'airpods pro').label, '2nd gen');
+  assert.equal(variantOf('Intel Core i5 12th Gen', 'intel').label, 'Core i5 · 12th gen');
+  assert.equal(variantOf('Intel Core i3 1st Gen', 'intel').label, 'Core i3 · 1st gen');
+});
+
+test('a copy sold under the real name is not the product, and what comes "with" it is not what is sold', () => {
+  assert.equal(matchesQuery('Apple Airpods Pro (2nd Generation) ANC Dubai Version', 'airpods pro'), false);
+  assert.equal(matchesQuery('Apple AirPods Pro 2nd Generation ANC Dubai Copy', 'airpods pro'), false);
+  assert.equal(matchesQuery('AirPods Pro Master Copy', 'airpods pro'), false);
+  assert.equal(matchesQuery('Double A Copy Paper A4', 'a4 paper'), true, 'a copy paper is not a copy');
+  assert.equal(matchesQuery('Apple AirPods Pro 2nd Gen USB-C with MagSafe Charging Case', 'airpods pro'), true);
+  assert.equal(matchesQuery('Anker Zolo Power Bank 10000mAh Built-In Dual USB-C Cables', 'anker zolo'), true);
+  assert.equal(matchesQuery('Anker USB-C Cables 2 Pack', 'anker'), false, 'cables sold');
+  assert.equal(matchesQuery('Foneng PX135 10000mAh Power Bank with 2 Built-in Cables', 'foneng px135'), true);
+  assert.equal(matchesQuery('Spigen Case with Strap for AirPods Pro', 'airpods pro'), false, 'a case, whatever comes with it');
 });
 
 test('robots rules follow the standard', () => {

@@ -60,13 +60,16 @@ Measured at 109k prices: heap 101 MB → 16 MB, median search 12 ms → 8 ms, sa
    the start of a longer word ("65" → "65w"), or split in two ("F-91W").
 4. **Check each candidate** with `matchesQuery`:
    - every query word is in the name; "15" is a whole number, not part of "2015"; "65" matches "65w";
-   - an accessory isn't the product: "case for iPhone 15" doesn't match "iphone 15";
+   - an accessory isn't the product: "case for iPhone 15" and "AirPods Cases" don't match, but
+     what comes "with" or "built-in" is in the box: "Power Bank with Built-in Cable" is a power bank;
+   - a copy isn't the product: "Dubai copy", "master copy", "replica", "clone";
    - a different CPU isn't the product: an i5 laptop doesn't match "i7";
    - "pro", "max", "plus", "used", "refurbished" and similar words exclude a listing unless asked for.
 5. **Drop suspicious prices.** A price under half the median for the same product is likely a
    deposit, a part or a mistake (`dropSuspiciousPrices`).
 6. **Group by version** (RAM, storage, CPU, pack size, 5G) with `variantOf`. One shop counts
-   once per product, at its cheapest price in stock. Prices are sorted cheapest first, and the
+   once per product, at its cheapest price in stock. Prices in stock come first, each cheapest
+   first, then out of stock; a home page card's "from" is the cheapest price in stock, and the
    lowest is only named where there's a real choice of in-stock offers in the same version.
 
 ### When the exact search finds nothing
