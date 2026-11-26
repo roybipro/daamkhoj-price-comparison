@@ -11,7 +11,7 @@ dependencies: TypeScript is the only package, and it is only used to build.
                        │  ci.yml: check + test → Render deploy hook             │
                        │  uptime.yml: GET /api/health every 30 min              │
                        └───────────────┬────────────────────────────────────────┘
-                                       │ committed JSON (and raw URL, pulled every 6 h)
+                                       │ committed JSON (raw URL, checked every hour)
 ┌──────────── Browser ────────────┐    ▼
 │ src/ts (TypeScript → plain JS)  │  ┌──────────────── Node server (Render) ─────────────────┐
 │  type  → /api/search/quick      │──▶ tools/serve.mjs   static files, robots.txt, sitemap   │
