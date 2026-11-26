@@ -32,8 +32,9 @@ const initials = (shop: string): string => shop.replace(/^www\./, '').slice(0, 2
 
 function liveRow(offer: LiveOffer, group: LiveGroup, checkedAt: string): string {
   const isLowest = group.lowest === offer.url;
+  const isOut = offer.inStock === false;
   const href = safeHttpUrl(offer.url);
-  return `<div class="offer live ${isLowest ? 'pick' : ''}">
+  return `<div class="offer live${isLowest ? ' pick' : ''}${isOut ? ' out' : ''}">
     <div class="seller">
       <span class="mono" aria-hidden="true"><img src="${escapeHtml(shopLogo(offer.shop))}" alt="" loading="lazy" onerror="this.remove()">${escapeHtml(initials(offer.shop))}</span>
       <span class="t">
@@ -48,26 +49,31 @@ function liveRow(offer: LiveOffer, group: LiveGroup, checkedAt: string): string 
     <div class="meta">${stockTag(offer)}${checkedTag(offer.checkedAt ?? checkedAt)}<span class="tag live-trust">Shop not rated yet</span></div>
     <div class="acts">${href
       ? `<a class="shop-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer nofollow"
+          aria-label="${escapeHtml(`Visit shop: ${offer.title} on ${offer.shop}`)}"
           title="${escapeHtml(`Open ${offer.title} on ${offer.shop}`)}">Visit shop ${OUT_ICON}</a>`
       : ''}</div>
   </div>`;
 }
 
 function liveGroup(group: LiveGroup, checkedAt: string, query: string): string {
+  const buyable = group.offers.filter(offer => offer.inStock !== false);
+  const allOut = buyable.length === 0;
   const note = group.comparable
     ? `${pluralCount(group.offers.length, 'shop')} selling this version of “${query}”`
     : 'Not compared, because these pages do not say which version they sell';
   const choice = group.comparable && group.offers.length > 1;
-  const pictured = group.offers.map(offer => offer.image && safeHttpUrl(offer.image)).find(Boolean);
+  const startOffer = buyable[0] ?? group.offers[0];
+  const endOffer = buyable[buyable.length - 1] ?? group.offers[group.offers.length - 1];
+  const pictured = [...buyable, ...group.offers].map(offer => offer.image && safeHttpUrl(offer.image)).find(Boolean);
   return `<section class="group${group.comparable ? '' : ' unclear'}">
     <div class="group-head">
       ${pictured ? `<span class="gh-img"><img src="${escapeHtml(pictured)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.remove()"></span>` : ''}
       <div class="gh-main">
-        <div class="gh-kicker"><span class="pill live">Live</span></div>
+        <div class="gh-kicker"><span class="pill live">Live</span>${allOut ? '<span class="tag warn">Out of stock</span>' : ''}</div>
         <h3>${escapeHtml(group.label)}<span class="sub">${escapeHtml(note)}</span></h3>
       </div>
-      ${choice ? `<div class="gh-price">${priceTag(group.offers[0].price, 'from')}
-        <div class="range">up to <span class="num">${money(group.offers[group.offers.length - 1].price)}</span></div></div>` : ''}
+      ${choice ? `<div class="gh-price">${priceTag(startOffer.price, 'from')}
+        ${endOffer.price > startOffer.price ? `<div class="range">up to <span class="num">${money(endOffer.price)}</span></div>` : ''}</div>` : ''}
     </div>
     <div class="offers">${group.offers.map(offer => liveRow(offer, group, checkedAt)).join('')}</div>
   </section>`;
@@ -86,30 +92,63 @@ function leftOut(result: LiveResult): string {
 }
 
 /** One search result card: a product, the shops selling it, and where its price starts. */
-interface ResultCard { key: string; title: string; image: string | null; from: number; to: number; shops: string[]; inStock: number; checkedAt: string }
+interface ResultCard {
+  key: string;
+  title: string;
+  image: string | null;
+  from: number;
+  to: number;
+  shops: string[];
+  buyableShops: number;
+  confirmedInStock: number;
+  outOfStock: boolean;
+  checkedAt: string;
+}
 
 const keyOf = (offer: LiveOffer): string => offer.product || offer.title.toLowerCase();
 
 function resultCards(result: LiveResult): ResultCard[] {
-  const cards = new Map<string, ResultCard & { pricedFrom: LiveOffer }>();
+  const buckets = new Map<string, LiveOffer[]>();
   for (const offer of result.groups.flatMap(group => group.offers)) {
     const key = keyOf(offer);
-    const card = cards.get(key);
-    const photo = offer.image ? safeHttpUrl(offer.image) : null;
-    const checkedAt = offer.checkedAt ?? result.checkedAt;
-    if (!card) {
-      cards.set(key, { key, title: offer.title, image: photo, from: offer.price, to: offer.price, shops: [offer.shop], inStock: offer.inStock === false ? 0 : 1, pricedFrom: offer, checkedAt });
-      continue;
-    }
-    if (offer.price < card.from) { card.from = offer.price; card.title = offer.title; }
-    if (checkedAt > card.checkedAt) card.checkedAt = checkedAt;
-    card.to = Math.max(card.to, offer.price);
-    card.image ??= photo;
-    if (!card.shops.includes(offer.shop)) card.shops.push(offer.shop);
-    if (offer.inStock !== false) card.inStock++;
+    const list = buckets.get(key);
+    if (list) list.push(offer);
+    else buckets.set(key, [offer]);
   }
-  /* Sold by the most shops first: those are the real comparisons. Then cheapest first. */
-  return [...cards.values()].sort((a, b) => b.shops.length - a.shops.length || a.from - b.from);
+  const cards: ResultCard[] = [];
+  for (const [key, offers] of buckets) {
+    const buyable = offers.filter(offer => offer.inStock !== false);
+    const basis = buyable.length ? buyable : offers;
+    const cheapest = basis.reduce((low, offer) => (offer.price < low.price ? offer : low));
+    const highest = basis.reduce((high, offer) => (offer.price > high.price ? offer : high));
+    const shops = [...new Set(offers.map(offer => offer.shop))];
+    const buyableShops = new Set(buyable.map(offer => offer.shop)).size;
+    const confirmedInStock = new Set(offers.filter(offer => offer.inStock === true).map(offer => offer.shop)).size;
+    const photo = [cheapest, ...buyable, ...offers].map(offer => (offer.image ? safeHttpUrl(offer.image) : null)).find(Boolean) ?? null;
+    const checkedAt = offers.reduce((latest, offer) => {
+      const time = offer.checkedAt ?? result.checkedAt;
+      return time > latest ? time : latest;
+    }, '');
+    cards.push({
+      key,
+      title: cheapest.title,
+      image: photo,
+      from: cheapest.price,
+      to: highest.price,
+      shops,
+      buyableShops,
+      confirmedInStock,
+      outOfStock: buyable.length === 0,
+      checkedAt
+    });
+  }
+  /* Available products first, then sold by the most buyable shops, then cheapest first. */
+  return cards.sort((a, b) =>
+    Number(a.outOfStock) - Number(b.outOfStock) ||
+    b.buyableShops - a.buyableShops ||
+    b.shops.length - a.shops.length ||
+    a.from - b.from
+  );
 }
 
 /* The shop's logo over its initials, which show through if the logo can't load. */
@@ -121,12 +160,18 @@ const NO_PHOTO = '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" st
 
 function resultCard(card: ResultCard): string {
   const many = card.shops.length > 1;
-  return `<button class="pcard rcard" data-act="product" data-id="${escapeHtml(card.key)}" title="${escapeHtml(`Compare ${card.title}`)}">
-    <span class="pc-img">${NO_PHOTO}${card.image
+  const stockLine = card.outOfStock
+    ? '<span class="tag warn">Out of stock</span>'
+    : card.confirmedInStock > 0
+      ? `<span class="pc-stock ok">In stock${card.confirmedInStock > 1 ? ` · ${card.confirmedInStock} shops` : ''}</span>`
+      : '';
+  return `<button class="pcard rcard${card.outOfStock ? ' out' : ''}" data-act="product" data-id="${escapeHtml(card.key)}" title="${escapeHtml(`Compare ${card.title}`)}">
+    <span class="pc-img">${card.outOfStock ? '<span class="pc-badge out">Out of stock</span>' : ''}${NO_PHOTO}${card.image
       ? `<img src="${escapeHtml(card.image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span>
     <span class="pc-body">
       <span class="pc-name">${escapeHtml(card.title)}</span>
       ${priceTag(card.from, many || card.to > card.from ? 'from' : '')}
+      ${stockLine}
       <span class="pc-shops">${card.shops.slice(0, 4).map(favicon).join('')}${card.shops.length > 4 ? `<span class="dot more">+${card.shops.length - 4}</span>` : ''}
         <span class="pc-meta">${many ? `Compare ${card.shops.length} shops` : '1 shop'}</span></span>
       <span class="pc-fresh${Date.now() - Date.parse(card.checkedAt) < 60 * 60 * 1000 ? ' live' : ''}">Price checked ${escapeHtml(ago(card.checkedAt))}</span>
@@ -135,9 +180,11 @@ function resultCard(card: ResultCard): string {
 }
 
 function summaryStrip(cards: ResultCard[]): string {
+  const buyableCards = cards.filter(card => !card.outOfStock);
+  const pricedCards = buyableCards.length ? buyableCards : cards;
   const shops = new Set(cards.flatMap(card => card.shops)).size;
-  const low = Math.min(...cards.map(card => card.from));
-  const high = Math.max(...cards.map(card => card.to));
+  const low = Math.min(...pricedCards.map(card => card.from));
+  const high = Math.max(...pricedCards.map(card => card.to));
   return `<dl class="summary">
     <div><dt>Products</dt><dd class="num">${cards.length}</dd></div>
     <div><dt>Shops</dt><dd class="num">${shops}</dd></div>
@@ -155,11 +202,12 @@ function productDetail(result: LiveResult, card: ResultCard, many: boolean): str
       return { ...group, offers, lowest: group.comparable && buyable.length > 1 ? buyable[0].url : null };
     })
     .filter(group => group.offers.length);
+  const statusNote = card.outOfStock ? ' · Out of stock at checked shops' : '';
   return `${many ? `<button class="link back" data-act="allResults">All results for “${escapeHtml(result.query)}”</button>` : ''}
     <div class="detail-head">
       ${card.image ? `<span class="gh-img big"><img src="${escapeHtml(card.image)}" alt="" referrerpolicy="no-referrer" onerror="this.parentElement.remove()"></span>` : ''}
       <div><h2>${escapeHtml(card.title)}</h2>
-        <p>${card.shops.length > 1 ? `${pluralCount(card.shops.length, 'shop')}, ` : '1 shop, '}${card.to > card.from ? `${money(card.from)} to ${money(card.to)}` : money(card.from)}</p></div>
+        <p>${card.shops.length > 1 ? `${pluralCount(card.shops.length, 'shop')}, ` : '1 shop, '}${card.to > card.from ? `${money(card.from)} to ${money(card.to)}` : money(card.from)}${escapeHtml(statusNote)}</p></div>
     </div>
     <p class="fine-print">Only the same version is compared. Prices can change, so confirm on the shop's site before you pay.</p>
     ${groups.map(group => liveGroup(group, result.checkedAt, result.query)).join('')}`;

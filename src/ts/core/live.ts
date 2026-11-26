@@ -87,18 +87,22 @@ export function applyFresh(current: LiveResult, fresh: LiveResult): LiveResult {
     `${group.comparable}|${group.label.toLowerCase()}|${offer.shop}|${offer.product ?? ''}`;
   const bySlot = new Map(fresh.groups.flatMap(group =>
     group.offers.map(offer => [slotKey(group, offer), offer] as const)));
-  const groups = current.groups.map(group => {
-    const offers = group.offers
-      .map(offer => {
-        const read = byUrl.get(offer.url) ?? bySlot.get(slotKey(group, offer));
-        return read
-          ? { ...offer, url: read.url, price: read.price, inStock: read.inStock, checkedAt: read.checkedAt, image: offer.image ?? read.image }
-          : offer;
-      })
-      .sort((a, b) => a.price - b.price);
-    const buyable = offers.filter(offer => offer.inStock !== false);
-    return { ...group, offers, lowest: group.comparable && buyable.length > 1 ? buyable[0].url : null };
-  });
+  const dropGone = current.source === 'index' && fresh.source === 'index';
+  const groups = current.groups
+    .map(group => {
+      const offers = group.offers
+        .filter(offer => !dropGone || byUrl.has(offer.url) || bySlot.has(slotKey(group, offer)))
+        .map(offer => {
+          const read = byUrl.get(offer.url) ?? bySlot.get(slotKey(group, offer));
+          return read
+            ? { ...offer, url: read.url, price: read.price, inStock: read.inStock, checkedAt: read.checkedAt, image: offer.image ?? read.image }
+            : offer;
+        })
+        .sort((a, b) => a.price - b.price);
+      const buyable = offers.filter(offer => offer.inStock !== false);
+      return { ...group, offers, lowest: group.comparable && buyable.length > 1 ? buyable[0].url : null };
+    })
+    .filter(group => group.offers.length > 0);
   return { ...current, groups };
 }
 

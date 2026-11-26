@@ -17,13 +17,27 @@ export const CATEGORY_RULES = [
   { id: 'more', label: 'More', test: /./ }
 ];
 
-const COLOURS = /\b(black|white|blue|red|green|gold|silver|gray|grey|pink|purple|orange|yellow|titanium|natural|desert|midnight|starlight|graphite|space|cosmic|deep|light|dark|mint|lavender|cream|ultramarine|teal|sage|jet|navy|beige|brown|violet|coral|rose|phantom|awesome|icy|iceblue|onyx|mist|sky|cloud|sand|olive|peach|lilac|aqua|ocean|forest|arctic|polar|frost|mocha|burgundy|champagne|ivory|charcoal|steel|copper|bronze|crimson|amber|emerald|sapphire|ruby|pearl|glacier|moonlight|sunset|aurora|cyan|turquoise|magenta|lime|khaki|marble|obsidian|porcelain|hazel|jade|denim|smoke|shadow|storm|thunder|blush|lake|stone|plum|slate|winter|lunar|alpine|trail|milanese)\b/g;
+const COLOURS = /\b(black|white|blue|red|green|gold|silver|gray|grey|pink|purple|orange|yellow|titanium|natural|desert|midnight|starlight|graphite|space|cosmic|deep|light|dark|mint|lavender|cream|ultramarine|teal|sage|jet|navy|beige|brown|violet|coral|rose|phantom|awesome|icy|iceblue|onyx|mist|sky|cloud|sand|olive|peach|lilac|aqua|ocean|forest|polar|frost|mocha|burgundy|champagne|ivory|charcoal|copper|bronze|crimson|amber|emerald|ruby|pearl|glacier|moonlight|sunset|aurora|cyan|turquoise|magenta|lime|khaki|marble|obsidian|porcelain|hazel|jade|denim|smoke|shadow|storm|thunder|blush|lake|stone|plum|slate|winter|lunar|alpine|trail|milanese)\b/g;
 const SIZE = /\b\d+(\.\d+)?[\s-]*(gb|tb|mah|w|mm|inch|inches|hz|"|”)(?![a-z0-9])/;
 const SIZE_ON = new RegExp(`${SIZE.source}.*$`);
 /* "Samsung Galaxy A16" and "Galaxy A16" are one phone: a brand before its own line is dropped. */
 const BRAND_LINE = /^(apple|samsung|xiaomi|mi|google|oneplus)\s+(?=(iphone|ipad|macbook|imac|airpods|galaxy|redmi|poco|pixel|nord)\b)/;
 /* Words that tell versions apart, not products: the product page compares those versions. */
 const FILLER = /\b(new|original|official|unofficial|global|version|edition|price|in|bd|bangladesh|buy|online|best|gps|cellular|lte|5g|4g|wifi|wi fi|esim|dual sim|nfc)\b/g;
+const DEVICE_LINE = /\b(iphone|galaxy|redmi|poco|pixel|oneplus|xiaomi|vivo|oppo|realme|infinix|tecno|motorola|moto|nokia|honor|ipad|tab|pad|tablet|macbook|laptop|notebook|vivobook|zenbook|ideapad|thinkpad|thinkbook|legion|loq|victus|omen|imac|watch|tv|television)\b/;
+
+/** Keeps standalone PC component kinds ("DDR5 RAM" vs "SSD") from collapsing onto one card when
+    `SIZE_ON` cuts everything from the capacity ("16GB", "500GB") onwards. */
+function preservedPartKind(before, tail) {
+  if (DEVICE_LINE.test(`${before} ${tail}`)) return ' ';
+  if (/\b(ram|dimm|sodimm)\b/.test(tail) && !/\b(ram|dimm|sodimm)\b/.test(before)) {
+    const ddr = tail.match(/\b(ddr[345])\b/)?.[1];
+    return ddr && !before.includes(ddr) ? ` ${ddr} ram ` : ' ram ';
+  }
+  if (/\b(ssd|nvme)\b/.test(tail) && !/\b(ssd|nvme)\b/.test(before)) return ' ssd ';
+  if (/\bhdd\b|\bhard drive\b/.test(tail) && !/\bhdd\b|\bhard drive\b/.test(before)) return ' hdd ';
+  return ' ';
+}
 
 const keyCache = new Map();
 
@@ -40,7 +54,12 @@ export function productKey(name) {
     .toLowerCase()
     .replace(/\(.*?\)|\[.*?\]/g, ' ')
     .split(/\s[-|–]\s|,|\swith\s|\sfor\s/)[0]
+    /* Protect WD sub-lines ("WD Blue", "WD Black") and ASRock "Steel Legend" before stripping colours. */
+    .replace(/\b(wd|western digital)\s+(blue|black|green|red|purple|gold)\b/g, '$1_$2')
+    .replace(/\bsteel(?=\s+legend\b)/g, 'steel_')
     .replace(COLOURS, ' ')
+    .replace(/\b(wd|western digital)_(blue|black|green|red|purple|gold)\b/g, '$1 $2')
+    .replace(/\bsteel_/g, 'steel')
     .replace(/\b\d+(\.\d+)?[\s-]*(inch|inches|"|”)(?![a-z0-9])/g, ' ')
     .replace(/\b\d+[\s-]*core\s*(cpu|gpu)\b/g, ' ')
     .replace(/\s+/g, ' ').trim()
@@ -51,7 +70,7 @@ export function productKey(name) {
     .replace(SIZE_ON, (...found) => {
       const [match] = found;
       const before = found.at(-1).slice(0, found.at(-2)).trim();
-      return before.split(/\s+/).length >= 2 ? ' ' : match.replace(SIZE, ' ');
+      return before.split(/\s+/).length >= 2 ? preservedPartKind(before, match) : match.replace(SIZE, ' ');
     })
     .replace(FILLER, ' ')
     .replace(/[^a-z0-9+ ]+/g, ' ')
@@ -173,13 +192,15 @@ export function* buildBrowseSteps(search, shopCounts, categories) {
       const key = productKey(name);
       const offers = answer.groups.flatMap(group => group.offers)
         .filter(offer => (offer.product ?? productKey(offer.title ?? '')) === key);
-      const shops = new Set(offers.map(offer => offer.shop));
+      const buyable = offers.filter(offer => offer.inStock !== false);
+      if (!buyable.length) continue;
+      const shops = new Set(buyable.map(offer => offer.shop));
       if (shops.size < 2) continue;
       const signature = offers.map(offer => offer.url).sort().join(' ');
       if (seen.has(signature)) continue;
       seen.add(signature);
-      const cheapest = offers.reduce((low, offer) => (offer.price < low.price ? offer : low));
-      const pictured = [cheapest, ...offers].find(offer => offer.image);
+      const cheapest = buyable.reduce((low, offer) => (offer.price < low.price ? offer : low));
+      const pictured = [cheapest, ...buyable, ...offers].find(offer => offer.image);
       cards.push({
         name,
         from: cheapest.price,

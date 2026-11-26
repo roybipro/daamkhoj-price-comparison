@@ -7,6 +7,7 @@ const NOISE = new Set(['price', 'prices', 'in', 'bd', 'bangladesh', 'buy', 'onli
 /* A page containing one of these is a different product unless the search asked for it. */
 const OTHER_PRODUCT = new Set([
   'pro', 'plus', 'max', 'mini', 'ultra', 'lite', 'series', 'fe', 'neo',
+  'ti', 'xt', 'xtx', 'gre',
   'case', 'cover', 'protector', 'glass', 'strap', 'cable', 'charger', 'adapter', 'pouch', 'skin', 'battery', 'replacement', 'parts',
   'sleeve', 'film', 'lens', 'folio', 'keyboard', 'pen', 'pencil', 'stylus', 'tip', 'tips', 'loop', 'holder', 'mount', 'stand', 'dock', 'hub', 'bag', 'guard', 'shield',
   'used', 'refurbished', 'preowned', 'secondhand', 'renewed'
@@ -24,7 +25,7 @@ const joinUnits = text => text
   .replace(/second[\s-]hand/g, 'secondhand')
   .replace(/\bsoya\s?bean\b/g, 'soybean')
   .replace(/(\d)\s*(kgs?|gms?|grams?|g|ltrs?|litres?|liters?|l|ml)\b/g, (_, digit, unit) => `${digit}${PACK_UNIT[unit]}`)
-  .replace(/(\d)\s+(gb|tb)\b/g, '$1$2');
+  .replace(/(\d)\s+(gb|tb)\b(?![/\s]*s\b)/g, '$1$2');
 
 const tokensOf = text => joinUnits(text).split(/[^\p{L}\p{N}.]+|(?<!\d)\.|\.(?!\d)/u).filter(Boolean);
 
@@ -49,7 +50,7 @@ export function mentionsInTokens(tokens, query) {
   return queryTokens(query).filter(token => !/\d/.test(token)).every(token => tokens.has(token));
 }
 
-const UNIT_AFTER = /^(mah|w|gb|tb|mm|hz|kg|g|l|ml|inch|in)$/;
+const UNIT_AFTER = /^(mah|w|gb|tb|mm|hz|kg|ml|inch|in)$/;
 
 export function matchesQuery(name, query) {
   const wanted = queryTokens(query);
@@ -70,6 +71,50 @@ export function matchesQuery(name, query) {
     if (!wanted.some(token => subjectTokens.has(token) && !restTokens.has(token))) return false;
   }
 
+  /* "RTX 4070 Super" is a different GPU from "RTX 4070", without blocking "Super AMOLED" phones. */
+  if (!asked.has('super') && /\b(?:rtx|gtx)\b/i.test(query) && /\b(?:rtx|gtx)\s*\d{3,4}(?:\s*ti)?\s+super\b/i.test(name)) {
+    return false;
+  }
+
+  /* Full PC builds, laptops, and multi-part hardware bundles must not stand in for a single part. */
+  const asksSystem = /\b(pc|computer|build|combo|bundle|rig|desktop\s+system)\b/i.test(query);
+  if (!asksSystem && /\b(gaming\s+pc|desktop\s+pc|office\s+pc|budget\s+pc(?:[\s-]deal)?|full\s+pc|mini\s+pc|all[\s-]+in[\s-]+one\s+pc|desktop\s+computer|gaming\s+desktop|(?:gaming|productivity|pc)\s+build|pc\s+bundle|with\s+(?:full\s+)?pc|only\s+for\s+pc\s+bundle)\b/i.test(name)) {
+    return false;
+  }
+  const asksPortableOrAio = /\b(laptop|notebook|macbook|imac|chromebook|vivobook|zenbook|ideapad|thinkpad|thinkbook|legion|loq|victus|omen|nitro|predator|rog|tuf|inspiron|pavilion|aspire|katana|cyborg|stealth|raider|vector|helios|strix|zephyrus)\b/i.test(query);
+  if (!asksPortableOrAio &&
+    /\b(laptop|notebook|macbook|imac|chromebook)\b/i.test(name) &&
+    /\b(rtx|gtx|radeon|rx|graphics|processor|ryzen|motherboard|ssd|nvme|mouse|keyboard|monitor|psu|cooler)\b/i.test(query) &&
+    !(asked.has('for') || /\s(?:for|compatible\s+with)\s/i.test(name))) {
+    return false;
+  }
+  /* A standalone GPU never has an Intel/Ryzen CPU, and a standalone CPU never has an SSD/HDD. */
+  if (!asksSystem && !asksPortableOrAio) {
+    const asksGpuOnly = /\b(rtx|gtx|radeon|rx\s*\d{3,4}|arc\s*[ab]\d{3})\b/i.test(query) &&
+      !/\b(ryzen|core|intel|i[3579])\b/i.test(query);
+    if (asksGpuOnly && (cpuOf(name) || /\b(core\s+(?:ultra\s+)?[3579]|i[3579][-\s]\d{4,5})\b/i.test(name))) {
+      return false;
+    }
+    const asksCpuOnly = /\b(ryzen\s*[3579]|core\s*i[3579]|processor)\b/i.test(query) &&
+      !/\b(ssd|nvme|hdd|ram|rtx|gtx)\b/i.test(query);
+    if (asksCpuOnly && /\b(\d+\s*(?:gb|tb)\s*(?:nvme\s*|m\.?2\s*)?ssd|\d+\s*tb\s*hdd)\b/i.test(name)) {
+      return false;
+    }
+  }
+  if (!asksSystem) {
+    const partKinds = Number(/\bprocessor\b/i.test(name)) +
+      Number(/\bmotherboard\b/i.test(name)) +
+      Number(/\b(desktop\s+ram|gaming\s+ram)\b/i.test(name)) +
+      Number(/\b(cpu\s+cooler|liquid\s+cooler)\b/i.test(name));
+    if (partKinds >= 2) {
+      const askedKinds = Number(/\b(processor|ryzen|core\s*i[3579])\b/i.test(query)) +
+        Number(/\b(motherboard|[abxz]\d{3}m?)\b/i.test(query)) +
+        Number(/\b(ram|vengeance|fury)\b/i.test(query)) +
+        Number(/\b(cooler|ak\d{3}|masterliquid)\b/i.test(query));
+      if (askedKinds < 2) return false;
+    }
+  }
+
   const wantedCpu = cpuOf(query);
   const nameCpu = cpuOf(name);
   if (wantedCpu && nameCpu && wantedCpu !== nameCpu) return false;
@@ -84,8 +129,10 @@ export function matchesQuery(name, query) {
 }
 
 const UNIT_LABEL = { kg: 'kg', g: 'g', l: 'L', ml: 'ml' };
+const TECH_ITEM = /\b(ryzen|intel|core|processor|cpu|geforce|radeon|rtx|gtx|graphics|gpu|gddr\d|ddr\d|motherboard|ssd|nvme|hdd|ram|dimm|laptop|notebook|macbook|monitor|router|lan|wifi|ethernet|gbps|gb\/s|mhz|ghz|mouse|keyboard|headset|earbuds|watch|phone|iphone|galaxy|redmi|poco|ipad|ups|psu|cooler)\b/i;
 
 function packOf(text) {
+  if (TECH_ITEM.test(text)) return '';
   /* "5G" on a phone is its network, not five grams. */
   const match = joinUnits(text).match(/(?:^|[^\p{L}\p{N}.])(?![2-6]g(?![\p{L}\p{N}]))(\d+(?:\.\d+)?)(kg|g|l|ml)(?![\p{L}\p{N}])/u);
   return match ? `${match[1]}${UNIT_LABEL[match[2]]}` : '';
@@ -111,7 +158,7 @@ function cpuOf(text) {
 }
 
 function memoryOf(text) {
-  const lower = joinUnits(text);
+  const lower = joinUnits(text).replace(/\b\d+(?:\.\d+)?\s*(?:gb|tb)\s*\/\s*s\b|\b\d+(?:\.\d+)?\s*gbps\b/g, ' ');
   const pair = lower.match(/\b(\d{1,3})(?:gb)?\s*\/\s*(\d{1,4})\s*(gb|tb)\b/);
   if (pair && (pair[3] === 'tb' || Number(pair[1]) < Number(pair[2]))) {
     return { ram: `${pair[1]}GB`, storage: `${pair[2]}${pair[3].toUpperCase()}` };
@@ -130,6 +177,10 @@ function memoryOf(text) {
     else if (unit === 'tb' || Number(size) >= 64) storage ||= `${size}${unit.toUpperCase()}`;
     else ram ||= `${size}GB`;
   }
+  if (!ram && !storage && /\b(rtx|gtx|radeon|rx|arc|graphics|gddr\d)\b/i.test(text)) {
+    const vram = text.match(/\b(4|6|8|10|12|16|20|24|32)g\b/i)?.[1];
+    if (vram) ram = `${vram}GB`;
+  }
   return { ram, storage };
 }
 
@@ -147,13 +198,40 @@ export function variantOf(name, query) {
   const generation = name.match(/\b(\d{1,2})(?:st|nd|rd|th)[\s-]*gen/i)?.[1];
   const { ram, storage } = memoryOf(name);
   const stock = name.match(/\b(unofficial|official)\b/i)?.[1];
+  const isStandaloneRam = !cpu && !storage && Boolean(ram) && /\b(ram|dimm|sodimm)\b/i.test(name) &&
+    !/\b(laptop\b(?!\s*ram)|notebook|macbook|iphone|galaxy|redmi|poco|ipad|tablet|phone)\b/i.test(name);
+  const isStandaloneGpu = !cpu && !storage && Boolean(ram) && /\b(graphics\s+card|gddr\d|geforce\s+rtx|geforce\s+gtx|radeon\s+rx)\b/i.test(name) &&
+    !/\b(laptop|notebook|macbook|pc)\b/i.test(name);
+  const ddr = isStandaloneRam ? name.match(/\b(ddr[345])\b/i)?.[1]?.toUpperCase() : undefined;
+  const mhz = isStandaloneRam ? name.match(/\b(\d{4})\s*(?:mhz|mt\/s)\b/i)?.[1] : undefined;
+  const form = isStandaloneRam && /\b(laptop\s+ram|sodimm|so-dimm)\b/i.test(name) ? 'Laptop' : undefined;
+  const ramLabel = isStandaloneGpu
+    ? `${ram} VRAM`
+    : isStandaloneRam
+      ? [ram, ddr, mhz && `${mhz}MHz`, form, 'RAM'].filter(Boolean).join(' ')
+      : ram && `${ram} RAM`;
 
   const parts = [
     cpu,
     generation && `${generation}th gen`,
-    ram && `${ram} RAM`,
+    ramLabel,
     storage
   ].filter(Boolean);
+
+  if (!parts.length) {
+    if (/\b(power\s+supply|psu|ups)\b/i.test(name)) {
+      const power = name.match(/\b(\d{3,4})\s*(w|watt|va)\b/i);
+      if (power) parts.push(`${power[1]}${power[2].toLowerCase().startsWith('w') ? 'W' : 'VA'}`);
+    } else if (/\b(liquid\s+(?:cpu\s+)?cooler|aio)\b/i.test(name)) {
+      const radiator = name.match(/\b(120|240|280|360|420)\s*mm\b/i);
+      if (radiator) parts.push(`${radiator[1]}mm`);
+    } else if (/\b(monitor|television|\btv\b)\b/i.test(name)) {
+      const screen = name.match(/\b(\d{2}(?:\.\d+)?)\s*(?:inch|inches|"|”)/i);
+      const hz = /\bmonitor\b/i.test(name) ? name.match(/\b(\d{2,3})\s*hz\b/i)?.[1] : undefined;
+      if (screen) parts.push(`${screen[1]}"`);
+      if (hz) parts.push(`${hz}Hz`);
+    }
+  }
 
   if (!parts.length) return { key: '', label: 'Version not clear', clear: false };
   if (stock) parts.push(stock[0].toUpperCase() + stock.slice(1).toLowerCase());

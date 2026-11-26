@@ -28,10 +28,10 @@ function findProducts(node, found = []) {
   return found;
 }
 
-function stockOf(availability) {
+export function stockOf(availability) {
   const value = String(availability ?? '').toLowerCase();
-  if (/instock|in_stock|limitedavailability/.test(value)) return true;
-  if (/outofstock|out_of_stock|soldout|discontinued/.test(value)) return false;
+  if (/out[\s_-]*of[\s_-]*stock|stock[\s_-]*out|sold[\s_-]*out|discontinued|pre[\s_-]*order|pre[\s_-]*sale|back[\s_-]*order|up[\s_-]*coming|\btba\b/.test(value)) return false;
+  if (/in[\s_-]*stock|limited[\s_-]*availability|online[\s_-]*only|in[\s_-]*store[\s_-]*only/.test(value)) return true;
   return null;
 }
 
@@ -158,14 +158,113 @@ function readMeta(html) {
   const price = tag('product:price:amount') ?? tag('og:price:amount');
   if (!price) return null;
   const currency = tag('product:price:currency') ?? tag('og:price:currency') ?? '';
-  return { source: 'meta', price: toNumber(price), currency: currency.toUpperCase(), name: '', image: '', inStock: stockOf(tag('product:availability')) };
+  return { source: 'meta', price: toNumber(price), currency: currency.toUpperCase(), name: '', image: '', inStock: stockOf(tag('product:availability') ?? tag('og:availability') ?? tag('availability')) };
 }
 
 function readMicrodata(html) {
   const prices = [...html.matchAll(/itemprop=["']price["'][^>]*content=["']([\d.,]+)["']/gi)];
   if (prices.length !== 1) return prices.length ? { ambiguous: true } : null;
   const currency = html.match(/itemprop=["']priceCurrency["'][^>]*content=["'](\w+)["']/i)?.[1] ?? '';
-  return { source: 'microdata', price: toNumber(prices[0][1]), currency: currency.toUpperCase(), name: '', image: '', inStock: null };
+  const avail = [...html.matchAll(/itemprop=["']availability["'][^>]*?(?:href|content)=["']([^"']+)["']/gi)]
+    .map(match => stockOf(match[1]))
+    .filter(value => value !== null);
+  const uniqueAvail = new Set(avail);
+  return { source: 'microdata', price: toNumber(prices[0][1]), currency: currency.toUpperCase(), name: '', image: '', inStock: uniqueAvail.size === 1 ? [...uniqueAvail][0] : null };
+}
+
+/** Stock signals stated in meta tags, microdata, or the product header's own status badge.
+    Some OpenCart shops hardcode schema.org/InStock in JSON-LD even when the product's own
+    meta tag or status cell says "Out of Stock", so an explicit false here overrides JSON-LD. */
+export function readStock(html) {
+  const meta = stockOf(
+    metaContent(html, 'product:availability') ??
+    metaContent(html, 'og:availability') ??
+    metaContent(html, 'availability') ??
+    (/content=["']Availability["']/i.test(html) ? metaContent(html, 'twitter:data2') : undefined)
+  );
+  if (meta !== null) return meta;
+
+  const itemprops = [...html.matchAll(/itemprop=["']availability["'][^>]*?(?:href|content)=["']([^"']+)["']/gi)]
+    .map(match => stockOf(match[1]))
+    .filter(value => value !== null);
+  if (new Set(itemprops).size === 1) return itemprops[0];
+
+  const body = html.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ');
+  const badges = [
+    body.match(/<td[^>]*class=["'][^"']*\bproduct-status\b[^"']*["'][^>]*>([^<]+)</i)?.[1],
+    body.match(/<li[^>]*class=["'][^"']*\bproduct-stock\b[^"']*["'][^>]*>[\s\S]{0,120}?<span>([^<]+)</i)?.[1],
+    body.match(/id=["']product-available["'][^>]*>([^<]+)</i)?.[1],
+    body.match(/class=["'][^"']*\bstock-badge\b[^"']*["'][^>]*>([^<]+)</i)?.[1]
+  ].map(stockOf).filter(value => value !== null);
+  return new Set(badges).size === 1 ? badges[0] : null;
+}
+
+/** Strips shop SEO boilerplate ("… Price in Bangladesh | Star Tech") and rejects template tokens. */
+export function cleanProductTitle(raw) {
+  const cleaned = String(raw ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^shop\s+/i, '')
+    .replace(/\s+at\s+\S+\.[a-z]+$/i, '')
+    .replace(/\s+(?:best\s+|latest\s+)?price\s+in\s+(?:bangladesh|bd)(?:\s+20\d\d)?(?:\s*[|–—-].*)?$/i, '')
+    .replace(/\s*[|–—-]\s*(?:price\s+in\s+(?:bangladesh|bd)|buy\s+online).*$/i, '')
+    .trim();
+  if (!cleaned || /%%[a-z_]+%%/i.test(cleaned) || /^(?:price\s+in\s+(?:bangladesh|bd)|home|welcome)\b/i.test(cleaned)) return '';
+  return cleaned;
+}
+
+function readHeading(html) {
+  const headings = [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi)]
+    .map(match => cleanProductTitle(decodeEntities(match[1].replace(/<[^>]+>/g, ' '))))
+    .filter(Boolean);
+  return headings.length === 1 ? headings[0] : '';
+}
+
+const GENERIC_TITLE_WORDS = new Set([
+  'shop', 'store', 'online', 'official', 'original', 'bangladesh', 'price', 'prices', 'best', 'buy',
+  'latest', 'new', 'product', 'products', 'item', 'items', 'the', 'and', 'with', 'for', 'offer',
+  'special', 'deal', 'edition', 'version', 'series', 'model', 'pack', 'inch', 'black', 'white',
+  'blue', 'silver', 'gray', 'grey', 'gold', 'green', 'pink', 'purple'
+]);
+const SLUG_SYNONYMS = { ps5: 'playstation', ps4: 'playstation', gpu: 'graphics', cpu: 'processor', mobo: 'motherboard', psu: 'power' };
+const latinWords = text => [...String(text).toLowerCase().matchAll(/[a-z0-9]{3,}/g)]
+  .map(match => match[0])
+  .filter(word => /[a-z]/.test(word) && !GENERIC_TITLE_WORDS.has(word))
+  .flatMap(word => (SLUG_SYNONYMS[word] ? [word, SLUG_SYNONYMS[word]] : [word]));
+
+function contradictsTitle(name, pageTitle) {
+  if (!name || !pageTitle || /[^\x00-\x7f]/.test(name) || /[^\x00-\x7f]/.test(pageTitle)) return false;
+  const strippedTitle = cleanProductTitle(pageTitle.split(/\s*[|–—]\s*/)[0]);
+  const a = latinWords(name);
+  const b = latinWords(strippedTitle);
+  if (a.length < 2 || b.length < 2) return false;
+  const compactA = a.join('');
+  const compactB = b.join('');
+  return !a.some(word => b.includes(word) || compactB.includes(word)) &&
+    !b.some(word => a.includes(word) || compactA.includes(word));
+}
+
+/** False when a product URL's path is a broken tracking parameter, root page, or clearly for a
+    different English product than `name` (such as a server-rack slug serving a router's JSON-LD). */
+export function isPlausibleProductPage(url, name) {
+  const cleanName = cleanProductTitle(name);
+  if (!url || !cleanName) return false;
+  let pathname;
+  try {
+    ({ pathname } = new URL(url));
+  } catch {
+    return false;
+  }
+  if (/^\/?$/.test(pathname) || /\/srsltid=/i.test(pathname)) return false;
+  if (/[^\x00-\x7f]/.test(cleanName)) return true;
+  const slug = decodeURIComponent(pathname).replace(/\/+$/, '').split('/').pop() ?? '';
+  const slugWords = latinWords(slug);
+  const nameWords = latinWords(cleanName);
+  if (slugWords.length < 2 || nameWords.length < 2) return true;
+  const slugCompact = slug.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const nameCompact = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return slugWords.some(word => nameWords.includes(word) || nameCompact.includes(word)) ||
+    nameWords.some(word => word.length >= 4 && slugCompact.includes(word));
 }
 
 /** A page's product photo, as written: its structured data's image, else its sharing image. */
@@ -184,18 +283,24 @@ export function readImage(html) {
 
 /** The page's clear taka price, or null with the reason it could not be trusted. */
 export function readPage(html) {
-  const title = decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '').replace(/\s+/g, ' ').trim();
+  const rawTitle = decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '').replace(/\s+/g, ' ').trim();
+  const title = cleanProductTitle(rawTitle);
+  const htmlStock = readStock(html);
   const found = readJsonLd(html) ?? readMeta(html) ?? readMicrodata(html);
 
-  if (!found) return { title, price: null, reason: 'no-price' };
-  if (found.ambiguous !== undefined) return { title, price: null, reason: 'ambiguous' };
-  if (!Number.isFinite(found.price) || found.price <= 0) return { title, price: null, reason: 'no-price' };
+  if (!found) return { title, price: null, inStock: htmlStock, reason: 'no-price' };
+  if (found.ambiguous !== undefined) return { title, price: null, inStock: htmlStock, reason: 'ambiguous' };
+  if (!Number.isFinite(found.price) || found.price <= 0) return { title, price: null, inStock: htmlStock, reason: 'no-price' };
   /* A price with no stated currency might not be taka, so it does not count. */
-  if (found.currency !== 'BDT') return { title, price: null, reason: 'not-taka' };
+  if (found.currency !== 'BDT') return { title, price: null, inStock: htmlStock, reason: 'not-taka' };
 
-  /* Some shops write their own marketing around the name: "Shop X at Shop.com". */
-  const name = found.name.replace(/\s+/g, ' ').trim().replace(/^shop\s+/i, '').replace(/\s+at\s+\S+\.[a-z]+$/i, '');
+  const structuredName = cleanProductTitle(found.name);
+  if (structuredName && contradictsTitle(structuredName, rawTitle)) {
+    return { title, price: null, inStock: htmlStock, reason: 'ambiguous' };
+  }
+  const name = structuredName || readHeading(html);
+  const inStock = htmlStock === false ? false : (found.inStock ?? htmlStock);
   /* The product photo: the structured data's own, else the page's sharing image. */
   const image = decodeEntities(found.image || metaContent(html, 'og:image') || '');
-  return { title, name, price: found.price, inStock: found.inStock, source: found.source, image };
+  return { title, name, price: found.price, inStock, source: found.source, image };
 }

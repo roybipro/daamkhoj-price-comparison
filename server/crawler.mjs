@@ -2,7 +2,7 @@
    each page's own price, slowly and only where robots.txt allows. Searches then read the list,
    so they answer at once instead of waiting a minute for a web search. */
 
-import { absoluteImage, readPage } from './page-price.mjs';
+import { absoluteImage, isPlausibleProductPage, readPage } from './page-price.mjs';
 import { productPages } from './sitemap.mjs';
 
 const pause = ms => new Promise(done => setTimeout(done, ms));
@@ -44,8 +44,9 @@ function readOne(shop, text, url) {
   const read = readPage(text);
   if (read.price === null) return [];
   const name = read.name || read.title;
+  if (!name || !isPlausibleProductPage(url, name)) return [];
   const image = absoluteImage(read.image, url);
-  return name ? [{ url, name, price: read.price, inStock: read.inStock, ...(image && { image }) }] : [];
+  return [{ url, name, price: read.price, inStock: read.inStock, ...(image && { image }) }];
 }
 
 /**
@@ -123,7 +124,9 @@ export async function crawlShop(shop, deps) {
         continue;
       }
       const checkedAt = new Date(now()).toISOString();
-      const found = readOne(shop, response.text, page)
+      const finalUrl = shop.kind === 'page' && response.url ? response.url : page;
+      const redirectedAway = shop.kind === 'page' && response.url && !shop.product.test(response.url);
+      const found = redirectedAway ? [] : readOne(shop, response.text, finalUrl)
         .map(item => ({ shop: shop.shop, ...item, checkedAt }));
       if (found.length) {
         stats.priced++;
