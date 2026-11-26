@@ -18,9 +18,13 @@ const GENERIC_BRAND = new Set(['premium', 'fresh', 'pure', 'local', 'organic', '
 
 const PACK_UNIT = { kg: 'kg', kgs: 'kg', g: 'g', gm: 'g', gms: 'g', gram: 'g', grams: 'g', l: 'l', ltr: 'l', ltrs: 'l', litre: 'l', litres: 'l', liter: 'l', liters: 'l', ml: 'ml' };
 
+/* A graphics card or memory module's "8G" is 8 GB, not 8 grams: "Leadtek WinFast RTX 4060 8G"
+   was shown as a pack size, "Leadtek · 8g". Phones' "5G" is left alone: no phone says these. */
+const MEMORY_PART = /\b(?:graphics|gpu|vram|g?ddr\d*x?|geforce|radeon|rtx|gtx|dimm|so-?dimm)\b/;
+const gigabytes = text => (MEMORY_PART.test(text) ? text.replace(/\b(\d{1,3})\s*g\b/g, '$1gb') : text);
+
 /* Shops write one size and one word many ways, so all of them reduce to a single spelling. */
-const joinUnits = text => text
-  .toLowerCase()
+const joinUnits = text => gigabytes(text.toLowerCase())
   .replace(/([\p{L}\p{N}])\+(?![\p{L}\p{N}])/gu, '$1 plus')
   .replace(/pre[\s-]owned/g, 'preowned')
   .replace(/second[\s-]hand/g, 'secondhand')
