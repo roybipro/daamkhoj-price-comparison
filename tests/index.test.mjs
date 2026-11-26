@@ -449,6 +449,14 @@ test('the browse endpoint serves the shelves, and says so when there is no price
   assert.equal((await call(createApi({ liveSearch: null }), '/api/browse')).status, 503);
 });
 
+test('names are shown decoded: from a Shopify product, and from a list crawled before', () => {
+  const [item] = readShopifyProduct({ title: 'Targus Multi Adapter &amp; Card Reader', variants: [{ id: 1, title: 'Default Title', price: '150000', available: true }] }, 'https://s.bd/p');
+  assert.equal(item.name, 'Targus Multi Adapter & Card Reader');
+  const index = createPriceIndex({ version: 1, shops: { 'a.bd': { entries: [entry('a.bd', 'Dahua E800 128GB 2.5&quot; SATA SSD', 2500)] } } }, { now: () => NOW });
+  const [offer] = index.search('dahua e800').groups.flatMap(group => group.offers);
+  assert.equal(offer.title, 'Dahua E800 128GB 2.5" SATA SSD');
+});
+
 test('a published list is pulled over the local one, and a bad download never replaces it', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'pull-'));
   const file = path.join(dir, 'price-index.json');

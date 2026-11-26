@@ -2,7 +2,7 @@
    each page's own price, slowly and only where robots.txt allows. Searches then read the list,
    so they answer at once instead of waiting a minute for a web search. */
 
-import { absoluteImage, readPage } from './page-price.mjs';
+import { absoluteImage, decodeEntities, readPage } from './page-price.mjs';
 import { productPages } from './sitemap.mjs';
 
 const pause = ms => new Promise(done => setTimeout(done, ms));
@@ -16,7 +16,8 @@ export function readShopifyProduct(json, pageUrl) {
     return [];
   }
   if (!product || !Array.isArray(product.variants)) return [];
-  const title = String(product.title ?? '').replace(/\s+/g, ' ').trim();
+  /* A Shopify product's JSON can still hold HTML codes: "Cable &amp; Charger". */
+  const title = decodeEntities(String(product.title ?? '')).replace(/\s+/g, ' ').trim();
   if (!title) return [];
 
   const many = product.variants.length > 1;
@@ -24,7 +25,7 @@ export function readShopifyProduct(json, pageUrl) {
   return product.variants
     .filter(variant => Number(variant.price) > 0)
     .map(variant => {
-      const rawVersion = String(variant.title ?? '').trim();
+      const rawVersion = decodeEntities(String(variant.title ?? '')).trim();
       const version = rawVersion.toLowerCase().startsWith(title.toLowerCase())
         ? rawVersion.slice(title.length).replace(/^[\s/-]+/, '').trim()
         : rawVersion;
