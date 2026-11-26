@@ -5,7 +5,7 @@
 
    with times as ISO strings. Searching it needs no network and no paid request. */
 
-import { createWriteStream } from 'node:fs';
+import { createReadStream, createWriteStream } from 'node:fs';
 import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -43,40 +43,80 @@ export async function saveIndexFile(file, data) {
   await rename(temporary, file);
 }
 
+/* A list's version, its shape and how it ends, read from its bytes as they pass, without holding
+   or parsing the list: at 54 MB a parse costs about 150 MB of heap, and on Render's 252 MB heap
+   two of them at once (the server loading its list at start while the pull checked the
+   download) ran it out. The times are the only "updatedAt" and "crawledAt" keys in the file. */
+function listScanner() {
+  const TIME = /"(?:updatedAt|crawledAt)"\s*:\s*"([^"\\]*)"/g;
+  let head = '';
+  let tail = '';
+  let version = '';
+  let shops = false;
+  return {
+    push(chunk) {
+      /* A web stream's pieces may be plain byte arrays, whose toString lists numbers. */
+      const piece = Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength).toString('latin1');
+      if (head.length < 64) head += piece.slice(0, 64 - head.length);
+      const text = tail + piece;
+      for (const [, time] of text.matchAll(TIME)) if (time > version) version = time;
+      shops ||= /(?<!\\)"shops"\s*:\s*\{/.test(text);
+      /* Kept so a key cut between two chunks is still found whole. */
+      tail = text.slice(-96);
+    },
+    result() {
+      const isList = /^\s*\{\s*"version"\s*:\s*1\s*[,}]/.test(head) && shops && /\}\s*$/.test(tail);
+      return { isList, version };
+    }
+  };
+}
+
+/** How new the list in a file is, as listVersion would say, or null when there is none. */
+async function fileVersion(file) {
+  const scan = listScanner();
+  try {
+    for await (const chunk of createReadStream(file)) scan.push(chunk);
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+  return scan.result().version;
+}
+
 /**
  * Fetches a published copy of the list (the one the nightly crawl commits) and saves it over the
  * local file when it is newer, so a server that is never redeployed still gets each night's
  * prices. A download that is not a price list, or not newer, leaves the file alone. Says whether
  * it changed. With `cache` (an object kept between calls), the copy last seen is named by its
- * ETag, so an unchanged list answers "not modified" instead of sending 38 MB again.
+ * ETag, so an unchanged list answers "not modified" instead of sending 54 MB again.
  */
 export async function pullIndexFile(url, file, { fetchImpl = fetch, timeoutMs = 10 * 60_000, maxBytes = 200_000_000, cache = null } = {}) {
   const headers = cache?.etag ? { 'if-none-match': cache.etag } : {};
   /* At 54 MB, reading the whole answer into memory first took over a minute on Render's small
      share of a CPU, so every pull since 2026-11-24 timed out: it is written to disk as it
-     arrives, with ten minutes to finish. */
+     arrives, with ten minutes to finish. The list itself is only parsed when the server loads it. */
   const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs), headers });
   if (response.status === 304) return false;
   if (!response.ok) throw new Error(`price list download answered ${response.status}`);
   const temporary = `${file}.${process.pid}.pull.tmp`;
   try {
     let bytes = 0;
+    const scan = listScanner();
     const counted = async function* (chunks) {
       for await (const chunk of chunks) {
         bytes += chunk.length;
         if (bytes > maxBytes) throw new Error('price list download is too large');
+        scan.push(chunk);
         yield chunk;
       }
     };
     await pipeline(Readable.fromWeb(response.body ?? new Response('').body), counted, createWriteStream(temporary));
-    const data = JSON.parse(await readFile(temporary, 'utf8'));
-    if (data?.version !== 1 || typeof data.shops !== 'object' || data.shops === null) throw new Error('the download is not a price list');
+    const { isList, version: incoming } = scan.result();
+    if (!isList) throw new Error('the download is not a price list');
     const etag = response.headers?.get?.('etag') ?? null;
     /* Only ever forward: a cache can hand back yesterday's copy, which must not replace a newer
        list deployed with the site. The local list's version is read from its file once. */
-    const incoming = listVersion(data);
-    const current = cache?.version
-      ?? await readFile(file, 'utf8').then(text => listVersion(JSON.parse(text)), () => null);
+    const current = cache?.version ?? await fileVersion(file);
     if (cache) Object.assign(cache, { etag, version: current });
     if (current !== null && incoming <= current) {
       await unlink(temporary).catch(() => {});

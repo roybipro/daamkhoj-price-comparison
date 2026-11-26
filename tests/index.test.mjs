@@ -474,6 +474,21 @@ test('a published list is pulled over the local one, and a bad download never re
   const crawled = JSON.stringify({ version: 1, shops: { 'a.bd': { crawledAt: '2026-11-24T00:00:00.000Z', entries: [entry('a.bd', 'Galaxy A16', 19000)] } } });
   assert.equal(await pullIndexFile('https://x/list.json', file, { fetchImpl: serve(crawled) }), true, 'a newer crawl is taken');
   assert.equal((await loadIndexFile(file)).shops['a.bd'].entries[0].price, 19000);
+
+  /* The list is never parsed while it downloads: its version is read from the bytes as they
+     pass, so a key cut between two pieces must still be read whole. */
+  const later = JSON.stringify({ version: 1, shops: { 'a.bd': { crawledAt: '2026-11-25T00:00:00.000Z', entries: [entry('a.bd', 'Galaxy A16', 18000)] } } });
+  const inPieces = text => async () => new Response(new ReadableStream({
+    start(controller) {
+      const bytes = new TextEncoder().encode(text);
+      for (let at = 0; at < bytes.length; at += 7) controller.enqueue(bytes.slice(at, at + 7));
+      controller.close();
+    }
+  }));
+  assert.equal(await pullIndexFile('https://x/list.json', file, { fetchImpl: inPieces(crawled) }), false, 'the same crawl, sent in pieces, is not newer');
+  assert.equal(await pullIndexFile('https://x/list.json', file, { fetchImpl: inPieces(later) }), true);
+  assert.equal((await loadIndexFile(file)).shops['a.bd'].entries[0].price, 18000);
+  await assert.rejects(pullIndexFile('https://x/list.json', file, { fetchImpl: inPieces(later.slice(0, -40)) }), /not a price list/, 'a cut-off download is refused');
 });
 
 test('an unchanged published list is not downloaded again: its ETag is asked about instead', async () => {

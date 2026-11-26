@@ -27,13 +27,13 @@ add to it.
 
 ### Storage: SQLite on disk
 
-The list is committed as JSON (`data/price-index.json`, ~38 MB). When the server loads it, it
+The list is committed as JSON (`data/price-index.json`, ~54 MB). When the server loads it, it
 copies the list into a private temporary SQLite database (Node's built-in `node:sqlite`) and lets
 the JSON go. The database is deleted when it is closed.
 
 | Table | Holds |
 |---|---|
-| `entries` | one row per price: shop, url, name, price, in_stock, checked_at, image, `pkey` (product key), `digits` |
+| `entries` | one row per price: shop, url, name, price, in_stock, checked_at, image, `pkey` (product key) |
 | `words` | every word of each listing's name and address, `in_name` marking the name's own; primary key `(word, id)` |
 | `word_counts` | how many names use each word, for spelling and completion |
 | `products` | one row per product for suggestions, ordered by how many shops sell it |
@@ -56,7 +56,8 @@ Measured at 109k prices: heap 101 MB → 16 MB, median search 12 ms → 8 ms, sa
    (`correctedFrom`).
 3. **Find candidates.** The words that must match are the query's words that aren't numbers or
    noise ("price", "bd", "best", …). The database returns the listings holding all of them. A
-   query of only numbers ("256gb", "65w") is narrowed by the digits in each name instead.
+   query of only numbers and sizes ("256gb", "65w", "f91w") looks up each word as written, as
+   the start of a longer word ("65" → "65w"), or split in two ("F-91W").
 4. **Check each candidate** with `matchesQuery`:
    - every query word is in the name; "15" is a whole number, not part of "2015"; "65" matches "65w";
    - an accessory isn't the product: "case for iPhone 15" doesn't match "iphone 15";
