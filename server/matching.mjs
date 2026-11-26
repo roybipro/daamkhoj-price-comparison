@@ -7,11 +7,12 @@ const NOISE = new Set(['price', 'prices', 'in', 'bd', 'bangladesh', 'buy', 'onli
 /* A page containing one of these is a different product unless the search asked for it. */
 const OTHER_PRODUCT = new Set([
   'pro', 'plus', 'max', 'mini', 'ultra', 'lite', 'series', 'fe', 'neo',
-  'ti', 'xt', 'xtx', 'gre',
   'case', 'cover', 'protector', 'glass', 'strap', 'cable', 'charger', 'adapter', 'pouch', 'skin', 'battery', 'replacement', 'parts',
   'sleeve', 'film', 'lens', 'folio', 'keyboard', 'pen', 'pencil', 'stylus', 'tip', 'tips', 'loop', 'holder', 'mount', 'stand', 'dock', 'hub', 'bag', 'guard', 'shield',
   'used', 'refurbished', 'preowned', 'secondhand', 'renewed'
 ]);
+
+const GPU_TIER = new Set(['ti', 'xt', 'xtx', 'gre']);
 
 const GENERIC_BRAND = new Set(['premium', 'fresh', 'pure', 'local', 'organic', 'special', 'best', 'buy', 'new', 'original', 'quality', 'super', 'loose']);
 
@@ -71,7 +72,8 @@ export function matchesQuery(name, query) {
     if (!wanted.some(token => subjectTokens.has(token) && !restTokens.has(token))) return false;
   }
 
-  /* "RTX 4070 Super" is a different GPU from "RTX 4070", without blocking "Super AMOLED" phones. */
+  /* "RTX 4070 Super" and "RTX 5060 Ti" / "RX 7600 XT" are distinct GPU tiers unless asked for. */
+  if ([...tokens].some(token => GPU_TIER.has(token) && !asked.has(token))) return false;
   if (!asked.has('super') && /\b(?:rtx|gtx)\b/i.test(query) && /\b(?:rtx|gtx)\s*\d{3,4}(?:\s*ti)?\s+super\b/i.test(name)) {
     return false;
   }

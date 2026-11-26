@@ -98,7 +98,7 @@ export function applyFresh(current: LiveResult, fresh: LiveResult): LiveResult {
             ? { ...offer, url: read.url, price: read.price, inStock: read.inStock, checkedAt: read.checkedAt, image: offer.image ?? read.image }
             : offer;
         })
-        .sort((a, b) => a.price - b.price);
+        .sort((a, b) => Number(a.inStock === false) - Number(b.inStock === false) || a.price - b.price);
       const buyable = offers.filter(offer => offer.inStock !== false);
       return { ...group, offers, lowest: group.comparable && buyable.length > 1 ? buyable[0].url : null };
     })
