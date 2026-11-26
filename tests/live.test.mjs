@@ -127,6 +127,14 @@ test('a copy sold under the real name is not the product, and what comes "with" 
   assert.equal(matchesQuery('Spigen Case with Strap for AirPods Pro', 'airpods pro'), false, 'a case, whatever comes with it');
 });
 
+test('a graphics card or memory module\'s "8G" is 8 GB, not a pack of 8 grams; a phone\'s 5G stays its network', () => {
+  assert.equal(variantOf('Leadtek WinFast RTX 4060 HURRICANE 8G Graphics Card', 'rtx 4060').label, '8GB RAM');
+  assert.equal(variantOf('Kingston FURY Beast 16G DDR4 3200MHz', 'kingston fury').label, '16GB RAM');
+  assert.equal(matchesQuery('Leadtek WinFast RTX 4060 HURRICANE 8G Graphics Card', 'rtx 4060 8gb'), true);
+  assert.equal(variantOf('Pran Chanachur 300g', 'chanachur').label, 'Pran · 300g');
+  assert.equal(variantOf('Galaxy A16 5G 8/256GB', 'galaxy a16').label, '8GB RAM · 256GB · 5G');
+});
+
 test('robots rules follow the standard', () => {
   const rules = parseRobots('User-agent: *\nDisallow: /*?*\nDisallow: /private\nAllow: /private/ok\n\nUser-agent: other\nDisallow: /');
   assert.ok(isAllowed(rules, 'https://s.bd/phone'));
