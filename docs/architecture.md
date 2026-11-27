@@ -69,7 +69,7 @@ server/                    everything the Node server runs
 ├── recheck.mjs            re-reads the shop pages behind a search's results
 ├── freshen.mjs            re-reads popular products' pages through the day
 ├── crawler.mjs            crawls one shop from its sitemap
-├── index-shops.mjs        the 30 shops the list is built from, checked by hand
+├── index-shops.mjs        the 33 shops the list is built from, checked by hand
 ├── sitemap.mjs            product pages from a shop's sitemap
 ├── page-price.mjs         reads one clear taka price, stock and photo from a page
 ├── robots.mjs             robots.txt rules

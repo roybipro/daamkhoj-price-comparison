@@ -35,7 +35,7 @@ and `verbatimModuleSyntax` (type-only imports must say `import type`).
 | Tab | `view=` | Shows |
 |---|---|---|
 | Prices | (default) | The home page shelves, or search results and product views |
-| Shops | `stores` | The 30 shops in the price list, with how many prices each has |
+| Shops | `stores` | The 33 shops in the price list, with how many prices each has |
 | How it works | `how` | How prices are found, read and kept fresh |
 
 ## The address bar

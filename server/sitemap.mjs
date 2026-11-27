@@ -13,7 +13,8 @@ export function parseSitemap(xml) {
   const text = String(xml ?? '');
   const entries = block => [...text.matchAll(new RegExp(`<${block}\\b[^>]*>([\\s\\S]*?)</${block}>`, 'gi'))]
     .map(([, inner]) => ({
-      url: decode((inner.match(/<loc>\s*([^<\s]+)\s*<\/loc>/i) ?? [])[1] ?? ''),
+      /* Some shops (OpenCart, PrestaShop) wrap the address in <![CDATA[ ]]>. */
+      url: decode((inner.match(/<loc>\s*(?:<!\[CDATA\[\s*)?([^<\s\]]+)\s*(?:\]\]>\s*)?<\/loc>/i) ?? [])[1] ?? ''),
       lastmod: (inner.match(/<lastmod>\s*([^<\s]+)\s*<\/lastmod>/i) ?? [])[1] ?? null
     }))
     .filter(entry => /^https?:\/\//i.test(entry.url));
