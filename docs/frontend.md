@@ -60,7 +60,7 @@ undoes the last step instead of leaving the site.
 - **Colours:** every colour is a custom property in `src/styles/tokens.css`, and
   `[data-theme="dark"]` overrides them all. Nothing below that file hard-codes a colour.
 - **Theme:** an inline script in `index.html` picks the saved choice (`localStorage`
-  `daamkhoj:theme`), else the system setting, before the first paint, so the page never flashes
+  `daamkhoj:theme`), else dark, before the first paint, so the page never flashes
   the wrong theme.
 - **CSS order:** the styles load as tokens → base → components → layout, and that order matters.
 
