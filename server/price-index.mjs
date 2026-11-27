@@ -176,6 +176,14 @@ const rowToEntry = row => ({
  * Instant search over a loaded list. Prices older than `maxAgeMs` are left out rather than
  * shown as current, and at most `maxOffers` are returned, cheapest first within each version.
  */
+/* Words that say what kind of thing a search is for: an accessory or part, not the product it
+   fits. The closest search never leaves them out. */
+const KIND_WORDS = new Set([
+  'battery', 'batteries', 'charger', 'charging', 'adapter', 'cable', 'case', 'cover', 'protector', 'glass',
+  'strap', 'band', 'pouch', 'skin', 'sleeve', 'film', 'lens', 'propeller', 'propellers', 'controller',
+  'remote', 'filter', 'filters', 'gimbal', 'mount', 'stand', 'holder', 'dock', 'hub', 'bag', 'replacement', 'parts'
+]);
+
 export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60 * 60 * 1000, maxOffers = 300 } = {}) {
   const shopNames = Object.keys(input?.shops ?? {});
   const updatedAt = input?.updatedAt ?? null;
@@ -418,7 +426,8 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
   function searchClosest(rawQuery) {
     const answer = searchCorrecting(rawQuery);
     if (answer.found) return answer;
-    const words = respace(answer.query).split(/\s+/);
+    /* Spelling fixed first, so "battary" is known as "battery" below. */
+    const words = respace(speller(answer.query)).split(/\s+/);
     if (words.length < 2) return answer;
     const pickBest = indices => {
       let best = null;
@@ -433,10 +442,12 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
       }
       return best;
     };
-    const all = words.map((_, i) => i);
+    /* A word naming what kind of thing it is stays: without it "dji mini 5 pro battery" showed
+       the ৳1,24,990 drone. Nothing found is better; the web search looks for the battery. */
+    const all = words.map((_, i) => i).filter(i => !KIND_WORDS.has(words[i].toLowerCase()));
     const sizes = all.filter(i => /^\d+(?:\.\d+)?(?:gb|tb|mah|w|mm|inch)$/i.test(words[i]));
     const rest = all.filter(i => i > 0 && !sizes.includes(i));
-    const best = (sizes.length && pickBest(sizes)) || (rest.length && pickBest(rest)) || pickBest([0]);
+    const best = (sizes.length && pickBest(sizes)) || (rest.length && pickBest(rest)) || (all.includes(0) && pickBest([0]));
     return best ? { ...best, broadenedFrom: answer.query } : answer;
   }
 
