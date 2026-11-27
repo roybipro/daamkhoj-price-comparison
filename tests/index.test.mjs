@@ -770,6 +770,15 @@ test('words shops write joined or apart are found either way, and nothing found 
   assert.equal(index.search('apple smartwatch', { closest: true }).query, 'apple watch', 'the narrowest search that finds something');
 });
 
+test('the closest search never drops the word that says what kind of thing was asked for', () => {
+  const index = createPriceIndex({ version: 1, shops: {
+    'a.bd': { entries: [entry('a.bd', 'DJI Mini 5 Pro', 124990), entry('a.bd', 'DJI Mini 2 Intelligent Flight Battery', 6500), entry('a.bd', 'Anker Nano Charger 30W', 1800)] }
+  } }, { now: () => NOW });
+  const battery = index.search('dji mini 5 pro battary', { closest: true });
+  assert.equal(battery.found, 0, 'a battery search shows no drone; the web search looks for the battery');
+  assert.equal(index.search('anker nano charger 65w', { closest: true }).query, 'anker nano charger', 'a size can still go');
+});
+
 test('home cards without a photo get one from a shop that answers, not one that keeps refusing', async () => {
   const { createRechecker } = await import('../server/recheck.mjs');
   const index = createPriceIndex({ version: 1, shops: {
