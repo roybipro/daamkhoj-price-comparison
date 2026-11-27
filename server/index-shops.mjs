@@ -76,5 +76,18 @@ export const INDEX_SHOPS = [
      Unique & Smart has no sitemap. */
   { shop: 'droneflybd.com', sitemap: 'https://droneflybd.com/sitemap.xml', product: /\/products\/[^/]+\/?$/, kind: 'page' },
   { shop: 'techmart.com.bd', sitemap: 'https://www.techmart.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' },
-  { shop: 'canvasit.com.bd', sitemap: 'https://canvasit.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' }
+  { shop: 'canvasit.com.bd', sitemap: 'https://canvasit.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' },
+
+  /* Camera shops, added 2026-11-27 after the same 12-page check (priced of 12, with a cart):
+     Drone Place BD 12/12 (264 pages: Sony and Canon cameras, DJI and hobby drones), Camera
+     Source BD 12/12 (1,782 pages: DSLRs, lenses, flashes; most marked out of stock on its own
+     pages, shown as such), Tech Valley 12/12 (1,792 pages: cameras, CCTV, PC parts), Computer
+     Village 11/12 (13,758 pages: PC parts, monitors, cameras). Left out: The Camera House (11/12,
+     but every name ends "- The Camera House"; add once names drop the site's own name), Unix
+     Network ("Buy ... in Jashore" names), Digital Shop BD (0/12), Eerna (its sitemap gave 3
+     pages), PQS (empty sitemap), Camera Price BD (a price guide). */
+  { shop: 'droneplacebd.com', sitemap: 'https://droneplacebd.com/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
+  { shop: 'camerasourcebd.com', sitemap: 'https://camerasourcebd.com/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
+  { shop: 'techvalley.bd', sitemap: 'https://www.techvalley.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' },
+  { shop: 'computervillage.com.bd', sitemap: 'https://www.computervillage.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' }
 ];
