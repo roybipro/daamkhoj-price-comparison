@@ -5,17 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DaamKhoj — compare prices across Bangladesh's online shops | দামখোঁজ</title>
 <meta name="description" content="Find the lowest price for phones, laptops, gadgets and more. DaamKhoj lines up prices from Bangladesh's online shops, read from each shop's own website.">
-<meta name="theme-color" content="#f7f5f0">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f5f0">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141311">
+<meta name="theme-color" content="#141311">
 <script>
-  /* Resolve the palette before first paint so the page never flashes the wrong theme. */
+  /* Resolve the palette before first paint so the page never flashes the wrong theme.
+     Dark unless the visitor chose light with the toggle. */
   (function () {
     var saved = null;
     try { saved = localStorage.getItem('daamkhoj:theme'); } catch (e) { /* storage blocked */ }
-    var theme = (saved === 'light' || saved === 'dark') ? saved
-      : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    var theme = saved === 'light' ? 'light' : 'dark';
     document.documentElement.dataset.theme = theme;
+    if (theme === 'light') document.querySelector('meta[name="theme-color"]').setAttribute('content', '#f7f5f0');
   })();
 </script>
 <meta property="og:title" content="DaamKhoj — compare prices across Bangladesh's online shops">

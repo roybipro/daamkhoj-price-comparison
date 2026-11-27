@@ -7,8 +7,12 @@ const STORAGE_KEY = 'daamkhoj:theme';
 export const currentTheme = (): ThemeName =>
   document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 
+/* The browser bar colour, matching each theme's page background. */
+const BAR_COLOUR: Record<ThemeName, string> = { light: '#f7f5f0', dark: '#141311' };
+
 export function setTheme(theme: ThemeName): void {
   document.documentElement.dataset.theme = theme;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', BAR_COLOUR[theme]);
   try {
     localStorage.setItem(STORAGE_KEY, theme);
   } catch {
