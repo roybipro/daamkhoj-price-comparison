@@ -28,6 +28,8 @@ test('a sitemap gives its pages, decoded, and the sitemaps it points to', () => 
   assert.deepEqual(pages.pages, [{ url: 'https://a.bd/product/x?a=1&b=2', lastmod: '2026-11-20' }]);
   assert.deepEqual(parseSitemap(indexOf(['https://a.bd/p.xml'])).maps, ['https://a.bd/p.xml']);
   assert.deepEqual(parseSitemap('<html>not xml</html>'), { maps: [], pages: [] });
+  assert.deepEqual(parseSitemap(indexOf(['<![CDATA[https://a.bd/sitemap-product.xml]]>'])).maps, ['https://a.bd/sitemap-product.xml']);
+  assert.deepEqual(parseSitemap('<urlset><url><loc>\n  <![CDATA[ https://a.bd/drone.html ]]>\n</loc></url></urlset>').pages.map(page => page.url), ['https://a.bd/drone.html']);
 });
 
 test('only product sitemaps are followed, and only the shop\'s own product pages kept', async () => {

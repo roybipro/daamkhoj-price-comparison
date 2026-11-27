@@ -5,7 +5,7 @@ every shop's price side by side, cheapest first, with each price read from the s
 
 **Live:** <https://daamkhoj.onrender.com>
 
-- **30 shops, about 130,000 prices**, crawled twice a day from the shops' sitemaps.
+- **33 shops, about 145,000 prices**, crawled twice a day from the shops' sitemaps.
 - **Instant search**: results follow your typing, in milliseconds, with suggestions, spelling
   correction ("onplus" → OnePlus) and Bangla ("আইফোন ১৫" → iPhone 15).
 - **Fresh prices**: the pages behind your results are re-read while you look at them.

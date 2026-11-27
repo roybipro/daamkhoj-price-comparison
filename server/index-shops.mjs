@@ -66,5 +66,15 @@ export const INDEX_SHOPS = [
   { shop: 'mcsolution.com.bd', sitemap: 'https://www.mcsolution.com.bd/sitemap_index.xml', product: ONE_LEVEL, kind: 'page' },
   { shop: 'vibegaming.com.bd', sitemap: 'https://www.vibegaming.com.bd/sitemap_index.xml', product: /\/product\/[^/]+\/?$/, kind: 'page' },
   { shop: 'universal.com.bd', sitemap: 'https://www.universal.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' },
-  { shop: 'selltech.com.bd', sitemap: 'https://www.selltech.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' }
+  { shop: 'selltech.com.bd', sitemap: 'https://www.selltech.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' },
+
+  /* Drone shops, added 2026-11-27 after the same 12-page check (priced of 12, with a cart):
+     Drone Fly BD 12/12 (317 pages: DJI and hobby drones, gimbals, mics), Tech Mart 12/12 (506
+     pages: DJI, phones, audio), Canvas IT 12/12 (2,675 pages: DJI drones, PC parts). Creatus
+     (1/12), Computer Vision (0/12) and BDTronics (0/12) gave no readable price; Robotics BD
+     priced 12/12 but adds "Robotics Bangladesh" to every name and is mostly Arduino parts;
+     Unique & Smart has no sitemap. */
+  { shop: 'droneflybd.com', sitemap: 'https://droneflybd.com/sitemap.xml', product: /\/products\/[^/]+\/?$/, kind: 'page' },
+  { shop: 'techmart.com.bd', sitemap: 'https://www.techmart.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' },
+  { shop: 'canvasit.com.bd', sitemap: 'https://canvasit.com.bd/sitemap.xml', product: ONE_LEVEL, kind: 'page' }
 ];
