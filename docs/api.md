@@ -138,4 +138,5 @@ JavaScript heap, the part that can run out (capped at about half the host's memo
 |---|---|
 | `/` and `/?q=…` | The site. Each page gets its own title, description, canonical link, Open Graph tags and JSON-LD from real prices (`server/seo.mjs`); searches with no prices are `noindex` |
 | `/robots.txt` | Allows everything but `/api/` |
+| `/mcp` | The price list for AI agents, as an MCP server (`POST` only); see [mcp.md](mcp.md) |
 | `/sitemap.xml` | The home page, the tabs, and one search address per home page product |
