@@ -2,6 +2,7 @@
    GET /api/recheck?q=… re-reads the shops' pages behind a search's first results and answers again.
    GET /api/search/quick?q=… answers from the saved price list at once, with no paid request.
    GET /api/search?q=… runs the paid web search and adds the price list's answer to it.
+   GET /api/history?url=…&url=… gives one product's real price history, from its shop pages' urls.
    GET /api/health says whether the site is serving prices, and how old they are, for uptime checks.
    Credentials come from the environment and stay on the server; nothing here returns or logs them. */
 
@@ -91,7 +92,7 @@ function combine(web, listed) {
 }
 
 export function createApi({
-  liveSearch, searchIndex = null, recheck = null,
+  liveSearch, searchIndex = null, recheck = null, priceHistory = null,
   allowClient = createRateLimiter(), allowQuick = createRateLimiter({ limit: 120 }), allowRecheck = createRateLimiter({ limit: 30 }),
   clientHeader = '', log = console.error
 }) {
@@ -151,6 +152,22 @@ export function createApi({
     }
   }
 
+  /* One product's lowest price day by day, from the urls of the shop pages it was shown with. */
+  async function history(req, res, url) {
+    if (!priceHistory) return send(res, 503, { error: 'Price history is not set up on this server' });
+    if (!allowQuick(clientAddress(req))) {
+      return send(res, STATUS.rate, { error: 'Too many requests. Please wait a minute and try again.' });
+    }
+    const urls = [...new Set(url.searchParams.getAll('url'))].filter(page => /^https?:\/\//.test(page) && page.length <= 2000);
+    if (!urls.length) return send(res, 400, { error: 'Give the shop pages as url=…' });
+    if (urls.length > 40) return send(res, 400, { error: 'At most 40 shop pages at a time' });
+    try {
+      return send(res, 200, await priceHistory.lookup(urls));
+    } catch (error) {
+      return failed(res, error, 'price history');
+    }
+  }
+
   /* For an uptime check and the host's health check: 503 only when no prices are being served.
      Old prices still answer 200, with their age, so a host never restarts a working server for it. */
   async function health(req, res) {
@@ -175,6 +192,7 @@ export function createApi({
     if (req.method !== 'GET') return send(res, 405, { error: 'Use GET' });
     if (url.pathname === '/api/health') return health(req, res);
     if (url.pathname === '/api/browse') return browse(req, res);
+    if (url.pathname === '/api/history') return history(req, res, url);
     if (url.pathname === '/api/recheck') return recheckPrices(req, res, url);
     if (url.pathname === '/api/search/quick') return quick(req, res, url);
     if (url.pathname !== '/api/search') return send(res, 404, { error: 'Not found' });

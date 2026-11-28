@@ -122,6 +122,22 @@ Answers 503 if no Bright Data key is set.
 A card's `from` is the lowest price of any version. Cards only show products at least two shops
 sell. Rebuilt hourly in the background (sooner after re-checks change prices).
 
+## `/api/history`
+
+| Parameter | |
+|---|---|
+| `url` | A shop page from a search answer; repeat it for each of one product's pages (at most 40) |
+
+```json
+{ "days": [["2026-11-25", 100000], ["2026-11-26", 100000], ["2026-11-28", 95000]],
+  "since": "2026-11-25", "current": 95000,
+  "lowest": { "price": 95000, "day": "2026-11-28" }, "highest": { "price": 100000, "day": "2026-11-25" } }
+```
+
+The lowest price any of the pages asked each day (Bangladesh dates), from the price history the
+crawl keeps (`server/price-history.mjs`); `null` on a day all of them were out of stock. Pages
+with no history are ignored; none at all gives `{ "days": [] }`. 400 without a `url`.
+
 ## `/api/health`
 
 ```json

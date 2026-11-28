@@ -65,9 +65,10 @@ npm run crawl -- --limit=8000 --minutes=270            # what the nightly job ru
 2. Refuse to save a list with fewer than 1,000 prices.
 3. Merge shop by shop onto whatever reached `main` meanwhile (`tools/merge-lists.mjs`), so a
    commit made during the crawl never conflicts with it.
-4. Commit to `main` as `github-actions[bot]`. It doesn't redeploy: the server picks the list up
+4. Add the list's readings to the price history (`tools/price-history.mjs`, below).
+5. Commit to `main` as `github-actions[bot]`. It doesn't redeploy: the server picks the list up
    itself (below), so the site isn't restarted twice a day.
-5. Write a per-shop table to the run's summary (`tools/crawl-report.mjs`). The run fails, so
+6. Write a per-shop table to the run's summary (`tools/crawl-report.mjs`). The run fails, so
    GitHub emails the owner, if the list lost 30% of its current prices or a third of the shops
    went unrefreshed.
 
@@ -79,6 +80,22 @@ It picks up a changed file within 30 seconds.
 **Never commit `data/price-index.json` while a refresh run is in progress**
 (`gh run list --workflow refresh-prices.yml`).
 
+## Price history
+
+`data/price-history.ndjson` records what each shop page asked, by Bangladesh date, for 180 days,
+so a product page can show its real price history (`/api/history`). One JSON value per line:
+
+```
+{"version":1,"updatedAt":"2026-11-28T15:49:48.778Z","keepDays":180}
+["https://shop.example/p/x","2026-11-28",[["2026-11-23",82000],["2026-11-26",null]]]
+```
+
+A page's url, the last day it was read, and only the days its price changed (`null`: out of
+stock). The nightly job adds each list with `node tools/price-history.mjs --add=data/price-index.json`;
+`--from-git` rebuilds it from every list committed to git (the first lists are from 23 Nov 2026).
+The server pulls it beside the list (`PRICE_HISTORY_URL`, by default the list's address with
+`price-history.ndjson`) and copies it into SQLite on disk, so it costs no heap.
+
 ## Publishing a crawl run elsewhere
 
 Some shops refuse data-centre addresses (Sumash Tech refuses GitHub's and Render's servers), so
@@ -87,6 +104,7 @@ their prices only refresh from a crawl on a home connection:
 ```bash
 npm run crawl -- --shop=sumashtech.com --file=/tmp/crawl.json
 node tools/merge-lists.mjs --into=data/price-index.json --from=/tmp/crawl.json
+node tools/price-history.mjs --add=data/price-index.json
 ```
 
 Then commit on a branch and open a PR as usual.

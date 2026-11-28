@@ -4,6 +4,7 @@
 
 import { escapeHtml, money, pluralCount } from '../core/format.js';
 import { shopLogo } from '../core/links.js';
+import { historyFor, type PriceHistory } from '../core/history.js';
 import { ago, safeHttpUrl } from '../core/live.js';
 import { OUT_ICON, priceTag } from './fragments.js';
 import type { LiveGroup, LiveOffer, LiveResult, LiveState } from '../types.js';
@@ -193,6 +194,82 @@ function summaryStrip(cards: ResultCard[]): string {
   </dl>`;
 }
 
+/* "23 Nov" for a Bangladesh date; the date is already local, so it is read as UTC. */
+const dayLabel = (day: string): string =>
+  new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+const CHART = { width: 640, height: 140, left: 6, right: 6, top: 12, bottom: 22 };
+
+/* A step line of the day's lowest price: a price holds until the day it changes. Days when
+   every shop was out of stock leave a gap. */
+function historyLine(days: PriceHistory['days']): string {
+  const prices = days.map(([, price]) => price).filter((price): price is number => price !== null);
+  const low = Math.min(...prices);
+  const high = Math.max(...prices);
+  const pad = (high - low) * 0.12 || Math.max(low * 0.05, 1);
+  const bottom = low - pad;
+  const span = high + pad - bottom;
+  const plotW = CHART.width - CHART.left - CHART.right;
+  const plotH = CHART.height - CHART.top - CHART.bottom;
+  const x = (index: number): number => CHART.left + (plotW * index) / Math.max(days.length - 1, 1);
+  const y = (price: number): number => CHART.top + plotH * (1 - (price - bottom) / span);
+  let path = '';
+  let previous: number | null = null;
+  days.forEach(([, price], index) => {
+    if (price === null) { previous = null; return; }
+    path += previous === null
+      ? `M${x(index).toFixed(1)} ${y(price).toFixed(1)}`
+      : `H${x(index).toFixed(1)}V${y(price).toFixed(1)}`;
+    previous = price;
+  });
+  let lastIndex = days.length - 1;
+  while (lastIndex > 0 && days[lastIndex][1] === null) lastIndex--;
+  const last = days[lastIndex][1] as number;
+  const lowIndex = days.findIndex(([, price]) => price === low);
+  return `<svg class="ph-chart" viewBox="0 0 ${CHART.width} ${CHART.height}" preserveAspectRatio="none" aria-hidden="true">
+      <line class="ph-base" x1="${CHART.left}" x2="${CHART.width - CHART.right}" y1="${y(low).toFixed(1)}" y2="${y(low).toFixed(1)}"/>
+      <path class="ph-line" d="${path}" vector-effect="non-scaling-stroke"/>
+      ${high > low ? `<circle class="ph-low" cx="${x(lowIndex).toFixed(1)}" cy="${y(low).toFixed(1)}" r="3.5" vector-effect="non-scaling-stroke"/>` : ''}
+      <circle class="ph-now" cx="${x(lastIndex).toFixed(1)}" cy="${y(last).toFixed(1)}" r="4" vector-effect="non-scaling-stroke"/>
+    </svg>
+    <div class="ph-axis"><span>${escapeHtml(dayLabel(days[0][0]))}</span><span>${escapeHtml(dayLabel(days[days.length - 1][0]))}</span></div>`;
+}
+
+/** Whether now is a good time to buy, from real prices only: today's lowest against the lowest
+    and highest the crawls have seen since tracking began. */
+function historyPanel(history: PriceHistory, card: ResultCard): string {
+  const { since, lowest, highest } = history;
+  if (history.days.length < 2 || !since || !lowest || !highest) return '';
+  /* The line ends on the price shown on this page now, which the shops' pages were just re-read
+     for, rather than on the last crawl's reading. Today is a Bangladesh date, as the history's are. */
+  const today = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const days = history.days.filter(([day]) => day < today);
+  days.push([today, card.outOfStock ? null : card.from]);
+  /* Only today's price left: nothing to compare it with yet. */
+  if (days.length < 2 || !days.some(([day, price]) => day < today && price !== null)) return '';
+  const from = dayLabel(since);
+  const now = card.from;
+  const low = Math.min(lowest.price, now);
+  const verdict = card.outOfStock
+    ? `<span class="tag warn">Out of stock now</span> Lowest since ${escapeHtml(from)}: <b class="num">${money(lowest.price)}</b>`
+    : highest.price === lowest.price && now === lowest.price
+      ? `<span class="tag">Unchanged</span> The same price since ${escapeHtml(from)}`
+      : now <= lowest.price
+        ? `<span class="tag ok">Lowest price</span> The lowest it has been since ${escapeHtml(from)}`
+        : `<span class="tag warn">${money(now - lowest.price)} above its lowest</span> It was <b class="num">${money(lowest.price)}</b> on ${escapeHtml(dayLabel(lowest.day))}`;
+  const label = `Lowest price each day since ${from}: from ${money(low)} to ${money(Math.max(highest.price, now))}`;
+  return `<section class="price-history" aria-label="${escapeHtml(label)}">
+      <div class="ph-head"><h3>Price history</h3><p class="ph-verdict">${verdict}</p></div>
+      ${historyLine(days)}
+      <dl class="ph-stats">
+        <div><dt>Lowest</dt><dd class="num">${money(low)}</dd></div>
+        <div><dt>Highest</dt><dd class="num">${money(Math.max(highest.price, now))}</dd></div>
+        <div><dt>Tracked since</dt><dd>${escapeHtml(from)}</dd></div>
+      </dl>
+      <p class="ph-note">The lowest price among these shops each day, as our twice-daily price checks read their pages.</p>
+    </section>`;
+}
+
 /** One product's page: its versions compared across shops, from the same answer. */
 function productDetail(result: LiveResult, card: ResultCard, many: boolean): string {
   const groups = result.groups
@@ -203,6 +280,10 @@ function productDetail(result: LiveResult, card: ResultCard, many: boolean): str
     })
     .filter(group => group.offers.length);
   const statusNote = card.outOfStock ? ' · Out of stock at checked shops' : '';
+  const urls = [...new Set(groups.flatMap(group => group.offers.map(offer => offer.url)))];
+  const history = historyFor(card.key);
+  /* app.ts finds this box after rendering and fetches the history once. */
+  const historyBox = `<div data-history="${escapeHtml(card.key)}" data-urls="${escapeHtml(JSON.stringify(urls))}">${history ? historyPanel(history, card) : ''}</div>`;
   return `${many ? `<button class="link back" data-act="allResults">All results for “${escapeHtml(result.query)}”</button>` : ''}
     <div class="detail-head">
       ${card.image ? `<span class="gh-img big"><img src="${escapeHtml(card.image)}" alt="" referrerpolicy="no-referrer" onerror="this.parentElement.remove()"></span>` : ''}
@@ -210,6 +291,7 @@ function productDetail(result: LiveResult, card: ResultCard, many: boolean): str
         <p>${card.shops.length > 1 ? `${pluralCount(card.shops.length, 'shop')}, ` : '1 shop, '}${card.to > card.from ? `${money(card.from)} to ${money(card.to)}` : money(card.from)}${escapeHtml(statusNote)}</p></div>
     </div>
     <p class="fine-print">Only the same version is compared. Prices can change, so confirm on the shop's site before you pay.</p>
+    ${historyBox}
     ${groups.map(group => liveGroup(group, result.checkedAt, result.query)).join('')}`;
 }
 

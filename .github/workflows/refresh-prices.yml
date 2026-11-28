@@ -82,11 +82,13 @@ jobs:
             git fetch -q origin main
             git checkout -q -f -B save origin/main
             node tools/merge-lists.mjs --into=data/price-index.json --from="$RUNNER_TEMP/crawled.json"
-            git add data/price-index.json
-            if git diff --cached --quiet; then
+            if git diff --quiet -- data/price-index.json; then
               echo 'No prices changed.'
               exit 0
             fi
+            # The real price history (server/price-history.mjs): main's history plus this list's readings.
+            node tools/price-history.mjs --add=data/price-index.json
+            git add data/price-index.json data/price-history.ndjson
             git commit -q -m "Refresh the price list$note"
             if git push origin HEAD:main; then
               echo 'pushed=yes' >> "$GITHUB_OUTPUT"
