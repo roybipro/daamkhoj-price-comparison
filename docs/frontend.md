@@ -38,6 +38,16 @@ and `verbatimModuleSyntax` (type-only imports must say `import type`).
 | Shops | `stores` | The 37 shops in the price list, with how many prices each has |
 | How it works | `how` | How prices are found, read and kept fresh |
 
+## Saved products and price history
+
+- **Save** on a product page keeps it in this browser (`localStorage` `daamkhoj.saved.v1`, at
+  most 30, no account; `src/ts/core/saved.ts`). The home page then opens with a **Saved** shelf:
+  each product's price today from the price list (the same quick search that found it, so it
+  matches the product page), with "Down ৳…"/"Up ৳…" against the price when it was saved. A
+  saved card reopens its search and product.
+- A product page fetches its **price history** once (`src/ts/core/history.ts`, `/api/history`)
+  and draws it in `src/ts/ui/live.ts`; the line ends on the price shown now.
+
 ## The address bar
 
 `core/urlstate.ts` turns the state into a query string and back. That makes every search a link

@@ -124,3 +124,20 @@ test('"Visit shop" never lands on a web search, a dead site or a search for a ma
   assert.ok(!html.includes('<a '), 'a shop whose site does not exist still gets a link');
   assert.ok(html.includes('Shop website not reachable'));
 });
+
+test('a saved product is priced the way its result card is', async () => {
+  const { priceIn } = await import('../dist/js/core/saved.js');
+  const groups = [
+    { offers: [
+      { product: 'mac mini m4', title: 'Mac Mini M4', price: 95000, inStock: true },
+      { product: 'mac mini m4', title: 'Mac Mini M4', price: 90000, inStock: false },
+      { product: 'mac mini m4 pro', title: 'Mac Mini M4 Pro', price: 150000, inStock: true }
+    ] },
+    { offers: [{ title: 'Mac Mini M4', price: 99000, inStock: null }] }
+  ];
+  assert.equal(priceIn(groups, 'mac mini m4'), 95000);
+  assert.equal(priceIn([{ offers: [{ product: 'x', title: 'X', price: 5, inStock: false }] }], 'x'), null);
+  assert.equal(priceIn(groups, 'gone'), undefined);
+  /* An offer with no product key is keyed by its lower-cased title. */
+  assert.equal(priceIn(groups, 'mac mini m4'.toLowerCase()), 95000);
+});

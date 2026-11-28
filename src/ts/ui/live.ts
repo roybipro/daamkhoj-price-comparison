@@ -6,6 +6,7 @@ import { escapeHtml, money, pluralCount } from '../core/format.js';
 import { shopLogo } from '../core/links.js';
 import { historyFor, type PriceHistory } from '../core/history.js';
 import { ago, safeHttpUrl } from '../core/live.js';
+import { isSaved, type SavedItem } from '../core/saved.js';
 import { OUT_ICON, priceTag } from './fragments.js';
 import type { LiveGroup, LiveOffer, LiveResult, LiveState } from '../types.js';
 
@@ -283,12 +284,17 @@ function productDetail(result: LiveResult, card: ResultCard, many: boolean): str
   const urls = [...new Set(groups.flatMap(group => group.offers.map(offer => offer.url)))];
   const history = historyFor(card.key);
   /* app.ts finds this box after rendering and fetches the history once. */
+  const saved = isSaved(card.key);
+  const item: SavedItem = { key: card.key, q: result.query, title: card.title, image: card.image, price: card.from, savedAt: new Date().toISOString(), urls };
+  const saveButton = `<button class="save-btn${saved ? ' on' : ''}" data-act="save" data-item="${escapeHtml(JSON.stringify(item))}" aria-pressed="${saved}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="${saved ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>${saved ? 'Saved' : 'Save'}</button>`;
   const historyBox = `<div data-history="${escapeHtml(card.key)}" data-urls="${escapeHtml(JSON.stringify(urls))}">${history ? historyPanel(history, card) : ''}</div>`;
   return `${many ? `<button class="link back" data-act="allResults">All results for “${escapeHtml(result.query)}”</button>` : ''}
     <div class="detail-head">
       ${card.image ? `<span class="gh-img big"><img src="${escapeHtml(card.image)}" alt="" referrerpolicy="no-referrer" onerror="this.parentElement.remove()"></span>` : ''}
-      <div><h2>${escapeHtml(card.title)}</h2>
-        <p>${card.shops.length > 1 ? `${pluralCount(card.shops.length, 'shop')}, ` : '1 shop, '}${card.to > card.from ? `${money(card.from)} to ${money(card.to)}` : money(card.from)}${escapeHtml(statusNote)}</p></div>
+      <div class="dh-main"><h2>${escapeHtml(card.title)}</h2>
+        <p>${card.shops.length > 1 ? `${pluralCount(card.shops.length, 'shop')}, ` : '1 shop, '}${card.to > card.from ? `${money(card.from)} to ${money(card.to)}` : money(card.from)}${escapeHtml(statusNote)}</p>
+        ${saveButton}</div>
     </div>
     <p class="fine-print">Only the same version is compared. Prices can change, so confirm on the shop's site before you pay.</p>
     ${historyBox}
