@@ -39,6 +39,55 @@ function preservedPartKind(before, tail) {
   return ' ';
 }
 
+/* A processor or graphics card sold on its own is named a dozen ways ("AMD Ryzen 5 7600 AM5
+   Gaming Processor", "Ryzen 5 7600 3.8GHz 6-Core", "AMD Ryzen 5 7600 Tray"), and the generic key
+   below kept each wording as its own product, so no card ever showed every shop. These get one
+   name: the chip's own for a processor, and brand + chip + board line for a graphics card (an MSI
+   Ventus and an MSI Gaming X are different cards at different prices, so the line stays).
+   Anything that only contains one (a laptop, a PC, a combo, a cooler) keeps the generic key. */
+const NOT_A_PART = /\b(pc|pcs|build|builds|combo|bundle|package|laptop|notebook|motherboard|mainboard|mini|all in one|aio|barebone|server|workstation|monitor|cooler|cooling|fan|fans|thermal|paste|riser|bracket|backplate|holder|cable|kit|desktop computer|computer|console|handheld)\b/;
+const CPU = /\b(?:amd\s+)?ryzen\s*(threadripper\s+|[3579]\s+)(pro\s+)?(\d{4}[a-z0-9]{0,3})\b|\b(?:intel\s+)?(?:core\s*)?(?:(ultra)\s*([3579])\s*-?\s*(\d{3}[a-z]{0,2})|i([3579])[\s-]*(\d{4,5}[a-z]{0,2}))\b/;
+/* A laptop chip (7520U, 12450H, 13980HX) is never sold on its own here. */
+const MOBILE_CPU = /^\d+(u|h|hs|hx|p|g[1-7])$/;
+const GPU = /\b(rtx|gtx|rx|arc)\s*(a?\d{3,4})(?:\s*(ti\s+super|ti|super|xtx|xt|gre))?\b/;
+const GPU_BRAND = /\b(asus|msi|gigabyte|aorus|zotac|palit|galax|inno3d|colorful|sapphire|powercolor|xfx|asrock|pny|leadtek|gainward|biostar|maxsun|yeston|sparkle|intel|nvidia|amd)\b/;
+/* Words that say what a graphics card is rather than which one. */
+const GPU_FILLER = new Set(['geforce', 'nvidia', 'radeon', 'amd', 'graphics', 'graphic', 'card', 'video', 'gpu', 'gddr5', 'gddr6', 'gddr6x', 'gddr7',
+  'pci', 'pcie', 'express', 'edition', 'bit', 'dlss', 'with', 'and', 'the', 'new', 'desktop', 'ray', 'tracing', 'triple', 'dual-fan', 'fan', 'fans', 'ddr6', 'ddr7', 'vram', 'memory',
+  'price', 'in', 'bd', 'bangladesh', 'buy', 'best', 'online', 'official', 'original', 'warranty', 'year', 'years']);
+
+/* A whole computer that names its chip: brand desktops, or a chip sold with RAM or storage. */
+const A_SYSTEM = /\b(tower|thinkcentre|ideacentre|optiplex|vostro|prodesk|elitedesk|sff|veriton|nuc|imac|mac mini|full pc)\b|\b\d+\s*(gb|tb)\s*(ram|ddr\d?|ssd|hdd|nvme|storage)\b|(\band\b|\+|\bwith\b)\s*\d+\s*(gb|tb)\b/;
+/* A graphics card's listing that also names a processor or a screen is a laptop or a PC. */
+const SYSTEM_HINT = /\b(\d+(st|nd|rd|th) gen|core i[3579]|core ultra|ryzen|\d{2,3}\s*hz|fhd|qhd|uhd|oled|ips|inch)\b/;
+
+export function partKey(raw) {
+  const whole = raw.toLowerCase();
+  if (A_SYSTEM.test(whole) || NOT_A_PART.test(whole)) return null;
+  const name = whole.replace(/[™®©]/g, '').replace(/\(.*?\)|\[.*?\]/g, ' ').split(/\s[-|–]\s|,|\s\/\s/)[0].replace(/\s+/g, ' ').trim();
+  if (NOT_A_PART.test(name) || DEVICE_LINE.test(name)) return null;
+  const gpu = name.match(GPU);
+  const cpu = gpu ? null : name.match(CPU);
+  if (cpu) {
+    if (cpu[1] !== undefined) {
+      if (MOBILE_CPU.test(cpu[3])) return null;
+      return `amd ryzen ${cpu[1].trim()}${cpu[2] ? ' pro' : ''} ${cpu[3]}`;
+    }
+    const [tier, model] = cpu[4] ? [`ultra ${cpu[5]}`, cpu[6]] : [`i${cpu[7]}`, cpu[8]];
+    if (MOBILE_CPU.test(model)) return null;
+    return `intel core ${tier} ${model}`;
+  }
+  if (!gpu || SYSTEM_HINT.test(name)) return null;
+  const brand = name.match(GPU_BRAND)?.[1];
+  if (!brand) return null;
+  const chip = `${gpu[1]} ${gpu[2]}${gpu[3] ? ` ${gpu[3].replace(/\s+/g, ' ')}` : ''}`;
+  /* "ZOTAC GAMING" is the brand's name and "TUF Gaming" a line's; MSI's and Gigabyte's "Gaming" names a line. */
+  const line = name.replace(/\b(zotac|tuf|strix|rog)\s+gaming\b/g, '$1').replace(GPU, ' ').replace(COLOURS, ' ').replace(/\b\d+\s*(gb|g|mb)\b/g, ' ').replace(/\b\d+(\.\d+)?\s*(bit|mhz|ghz)\b/g, ' ')
+    .replace(/[^a-z0-9+ ]+/g, ' ').split(' ')
+    .filter(word => word && word !== brand && !GPU_FILLER.has(word) && !/^\d+$/.test(word));
+  return [brand === 'aorus' ? 'gigabyte aorus' : brand, chip, ...line].join(' ').split(' ').slice(0, 8).join(' ');
+}
+
 const keyCache = new Map();
 
 /** The product a listing is for: its name up to the first detail, without colours or sizes. */
@@ -46,7 +95,7 @@ export function productKey(name) {
   const raw = String(name);
   const cached = keyCache.get(raw);
   if (cached !== undefined) return cached;
-  const computed = raw
+  const computed = partKey(raw) ?? raw
     /* A model code's short capital prefix joins its number ("KM-205W", "F-91W" → "KM205W",
        "F91W"), so the number is not mistaken for a size ("205W" watts) and cut, which would
        put every Micropack KM-…W or Casio F-…W on one card. "Adapter-65W" is a size and stays. */
