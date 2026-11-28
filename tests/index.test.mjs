@@ -890,7 +890,8 @@ test('crawlShop remembers unpriced pages so they do not starve priced pages, and
 test('watchIndexFile concurrent cold-start requests wait for the initial load', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'daamkhoj-cold-'));
   const file = path.join(dir, 'list.json');
-  await saveIndexFile(file, listOf(entry('a.bd', 'iPhone 15 128GB', 82000)));
+  /* Checked just now: watchIndexFile runs on the real clock, which leaves out prices over a week old. */
+  await saveIndexFile(file, listOf(entry('a.bd', 'iPhone 15 128GB', 82000, { checkedAt: new Date().toISOString() })));
   const search = watchIndexFile(file, { checkEveryMs: 1000 });
   const [browsed, found] = await Promise.all([search.browse(), search('iphone 15')]);
   assert.equal(browsed.prices, 1);
