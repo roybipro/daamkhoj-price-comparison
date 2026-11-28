@@ -5,7 +5,8 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createApi, createDefaultLiveSearch, startWarming } from '../server/api.mjs';
+import { clientAddressFrom, createApi, createDefaultLiveSearch, createRateLimiter, startWarming } from '../server/api.mjs';
+import { createMcp } from '../server/mcp.mjs';
 import { createRechecker } from '../server/recheck.mjs';
 import { createRobots } from '../server/robots.mjs';
 import { fetchPublic } from '../server/safe-fetch.mjs';
@@ -60,6 +61,13 @@ if (freshenEvery > 0) {
    (cf-connecting-ip on Render, which sits behind Cloudflare), so each visitor gets their own
    rate limit and a made-up X-Forwarded-For buys nothing. Unset, the connection's address is used. */
 const api = createApi({ liveSearch, searchIndex, recheck, clientHeader: process.env.CLIENT_IP_HEADER });
+/* POST /mcp: the same price list for AI agents (server/mcp.mjs), with its own per-visitor limits. */
+const mcp = createMcp({
+  searchIndex, recheck,
+  allowQuick: createRateLimiter({ limit: 60 }), allowRecheck: createRateLimiter({ limit: 10 }),
+  clientAddress: req => clientAddressFrom(req, process.env.CLIENT_IP_HEADER ?? ''),
+  siteUrl: process.env.SITE_URL || 'https://daamkhoj.onrender.com'
+});
 
 /* PRICE_INDEX_REFRESH_HOURS runs the crawl from here, in its own process so a long crawl never
    slows the site: on start if the list is missing or older than that, then on that schedule.
@@ -134,6 +142,7 @@ async function headFor(url, counts) {
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${host}`);
   if (url.pathname.startsWith('/api/')) return api(req, res, url);
+  if (url.pathname === '/mcp') return mcp(req, res);
   if (url.pathname === '/robots.txt') {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' }).end(robotsTxt(siteUrl));
     return;
