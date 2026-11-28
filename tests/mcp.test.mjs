@@ -99,3 +99,18 @@ test('bad input, unknown tools and rate limits answer as errors, never crash', a
 
   assert.equal((await post('x'.repeat(70_000))).status, 413);
 });
+
+test('versions that are not compared get no "cheapest", and odd ids are refused', async t => {
+  const unclear = { query: 'dji mini 4 pro', groups: [{ label: '', comparable: false, offers: [
+    { shop: 'a.bd', url: 'https://a.bd/props', title: 'Dji Mini 4 pro Propellers', price: 2500, inStock: true, checkedAt: '2026-11-27T00:00:00.000Z' },
+    { shop: 'b.bd', url: 'https://b.bd/drone', title: 'DJI Mini 4 Pro with DJI RC-N2', price: 89990, inStock: true, checkedAt: '2026-11-27T00:00:00.000Z' }
+  ] }] };
+  const text = describeAnswer(unclear, 'https://daamkhoj.test');
+  assert.doesNotMatch(text, /Cheapest available/, 'a ৳2,500 listing of another version is not the cheapest drone');
+  assert.match(text, /not compared/);
+
+  const { post, close } = await serve({ searchIndex: async () => answer });
+  t.after(close);
+  assert.equal((await post({ jsonrpc: '2.0', id: { a: 1 }, method: 'ping' })).body.error.code, -32600, 'an id is a string, a number or null');
+  assert.equal((await post({ jsonrpc: '2.0', id: 'x', method: 'ping' })).body.result !== undefined, true);
+});

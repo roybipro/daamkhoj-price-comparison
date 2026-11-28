@@ -1013,3 +1013,10 @@ test('a graphics card tier (Ti, Super, XT) is a different card unless asked for'
   assert.equal(matchesQuery('ASUS Dual GeForce RTX 4060 OC Edition 8GB GDDR6', 'rtx 4060'), true);
   assert.equal(matchesQuery('Anker 737 Power Bank PowerCore 24K', 'anker 737 power bank'), true, 'only cards: other names are left alone');
 });
+
+test('drone propellers are not the drone', () => {
+  assert.equal(matchesQuery('Dji Mini 4 pro Propellers', 'dji mini 4 pro'), false);
+  assert.equal(matchesQuery('Dji Mini 3pro/Mini 3 Propellers', 'dji mini 3'), false);
+  assert.equal(matchesQuery('DJI Mini 4 Pro with DJI RC-N2', 'dji mini 4 pro'), true);
+  assert.equal(matchesQuery('Dji Mini 4 pro Propellers', 'dji mini 4 pro propellers'), true, 'asked for');
+});
