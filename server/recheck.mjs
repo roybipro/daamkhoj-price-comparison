@@ -6,7 +6,7 @@
 
 import { readShopifyProduct } from './crawler.mjs';
 import { INDEX_SHOPS } from './index-shops.mjs';
-import { absoluteImage, readPage } from './page-price.mjs';
+import { absoluteImage, isPlausibleProductPage, readPage } from './page-price.mjs';
 
 const pageOf = url => url.replace(/\?variant=\d+$/, '');
 
@@ -69,15 +69,28 @@ export function createRechecker({
     const target = shopify ? `${page.replace(/\/+$/, '')}.js` : page;
     if (!(await robots.allows(target))) return [];
     const response = await fetchPage(target);
-    noteAnswer(shop, response.ok);
-    if (!response.ok) return [];
+    const missing = response.status === 404 || response.status === 410;
+    noteAnswer(shop, response.ok || missing);
     const checkedAt = new Date(now()).toISOString();
+    if (missing) return [{ url: page, gone: true, checkedAt }];
+    if (!response.ok) return [];
     if (shopify) {
       return readShopifyProduct(response.text, page).map(item => ({ url: item.url, price: item.price, inStock: item.inStock, image: item.image, checkedAt }));
     }
+    if (response.url && /^\/?$/.test(new URL(response.url).pathname)) {
+      return [{ url: page, gone: true, checkedAt }];
+    }
     const found = readPage(response.text);
-    if (found.price === null) return [];
-    return [{ url: page, price: found.price, inStock: found.inStock, image: absoluteImage(found.image, page), checkedAt }];
+    if (found.price === null) {
+      return found.reason === 'no-price' || found.inStock === false
+        ? [{ url: page, outOfStock: true, checkedAt }]
+        : [];
+    }
+    const checkName = found.name || found.title;
+    if (checkName && !isPlausibleProductPage(response.url || page, checkName)) {
+      return [{ url: page, gone: true, checkedAt }];
+    }
+    return [{ url: page, price: found.price, inStock: found.inStock, image: absoluteImage(found.image, response.url || page), checkedAt }];
   }
 
   const readOnce = (page, shop) => {

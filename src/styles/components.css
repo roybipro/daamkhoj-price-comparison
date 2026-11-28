@@ -187,6 +187,10 @@ select option { background: var(--surface); color: var(--text); }
 .offer.live { grid-template-columns: minmax(200px, 1.4fr) minmax(150px, 1fr) minmax(200px, 1.4fr) 144px; }
 .offer:hover { background: var(--row-hover); }
 .offer.pick { background: var(--tag-tint); box-shadow: inset 3px 0 0 var(--brand); }
+.offer.live.out { background: var(--surface-2); }
+.offer.live.out .price b { color: var(--dim); }
+.offer.live.out .shop-link { background: var(--surface); color: var(--ink-2); border: 1px solid var(--line-2); }
+.offer.live.out .shop-link:hover { border-color: var(--line); color: var(--text); background: var(--surface); }
 .offer.dropped { background: var(--risk-tint); }
 .offer.dropped .store-name, .offer.dropped .price b { color: var(--dim); text-decoration: line-through; text-decoration-color: var(--risk-line); }
 
@@ -447,6 +451,10 @@ select option { background: var(--surface); color: var(--text); }
   background: #ffffff; color: #1b1a17; border: 1px solid #e4dfd4;
 }
 .pc-badge.trending { color: #11703f; }
+.pc-badge.out { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.rcard.out .pc-img img { opacity: .62; }
+.rcard.out .pricetag { opacity: .72; }
+.pc-stock.ok { font-size: 12px; font-weight: 600; color: var(--ok-text); }
 .pc-body { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; padding: 13px 14px 14px; flex: 1; width: 100%; }
 .pc-name {
   font-size: 14.5px; font-weight: 600; line-height: 1.34; letter-spacing: -.01em;
@@ -504,7 +512,7 @@ select option { background: var(--surface); color: var(--text); }
 }
 .pc-shops .dot + .dot { margin-inline-start: -5px; }
 .dot img { position: absolute; inset: 0; width: 100%; height: 100%; padding: 3px; background: #ffffff; object-fit: contain; }
-.dot.more { background: var(--surface-2); color: var(--muted); font-size: 9.5px; }
+.dot.more { display: inline-flex; align-items: center; justify-content: center; background: var(--surface-2); color: var(--text); font-size: 9.5px; line-height: 1; }
 
 .back { display: inline-block; margin: 20px 0 6px; font-size: 13.5px; }
 .back::before { content: "← "; }

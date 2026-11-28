@@ -15,6 +15,7 @@ import { decodeEntities } from './page-price.mjs';
 import { cleanQuery, dropSuspiciousPrices, groupOffers, mergeGroups, validQuery } from './live-search.mjs';
 import { buildBrowseSteps, discoverCategoriesSteps, displayName, productKey, runInSlices, runNow } from './browse.mjs';
 import { countSpellings, createSpeller, matchesQuery, mentionsInTokens, queryTokens, requiredWords, variantOf, wordSet } from './matching.mjs';
+import { cleanProductTitle, isPlausibleProductPage } from './page-price.mjs';
 
 const EMPTY = { version: 1, shops: {} };
 
@@ -190,7 +191,7 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
   /* Prices too old to show are not kept at all: the file keeps them for the crawl. */
   const loadedAt = now();
   let source = Object.values(input?.shops ?? {}).flatMap(shop => shop.entries ?? [])
-    .filter(entry => !(loadedAt - Date.parse(entry.checkedAt) > maxAgeMs));
+    .filter(entry => !(loadedAt - Date.parse(entry.checkedAt) > maxAgeMs) && isPlausibleProductPage(entry.url, entry.name));
   const size = source.length;
 
   let db = null;
@@ -233,7 +234,7 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
     for (let id = 0; id < source.length; id++) {
       const entry = source[id];
       /* Lists crawled before names were fully decoded still hold "&quot;" and "&#x2122;". */
-      const name = decodeEntities(String(entry.name ?? ''));
+      const name = cleanProductTitle(decodeEntities(String(entry.name ?? '')));
       const key = productKey(name);
       addEntry.run(id, entry.shop ?? null, entry.url ?? null, name, entry.price ?? null,
         typeof entry.inStock === 'boolean' ? Number(entry.inStock) : null, entry.checkedAt ?? null,
@@ -525,6 +526,8 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
     const find = statement('SELECT id, price, in_stock, image FROM entries WHERE url = ? ORDER BY id DESC LIMIT 1');
     const write = statement(`UPDATE entries SET price = ?, in_stock = ?, checked_at = ?, checked_ms = ?,
       image = coalesce(nullif(image, ''), ?) WHERE id = ?`);
+    const markOut = statement('UPDATE entries SET in_stock = 0, checked_at = ?, checked_ms = ? WHERE id = ?');
+    const remove = statement('DELETE FROM entries WHERE id = ?');
     let changed = 0;
     let pictured = 0;
     const written = new Set();
@@ -532,7 +535,20 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
     try {
       for (const item of fresh) {
         const row = item?.url ? find.get(item.url) : undefined;
-        if (!row || !(item.price > 0)) continue;
+        if (!row) continue;
+        if (item.gone) {
+          remove.run(row.id);
+          changed++;
+          written.add(item.url);
+          continue;
+        }
+        if (item.outOfStock) {
+          if (row.in_stock !== 0) changed++;
+          markOut.run(item.checkedAt, Date.parse(item.checkedAt) || null, row.id);
+          written.add(item.url);
+          continue;
+        }
+        if (!(item.price > 0)) continue;
         const inStock = typeof item.inStock === 'boolean' ? Number(item.inStock) : null;
         if (row.price !== item.price || row.in_stock !== inStock) changed++;
         if (item.image && !row.image) pictured++;

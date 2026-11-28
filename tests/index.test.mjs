@@ -1020,3 +1020,60 @@ test('drone propellers are not the drone', () => {
   assert.equal(matchesQuery('DJI Mini 4 Pro with DJI RC-N2', 'dji mini 4 pro'), true);
   assert.equal(matchesQuery('Dji Mini 4 pro Propellers', 'dji mini 4 pro propellers'), true, 'asked for');
 });
+
+test('PC part cards keep RAM/SSD/WD lines apart, drop wrong-slug pages, price from buyable stock, and update out-of-stock/404 on recheck', async () => {
+  const { buildBrowse, productKey } = await import('../server/browse.mjs');
+  const { createRechecker } = await import('../server/recheck.mjs');
+  const { liveView } = await import('../dist/js/ui/live.js');
+
+  assert.notEqual(
+    productKey('Kingston FURY Renegade 16GB DDR5 6000MHz RGB Desktop RAM'),
+    productKey('Kingston FURY Renegade 500GB PCIe 4.0 NVMe M.2 SSD')
+  );
+  assert.notEqual(
+    productKey('Western Digital 2TB WD Blue Mobile 2.5 Inch SATA HDD'),
+    productKey('Western Digital 512GB WD Blue SN550 NVMe Internal SSD')
+  );
+  assert.notEqual(productKey('WD Blue SN580 1TB NVMe SSD'), productKey('WD Black SN850X 1TB NVMe SSD'));
+  assert.match(productKey('SAPPHIRE PULSE Radeon RX 7600 8GB Graphics Card'), /^sapphire\b/);
+  assert.match(productKey('ASRock B650M Steel Legend WiFi Motherboard'), /\bsteel legend\b/);
+
+  const stale = '2026-11-20T00:00:00.000Z';
+  const index = createPriceIndex(listOf(
+    /* Wrong-product slug ("toten-32u-server-rack" serving a Deco router) is filtered out on load. */
+    { shop: 'a.bd', url: 'https://a.bd/toten-32u-server-rack', name: 'TP-Link Deco X50 AX3000 Router', price: 8990, inStock: true, checkedAt: stale },
+    { shop: 'a.bd', url: 'https://a.bd/srsltid=broken', name: 'AFOX ME300 256GB NVMe SSD', price: 7000, inStock: true, checkedAt: stale },
+    /* Stale out-of-stock low price must not lead a shelf card ahead of buyable offers. */
+    entry('a.bd', 'ZOTAC GAMING GeForce RTX 3050 Twin Edge 6GB Graphics Card', 23500, { inStock: false, checkedAt: stale }),
+    entry('b.bd', 'ZOTAC GAMING GeForce RTX 3050 Twin Edge 6GB Graphics Card', 39000, { inStock: true, checkedAt: stale }),
+    entry('c.bd', 'ZOTAC GAMING GeForce RTX 3050 Twin Edge 6GB Graphics Card', 40000, { inStock: true, checkedAt: stale })
+  ), { now: () => NOW });
+
+  assert.equal(index.search('deco x50').found, 0, 'wrong-product URL slug is dropped');
+  assert.equal(index.search('afox me300').found, 0, 'srsltid URL is dropped');
+
+  const shelves = buildBrowse(query => index.search(query), { 'a.bd': 1, 'b.bd': 1, 'c.bd': 1 }, [
+    { id: 'pc', label: 'PC & accessories', products: ['ZOTAC GAMING GeForce RTX 3050 Twin'] }
+  ]);
+  assert.equal(shelves.shelves[0].cards[0].from, 39000, 'shelf card starts at cheapest buyable offer');
+  assert.equal(shelves.shelves[0].cards[0].shop, 'b.bd');
+
+  /* Live UI prices from buyable offers and gives each Visit shop link a distinct accessible name. */
+  const detailHtml = liveView({ status: 'done', query: 'rtx 3050', result: index.search('zotac rtx 3050') });
+  assert.match(detailHtml, /aria-label="Visit shop: ZOTAC GAMING GeForce RTX 3050 Twin Edge 6GB Graphics Card on b\.bd"/);
+
+  /* Live recheck flips a newly unpriced ("Out Of Stock") page to inStock=false and removes a 404 dead link. */
+  const recheck = createRechecker({
+    fetchPage: async url => {
+      if (url.includes('b.bd')) return { ok: true, status: 200, url, text: '<html><title>RTX 3050</title><td class="product-status">Out Of Stock</td></html>' };
+      if (url.includes('c.bd')) return { ok: false, status: 404, url, text: '' };
+      return { ok: true, status: 200, url, text: product('ZOTAC GAMING GeForce RTX 3050 Twin Edge 6GB Graphics Card', 23500) };
+    },
+    robots: allowAll,
+    now: () => NOW
+  });
+  const after = await recheck(index, 'zotac rtx 3050');
+  const byShop = Object.fromEntries(after.groups.flatMap(group => group.offers).map(offer => [offer.shop, offer]));
+  assert.equal(byShop['b.bd'].inStock, false, 'page with no price on recheck becomes out of stock');
+  assert.equal(byShop['c.bd'], undefined, '404 product link is removed on recheck');
+});
