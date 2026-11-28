@@ -1,5 +1,6 @@
 import { SNAPSHOT, TRUST_WEIGHTS } from './data/meta.js';
 import { buildCatalog, byBestValue } from './core/catalog.js';
+import { loadShownHistory } from './core/history.js';
 import { applyFresh, fetchBrowse, fetchLive } from './core/live.js';
 import { createSearch } from './core/search.js';
 import { decodeState, encodeState } from './core/urlstate.js';
@@ -326,6 +327,8 @@ function render(): void {
   syncControls();
   syncUrl();
   if (focused) (document.querySelector<HTMLElement>(focused) ?? dom.out).focus({ preventScroll: true });
+  /* An open product page gets its price history, once; the chart appears when it arrives. */
+  loadShownHistory(dom.out, render);
 }
 
 /* Results follow the typing: the price list answers in milliseconds, so each pause in typing

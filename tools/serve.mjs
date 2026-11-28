@@ -10,6 +10,7 @@ import { createMcp } from '../server/mcp.mjs';
 import { createRechecker } from '../server/recheck.mjs';
 import { createRobots } from '../server/robots.mjs';
 import { fetchPublic } from '../server/safe-fetch.mjs';
+import { createHistoryStore, historyUrlFrom, pullHistoryFile } from '../server/price-history.mjs';
 import { pullIndexFile, watchIndexFile } from '../server/price-index.mjs';
 import { pageMeta, robotsTxt, sitemapXml, withCounts, withMeta } from '../server/seo.mjs';
 import { createFreshener } from '../server/freshen.mjs';
@@ -50,6 +51,23 @@ if (process.env.PRICE_INDEX_URL) {
   void pull();
   setInterval(pull, (Number(process.env.PRICE_INDEX_PULL_HOURS) || 1) * 60 * 60 * 1000).unref();
 }
+/* The real price history the crawl keeps beside the list (server/price-history.mjs), pulled the
+   same way: PRICE_HISTORY_URL, or the published list's address with price-history.ndjson. */
+const historyFile = process.env.PRICE_HISTORY_FILE || path.join(root, 'data', 'price-history.ndjson');
+const priceHistory = createHistoryStore(historyFile, { log: console.log });
+const historyUrl = historyUrlFrom(process.env);
+if (historyUrl) {
+  const pulled = {};
+  const pull = () => pullHistoryFile(historyUrl, historyFile, { cache: pulled }).then(
+    changed => { console.log(`price history: ${changed ? 'downloaded a newer one' : 'already current'}`); if (changed) void priceHistory.reload(); },
+    error => console.log(`price history: download failed (${error.message}); keeping the last one`)
+  );
+  /* A minute after start, so it never downloads alongside the price list. */
+  setTimeout(() => {
+    void pull();
+    setInterval(pull, (Number(process.env.PRICE_INDEX_PULL_HOURS) || 1) * 60 * 60 * 1000).unref();
+  }, 60_000).unref();
+}
 const recheck = async (query, options) => rechecker(await searchIndex.index(), query, options);
 /* Between nightly crawls, the pages behind the home page's products are re-read in the
    background: two products a minute by default (FRESHEN_EVERY_SECONDS; 0 turns it off). */
@@ -60,7 +78,7 @@ if (freshenEvery > 0) {
 /* CLIENT_IP_HEADER names the header the host's proxy fills with the visitor's real address
    (cf-connecting-ip on Render, which sits behind Cloudflare), so each visitor gets their own
    rate limit and a made-up X-Forwarded-For buys nothing. Unset, the connection's address is used. */
-const api = createApi({ liveSearch, searchIndex, recheck, clientHeader: process.env.CLIENT_IP_HEADER });
+const api = createApi({ liveSearch, searchIndex, recheck, priceHistory, clientHeader: process.env.CLIENT_IP_HEADER });
 /* POST /mcp: the same price list for AI agents (server/mcp.mjs), with its own per-visitor limits. */
 const mcp = createMcp({
   searchIndex, recheck,

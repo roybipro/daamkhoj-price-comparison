@@ -11,7 +11,7 @@
     "typecheck": "node tools/build.mjs --no-emit",
     "check": "node tools/build.mjs && node tools/check.mjs",
     "start": "node tools/serve.mjs",
-    "test": "node tools/build.mjs && node --test tests/core.test.mjs tests/live.test.mjs tests/index.test.mjs tests/mcp.test.mjs",
+    "test": "node tools/build.mjs && node --test tests/core.test.mjs tests/live.test.mjs tests/index.test.mjs tests/mcp.test.mjs tests/history.test.mjs",
     "crawl": "node tools/crawl.mjs",
     "backfill-images": "node tools/backfill-images.mjs",
     "fetch-logos": "node tools/fetch-logos.mjs"

@@ -38,6 +38,8 @@ Set on Render; for local runs copy `.env.example` to `.env`.
 | `PRICE_INDEX_FILE` | `data/price-index.json` | Where the list is read and saved |
 | `PRICE_INDEX_URL` | none | Raw GitHub URL of the list: checked on start and every… |
 | `PRICE_INDEX_PULL_HOURS` | `1` | …this many hours; downloaded only when it changed (ETag) and newer |
+| `PRICE_HISTORY_FILE` | `data/price-history.ndjson` | Where the price history is read |
+| `PRICE_HISTORY_URL` | beside `PRICE_INDEX_URL` | Raw URL of the price history, pulled a minute after start and then like the list |
 | `PRICE_INDEX_REFRESH_HOURS` | none | Let the server crawl by itself (needs a persistent disk) |
 | `FRESHEN_EVERY_SECONDS` | `60` | Background re-check of popular products; `0` turns it off |
 | `BRIGHTDATA_API_KEY`, `BRIGHTDATA_SERP_ZONE` | none | Turn on the paid web search |
