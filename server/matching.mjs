@@ -14,6 +14,9 @@ const OTHER_PRODUCT = new Set([
   'replica', 'clone'
 ]);
 
+/* Graphics card tiers: "RTX 4060 Ti" and "RX 7600 XT" are other cards than "RTX 4060" and "RX 7600". */
+const GPU_TIER = new Set(['ti', 'xt', 'xtx', 'gre']);
+
 const GENERIC_BRAND = new Set(['premium', 'fresh', 'pure', 'local', 'organic', 'special', 'best', 'buy', 'new', 'original', 'quality', 'super', 'loose']);
 
 const PACK_UNIT = { kg: 'kg', kgs: 'kg', g: 'g', gm: 'g', gms: 'g', gram: 'g', grams: 'g', l: 'l', ltr: 'l', ltrs: 'l', litre: 'l', litres: 'l', liter: 'l', liters: 'l', ml: 'ml' };
@@ -75,6 +78,12 @@ export function matchesQuery(name, query) {
     const subjectTokens = new Set(tokensOf(subject));
     const restTokens = new Set(tokensOf(rest.join(' ')));
     if (!wanted.some(token => subjectTokens.has(token) && !restTokens.has(token))) return false;
+  }
+
+  /* "RTX 4070 Super" and "RTX 5060 Ti" / "RX 7600 XT" are distinct GPU tiers unless asked for. */
+  if ([...tokens].some(token => GPU_TIER.has(token) && !asked.has(token))) return false;
+  if (!asked.has('super') && /\b(?:rtx|gtx)\b/i.test(query) && /\b(?:rtx|gtx)\s*\d{3,4}(?:\s*ti)?\s+super\b/i.test(name)) {
+    return false;
   }
 
   const wantedCpu = cpuOf(query);

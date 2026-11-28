@@ -192,6 +192,20 @@ export function readImage(html) {
   return decodeEntities(firstImage(products.flatMap(product => [].concat(product.image ?? []))) || metaContent(html, 'og:image') || '');
 }
 
+/* Model numbers: three to five digits standing alone, as in "RTX 4060" or "HP 250 G9". Not a
+   size ("20000mAh"), a code glued to letters ("HN7306") or a year ("Digipod 2026"). */
+const modelNumbers = text => new Set((String(text).match(/(?<![\p{L}\d.,])\d{3,5}(?![\d.,]|\s*(?:mah|w|gb|tb|mm|hz|mhz|ghz|dpi|lumens|ml|g|v)\b)/giu) ?? [])
+  .filter(number => !(number >= 2015 && number <= 2035)));
+
+/** True when the page's only heading names model numbers and none of them are in the name. */
+function headingContradicts(html, name) {
+  const headings = [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi)];
+  if (headings.length !== 1) return false;
+  const inHeading = modelNumbers(decodeEntities(headings[0][1].replace(/<[^>]+>/g, ' ')));
+  const inName = modelNumbers(name);
+  return inHeading.size > 0 && inName.size > 0 && ![...inHeading].some(number => inName.has(number));
+}
+
 /** The page's clear taka price, or null with the reason it could not be trusted. */
 export function readPage(html) {
   const title = decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '').replace(/\s+/g, ' ').trim();
@@ -205,6 +219,9 @@ export function readPage(html) {
 
   /* Some shops write their own marketing around the name: "Shop X at Shop.com". */
   const name = found.name.replace(/\s+/g, ' ').trim().replace(/^shop\s+/i, '').replace(/\s+at\s+\S+\.[a-z]+$/i, '');
+  /* A page whose one heading names another model than its data is half edited: Star Tech's
+     "RTX 4060" title and price sat over an "RTX 5060" heading. Which is sold is unclear. */
+  if (headingContradicts(html, name || title)) return { title, price: null, reason: 'ambiguous' };
   /* The product photo: the structured data's own, else the page's sharing image. */
   const image = decodeEntities(found.image || metaContent(html, 'og:image') || '');
   return { title, name, price: found.price, inStock: found.inStock, source: found.source, image };
