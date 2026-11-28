@@ -128,7 +128,7 @@ test('a copy sold under the real name is not the product, and what comes "with" 
 });
 
 test('a graphics card or memory module\'s "8G" is 8 GB, not a pack of 8 grams; a phone\'s 5G stays its network', () => {
-  assert.equal(variantOf('Leadtek WinFast RTX 4060 HURRICANE 8G Graphics Card', 'rtx 4060').label, '8GB RAM');
+  assert.equal(variantOf('Leadtek WinFast RTX 4060 HURRICANE 8G Graphics Card', 'rtx 4060').label, '8GB VRAM');
   assert.equal(variantOf('Kingston FURY Beast 16G DDR4 3200MHz', 'kingston fury').label, '16GB RAM');
   assert.equal(matchesQuery('Leadtek WinFast RTX 4060 HURRICANE 8G Graphics Card', 'rtx 4060 8gb'), true);
   assert.equal(variantOf('Pran Chanachur 300g', 'chanachur').label, 'Pran · 300g');
@@ -717,4 +717,89 @@ test("a page whose heading names another model number than its title or data is 
   assert.equal(other.reason, "ambiguous");
   assert.equal(readPage(page("GIGABYTE GeForce RTX 4060 EAGLE OC ICE 8G Graphics Card")).price, 55000, "same model: trusted");
   assert.equal(readPage(page("GIGABYTE Graphics Card")).price, 55000, "a heading with no model number says nothing");
+});
+
+test('stock reading catches spaced meta tags, PreOrder/BackOrder, OpenCart status cells, and contradicted JSON-LD InStock', () => {
+  /* Binary Logic pattern: JSON-LD hardcodes InStock while product:availability says Out of Stock. */
+  const binaryLogicOut = readPage(`<html><head>
+    <title>Samsung 980 250GB SSD Price in Bangladesh | Binary Logic</title>
+    <meta property="product:availability" content="Out of Stock" />
+    <script type="application/ld+json">${JSON.stringify({
+      '@type': 'Product', name: 'Samsung 980 250GB PCIe 3.0 M.2 NVMe SSD',
+      offers: { '@type': 'Offer', price: 5000, priceCurrency: 'BDT', availability: 'https://schema.org/InStock' }
+    })}</script></head></html>`);
+  assert.equal(binaryLogicOut.inStock, false);
+
+  /* Star Tech pattern: Open Graph price + spaced availability + h1 product title. */
+  const starTechOut = readPage(`<html><head>
+    <title>PNY RTX 3060 12GB Graphics Card Price in BD</title>
+    <meta property="product:availability" content="Out Of Stock" />
+    <meta property="product:price:amount" content="29900" />
+    <meta property="product:price:currency" content="BDT" /></head>
+    <body><h1>PNY GeForce RTX 3060 12GB VERTO Dual Fan Graphics Card</h1></body></html>`);
+  assert.equal(starTechOut.inStock, false);
+  assert.equal(starTechOut.name, 'PNY GeForce RTX 3060 12GB VERTO Dual Fan Graphics Card');
+
+  const starTechIn = readPage(`<html><head>
+    <meta property="product:availability" content="In Stock" />
+    <meta property="product:price:amount" content="13000" />
+    <meta property="product:price:currency" content="BDT" /></head>
+    <body><h1>AMD Ryzen 5 5600 Processor</h1></body></html>`);
+  assert.equal(starTechIn.inStock, true);
+
+  assert.equal(readPage(product('Blender', 9500, { availability: 'https://schema.org/BackOrder' })).inStock, false);
+  assert.equal(readPage(product('Speaker', 16500, { availability: 'https://schema.org/PreOrder' })).inStock, false);
+  assert.equal(readPage(product('Keyboard', 12900, { availability: 'https://schema.org/OnlineOnly' })).inStock, true);
+
+  /* Copy-pasted JSON-LD for a completely different product than <title> is rejected. */
+  const mismatched = readPage(`<html><head><title>Hoco W35 Max Wireless Headphone</title>
+    <script type="application/ld+json">${JSON.stringify({
+      '@type': 'Product', name: 'Haylou RS4 LS12 Smart Watch',
+      offers: { price: 4600, priceCurrency: 'BDT', availability: 'https://schema.org/InStock' }
+    })}</script></head></html>`);
+  assert.equal(mismatched.price, null);
+  assert.equal(mismatched.reason, 'ambiguous');
+});
+
+test('PC components do not match wrong tiers, full PCs, laptops, or gram-unit false positives, and versions stay distinct', () => {
+  for (const [name, query] of [
+    ['AMD Ryzen 5 5600G Desktop Processor with Radeon Graphics', 'ryzen 5 5600'],
+    ['ZOTAC GAMING GeForce RTX 5060 Ti 8GB Twin Edge Graphics Card', 'rtx 5060'],
+    ['Gigabyte GeForce RTX 4070 Super Windforce OC 12GB', 'rtx 4070'],
+    ['SAPPHIRE PULSE Radeon RX 7600 XT 16GB GDDR6 Graphics Card', 'rx 7600'],
+    ['Acer Nitro 5 15.6" FHD Gaming Laptop i7-12700H 16GB 512GB SSD RTX 3060', 'rtx 3060'],
+    ['ASUS ROG Strix G16 Intel Core i7-13650HX 16GB 1TB GeForce RTX 4060', 'rtx 4060'],
+    ['AMD Ryzen 5 5600 16GB RAM 512GB NVMe SSD Gaming Desktop', 'ryzen 5 5600'],
+    ['Ryzen 7 5700X Gaming PC Ft 8GB GPU + 22 Inch Monitor', 'ryzen 7 5700x'],
+    ['AMD Ryzen 5 5600 Processor And Corsair Vengeance LPX 8GB Desktop RAM Combo', 'ryzen 5 5600'],
+    ['INTEL CORE I5-12400 PROCESSOR & DEEPCOOL AK400 CPU COOLER Combo', 'core i5 12400'],
+    ['Apple iMac 27 Inch Retina 5K Intel Core i5, 8GB RAM, Magic Mouse 2', 'apple magic mouse']
+  ]) assert.ok(!matchesQuery(name, query), `${name} should not match "${query}"`);
+
+  assert.ok(matchesQuery('AMD Ryzen 5 5600 Desktop Processor', 'ryzen 5 5600'));
+  assert.ok(matchesQuery('Logitech MK215 Wireless Keyboard & Mouse Combo', 'logitech mk215 keyboard'));
+
+  /* "8G" on a graphics card is 8GB VRAM, never 8 grams of groceries. */
+  assert.equal(
+    variantOf('MSI GeForce RTX 4060 Gaming X 8G GDDR6 Graphics Card', 'rtx 4060').key,
+    variantOf('ZOTAC Gaming GeForce RTX 4060 8GB GDDR6 Graphics Card', 'rtx 4060').key
+  );
+  /* PCIe transfer rate "8Gb/s" is not 8GB RAM. */
+  assert.equal(
+    variantOf('Western Digital 512GB WD Blue SN550 NVMe Internal SSD - Gen3 x4 PCIe 8Gb/s', 'wd blue').label,
+    '512GB'
+  );
+  /* DDR3, DDR4 and DDR5 RAM modules never share one version comparison. */
+  assert.notEqual(
+    variantOf('Kingston HyperX FURY 8GB 1600MHz DDR3 CL10 DIMM Ram', 'kingston fury').key,
+    variantOf('Kingston Fury 8GB DDR4 3200MHz RGB Desktop Gaming RAM', 'kingston fury').key
+  );
+  assert.notEqual(
+    variantOf('Corsair VENGEANCE 16GB DDR5 6000MHz Desktop RAM', 'corsair vengeance').key,
+    variantOf('Corsair VENGEANCE LPX 16GB DDR4 3200MHz Desktop RAM', 'corsair vengeance').key
+  );
+  assert.notEqual(
+    variantOf('DeepCool PK550D 550W 80 Plus Bronze Power Supply', 'deepcool psu').key,
+    variantOf('DeepCool PK650D 650W 80 Plus Bronze Power Supply', 'deepcool psu').key
+  );
 });
