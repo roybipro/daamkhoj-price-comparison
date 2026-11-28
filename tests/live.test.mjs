@@ -705,3 +705,16 @@ test('memoryOf and variantOf distinguish Apple Silicon tiers, high RAM, budget s
   assert.notEqual(variantOf('MacBook Pro M4 Pro 24GB 512GB', 'macbook pro').key, variantOf('MacBook Pro M4 24GB 512GB', 'macbook pro').key);
   assert.equal(variantOf('iPhone 17 (Official)', 'iphone 17').clear, false);
 });
+
+test("a page whose heading names another model number than its title or data is not trusted", () => {
+  /* Star Tech, 2026-11-28: title and meta say RTX 4060, the product heading says RTX 5060. */
+  const page = name => `<html><head><title>GIGABYTE RTX 4060 EAGLE OC ICE 8G Graphics Card Price in Bangladesh</title>
+    <meta property="og:title" content="GIGABYTE RTX 4060 EAGLE OC ICE 8G Graphics Card Price in Bangladesh">
+    <meta property="product:price:amount" content="55000"><meta property="product:price:currency" content="BDT"></head>
+    <body><h1 itemprop="name" class="product-name">${name}</h1></body></html>`;
+  const other = readPage(page("GIGABYTE GeForce RTX 5060 EAGLE OC ICE 8G GDDR7 Graphics Card"));
+  assert.equal(other.price, null);
+  assert.equal(other.reason, "ambiguous");
+  assert.equal(readPage(page("GIGABYTE GeForce RTX 4060 EAGLE OC ICE 8G Graphics Card")).price, 55000, "same model: trusted");
+  assert.equal(readPage(page("GIGABYTE Graphics Card")).price, 55000, "a heading with no model number says nothing");
+});

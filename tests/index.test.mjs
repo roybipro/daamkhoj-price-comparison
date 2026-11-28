@@ -890,7 +890,8 @@ test('crawlShop remembers unpriced pages so they do not starve priced pages, and
 test('watchIndexFile concurrent cold-start requests wait for the initial load', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'daamkhoj-cold-'));
   const file = path.join(dir, 'list.json');
-  await saveIndexFile(file, listOf(entry('a.bd', 'iPhone 15 128GB', 82000)));
+  /* Checked just now: watchIndexFile runs on the real clock, which leaves out prices over a week old. */
+  await saveIndexFile(file, listOf(entry('a.bd', 'iPhone 15 128GB', 82000, { checkedAt: new Date().toISOString() })));
   const search = watchIndexFile(file, { checkEveryMs: 1000 });
   const [browsed, found] = await Promise.all([search.browse(), search('iphone 15')]);
   assert.equal(browsed.prices, 1);
@@ -1000,4 +1001,15 @@ test('the home page counts come from the list being served, never a number writt
   assert.equal(withCounts(html, null), html);
   const home = await pageMeta(new URL('https://x.test/'), { base: 'https://x.test', search: async () => null, counts: { shops: 31, prices: 1 } });
   assert.match(home.description, /from 31 Bangladeshi online shops/);
+});
+
+test('a graphics card tier (Ti, Super, XT) is a different card unless asked for', () => {
+  assert.equal(matchesQuery('NVidia Leadtek WinFast RTX 4060 Ti HURRICANE 8G Graphics Card', 'rtx 4060'), false);
+  assert.equal(matchesQuery('MSI GeForce RTX 4060 Ti GAMING X 8G GDDR6 Graphics Card', 'rtx 4060'), false);
+  assert.equal(matchesQuery('MSI GeForce RTX 4060 Ti GAMING X 8G GDDR6 Graphics Card', 'rtx 4060 ti'), true);
+  assert.equal(matchesQuery('ASUS Dual GeForce RTX 4070 SUPER OC 12GB', 'rtx 4070'), false);
+  assert.equal(matchesQuery('ASUS Dual GeForce RTX 4070 SUPER OC 12GB', 'rtx 4070 super'), true);
+  assert.equal(matchesQuery('Sapphire PULSE Radeon RX 7600 XT 16GB', 'rx 7600'), false);
+  assert.equal(matchesQuery('ASUS Dual GeForce RTX 4060 OC Edition 8GB GDDR6', 'rtx 4060'), true);
+  assert.equal(matchesQuery('Anker 737 Power Bank PowerCore 24K', 'anker 737 power bank'), true, 'only cards: other names are left alone');
 });
