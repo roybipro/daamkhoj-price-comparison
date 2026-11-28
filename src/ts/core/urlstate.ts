@@ -5,7 +5,7 @@
 import type { SortKey, State, ViewName } from '../types.js';
 
 const SORTS: readonly SortKey[] = ['value', 'price', 'trust', 'eta'];
-const VIEWS: readonly ViewName[] = ['results', 'stores', 'compare', 'how'];
+const VIEWS: readonly ViewName[] = ['results', 'stores', 'compare', 'how', 'build'];
 const TRUST_STEPS = [60, 70, 80];
 const MAX_QUERY = 80;
 /* The tray disables Compare below two picks, so a restored shortlist has to clear

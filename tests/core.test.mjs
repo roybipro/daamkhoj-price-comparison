@@ -141,3 +141,27 @@ test('a saved product is priced the way its result card is', async () => {
   /* An offer with no product key is keyed by its lower-cased title. */
   assert.equal(priceIn(groups, 'mac mini m4'.toLowerCase()), 95000);
 });
+
+test('a build is priced as the cheapest mix and as one shop', async () => {
+  const { planBasket } = await import('../dist/js/core/basket.js');
+  const offer = (shop, price, inStock = true) => ({ shop, url: `https://${shop}/p`, title: 'x', price, inStock });
+  const offers = new Map([
+    ['cpu', [offer('a.bd', 20000), offer('b.bd', 21000), offer('c.bd', 15000, false)]],
+    ['gpu', [offer('a.bd', 45000), offer('b.bd', 42000)]],
+    ['ram', [offer('b.bd', 6000), offer('b.bd', 5500), offer('c.bd', 5000)]]
+  ]);
+  const plan = planBasket(['cpu', 'gpu', 'ram'], offers);
+  /* Out of stock never counts: the cpu's ৳15,000 at c.bd is left out. */
+  assert.equal(plan.mix.total, 20000 + 42000 + 5000);
+  assert.equal(plan.mix.shops, 3);
+  assert.equal(plan.oneShop?.shop, 'b.bd');
+  /* A shop's cheaper second listing of the same product is the one it is priced at. */
+  assert.equal(plan.oneShop?.total, 21000 + 42000 + 5500);
+  assert.deepEqual(plan.missing, []);
+
+  const partial = planBasket(['cpu', 'gpu', 'ssd'], offers);
+  assert.equal(partial.oneShop, null);
+  assert.deepEqual(partial.missing, ['ssd']);
+  assert.equal(partial.mix.total, 20000 + 42000);
+  assert.equal(partial.shops[0].picks.size, 2);
+});

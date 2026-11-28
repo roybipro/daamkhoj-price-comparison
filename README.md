@@ -15,6 +15,8 @@ every shop's price side by side, cheapest first, with each price read from the s
   pages, and says whether today's price is the lowest it has been.
 - **Saved products**: save a product (in your browser, no account) and the home page shows how
   its price moved since.
+- **Build**: add a PC's parts (or anything bought together) and see the total from the cheapest
+  mix of shops, or from one shop.
 - **Web search** on Enter finds shops the crawl doesn't cover.
 - **For AI agents**: an MCP server at `https://daamkhoj.onrender.com/mcp` lets Claude, ChatGPT,
   Cursor and other agents ask which shop is cheapest ([docs/mcp.md](docs/mcp.md)).

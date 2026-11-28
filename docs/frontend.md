@@ -48,6 +48,13 @@ and `verbatimModuleSyntax` (type-only imports must say `import type`).
 - A product page fetches its **price history** once (`src/ts/core/history.ts`, `/api/history`)
   and draws it in `src/ts/ui/live.ts`; the line ends on the price shown now.
 
+- **Build** tab (`?view=build`; `src/ts/core/basket.ts`, `src/ts/ui/basket.ts`): products added
+  with **Add to build** (one button per version when a product page lists several, since a build
+  needs a version), kept in this browser (`daamkhoj.basket.v1`, at most 15). Each is priced from
+  the quick search that found it, in-stock offers only, and the build is totalled two ways: the
+  cheapest mix of shops, and the cheapest single shop that has everything (with the shops that
+  have the most of it when none has all).
+
 ## The address bar
 
 `core/urlstate.ts` turns the state into a query string and back. That makes every search a link
