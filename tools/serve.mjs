@@ -10,6 +10,7 @@ import { createMcp } from '../server/mcp.mjs';
 import { createRechecker } from '../server/recheck.mjs';
 import { createRobots } from '../server/robots.mjs';
 import { fetchPublic } from '../server/safe-fetch.mjs';
+import { adviseBuild } from '../server/advisor.mjs';
 import { createHistoryStore, historyUrlFrom, pullHistoryFile } from '../server/price-history.mjs';
 import { pullIndexFile, watchIndexFile } from '../server/price-index.mjs';
 import { pageMeta, robotsTxt, sitemapXml, withCounts, withMeta } from '../server/seo.mjs';
@@ -78,7 +79,8 @@ if (freshenEvery > 0) {
 /* CLIENT_IP_HEADER names the header the host's proxy fills with the visitor's real address
    (cf-connecting-ip on Render, which sits behind Cloudflare), so each visitor gets their own
    rate limit and a made-up X-Forwarded-For buys nothing. Unset, the connection's address is used. */
-const api = createApi({ liveSearch, searchIndex, recheck, priceHistory, clientHeader: process.env.CLIENT_IP_HEADER });
+const advise = async request => adviseBuild(await searchIndex.index(), request);
+const api = createApi({ liveSearch, searchIndex, recheck, priceHistory, advise, clientHeader: process.env.CLIENT_IP_HEADER });
 /* POST /mcp: the same price list for AI agents (server/mcp.mjs), with its own per-visitor limits. */
 const mcp = createMcp({
   searchIndex, recheck,

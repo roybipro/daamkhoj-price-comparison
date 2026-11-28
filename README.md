@@ -17,6 +17,8 @@ every shop's price side by side, cheapest first, with each price read from the s
   its price moved since.
 - **Build**: add a PC's parts (or anything bought together) and see the total from the cheapest
   mix of shops, or from one shop.
+- **Build me a PC**: a budget and a use (gaming, editing, office) give a PC of in-stock parts
+  that fit together (socket, memory, power), chosen by rules from real prices.
 - **Web search** on Enter finds shops the crawl doesn't cover.
 - **For AI agents**: an MCP server at `https://daamkhoj.onrender.com/mcp` lets Claude, ChatGPT,
   Cursor and other agents ask which shop is cheapest ([docs/mcp.md](docs/mcp.md)).

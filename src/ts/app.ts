@@ -1,7 +1,10 @@
 import { SNAPSHOT, TRUST_WEIGHTS } from './data/meta.js';
 import { buildCatalog, byBestValue } from './core/catalog.js';
 import { loadShownHistory } from './core/history.js';
-import { basketItems, clearBasket, loadBasketPrices, removeFromBasket, toggleBasket, type BasketItem, type BasketOffer } from './core/basket.js';
+import {
+  basketItems, clearBasket, dismissAdvice, fetchAdvice, loadBasketPrices, removeFromBasket, toggleBasket, useAdvice,
+  type AdviceUse, type BasketItem, type BasketOffer
+} from './core/basket.js';
 import { forgetAllSaved, loadSavedPrices, savedItems, toggleSaved, type SavedItem } from './core/saved.js';
 import { applyFresh, fetchBrowse, fetchLive } from './core/live.js';
 import { createSearch } from './core/search.js';
@@ -492,6 +495,13 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
   },
   buildRemove: trigger => { removeFromBasket(trigger.dataset.id ?? ''); render(); },
   buildClear: () => { clearBasket(); render(); },
+  advise: () => {
+    const budget = Number(document.querySelector<HTMLInputElement>('#adv-budget')?.value);
+    const use = (document.querySelector<HTMLSelectElement>('#adv-use')?.value ?? 'gaming') as AdviceUse;
+    void fetchAdvice(Math.round(budget) || 0, use, render);
+  },
+  useAdvice: () => { if (useAdvice()) { render(); window.scrollTo({ top: 0 }); } },
+  dismissAdvice: () => { dismissAdvice(); render(); },
   clearSaved: () => { forgetAllSaved(); render(); },
   searchWeb: () => { void startLive(true); },
   allResults: () => { takeStep(); state.product = ''; render(); },
