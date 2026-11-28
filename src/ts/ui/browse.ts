@@ -5,6 +5,7 @@
 import { escapeHtml, money, pluralCount } from '../core/format.js';
 import { shopLogo } from '../core/links.js';
 import { safeHttpUrl } from '../core/live.js';
+import { savedItems, savedNow, type SavedItem } from '../core/saved.js';
 import type { BrowseCard, BrowseData, BrowseShelf, RenderContext } from '../types.js';
 import { priceTag } from './fragments.js';
 
@@ -135,6 +136,50 @@ function buildFeaturedShelves(shelves: BrowseShelf[]): { popular: BrowseShelf; t
   };
 }
 
+const HEART = '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>';
+
+/* A saved product: today's lowest price from the price list, and how it moved since saving. */
+function savedCard(item: SavedItem): string {
+  const photo = item.image ? safeHttpUrl(item.image) : null;
+  const today = savedNow(item.key);
+  const price = today?.status === 'done' ? today.price : undefined;
+  const change = typeof price === 'number' ? price - item.price : 0;
+  const badge = price === null
+    ? '<span class="pc-badge out">Out of stock</span>'
+    : change < 0
+      ? `<span class="pc-badge drop">Down ${money(-change)}</span>`
+      : change > 0 ? `<span class="pc-badge up">Up ${money(change)}</span>` : '';
+  return `<button class="pcard" data-act="openSaved" data-id="${escapeHtml(item.key)}" title="${escapeHtml(`Compare ${item.title}`)}">
+    <span class="pc-img">${badge}${HEART}${photo
+      ? `<img src="${escapeHtml(photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span>
+    <span class="pc-body">
+      <span class="pc-name">${escapeHtml(item.title)}</span>
+      ${priceTag(typeof price === 'number' ? price : item.price, 'from')}
+      <span class="pc-meta">${change ? `Was ${money(item.price)} when you saved it` : 'Same as when you saved it'}</span>
+      <span class="go-btn" aria-hidden="true">${ARROW}</span>
+    </span>
+  </button>`;
+}
+
+/** The shopper's saved products, first on the home page; nothing when none are saved. */
+function savedShelf(): string {
+  const items = savedItems();
+  if (!items.length) return '';
+  const drops = items.filter(item => {
+    const today = savedNow(item.key);
+    return today?.status === 'done' && typeof today.price === 'number' && today.price < item.price;
+  }).length;
+  return `<section class="shelf saved-shelf" aria-labelledby="shelf-saved">
+    <div class="shelf-head">
+      <div><h2 id="shelf-saved">Saved</h2><span class="shelf-sub">${drops
+        ? `${pluralCount(drops, 'price')} dropped since you saved ${drops === 1 ? 'it' : 'them'}`
+        : 'Kept in this browser. Prices from our latest check'}</span></div>
+      <button class="link" data-act="clearSaved">Clear</button>
+    </div>
+    <div class="cards row">${items.map(savedCard).join('')}</div>
+  </section>`;
+}
+
 function card(item: BrowseCard, shelf: string): string {
   const photo = item.image ? safeHttpUrl(item.image) : null;
   const badge = shelf === 'popular'
@@ -210,7 +255,7 @@ export function browseView(ctx: RenderContext, data: BrowseData): string {
   return `${chosen ? `<div class="cat-tabs" role="tablist" aria-label="Categories">${tabs.map(tab =>
       `<button role="tab" class="cat-tab" data-act="shelf" data-id="${escapeHtml(tab.id)}" aria-selected="${tab.id === chosen.id}">
         ${icon(tab.id || 'all', 22)}<span>${escapeHtml(tab.label)}</span><span class="n num">${tab.count}</span></button>`).join('')}</div>`
-      : `${benefits(data)}${categoryTiles(ordered)}`}
+      : `${savedShelf()}${benefits(data)}${categoryTiles(ordered)}`}
 
     ${chosen
       ? `<section class="shelf"><div class="shelf-head"><h2>${escapeHtml(chosen.label)}</h2>

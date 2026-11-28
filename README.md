@@ -13,6 +13,8 @@ every shop's price side by side, cheapest first, with each price read from the s
   an i7), accessories aren't the product, and suspicious prices are left out.
 - **Price history**: each product page charts the lowest price day by day, from the shops' own
   pages, and says whether today's price is the lowest it has been.
+- **Saved products**: save a product (in your browser, no account) and the home page shows how
+  its price moved since.
 - **Web search** on Enter finds shops the crawl doesn't cover.
 - **For AI agents**: an MCP server at `https://daamkhoj.onrender.com/mcp` lets Claude, ChatGPT,
   Cursor and other agents ask which shop is cheapest ([docs/mcp.md](docs/mcp.md)).

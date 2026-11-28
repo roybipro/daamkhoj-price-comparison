@@ -1,6 +1,7 @@
 import { SNAPSHOT, TRUST_WEIGHTS } from './data/meta.js';
 import { buildCatalog, byBestValue } from './core/catalog.js';
 import { loadShownHistory } from './core/history.js';
+import { forgetAllSaved, loadSavedPrices, savedItems, toggleSaved, type SavedItem } from './core/saved.js';
 import { applyFresh, fetchBrowse, fetchLive } from './core/live.js';
 import { createSearch } from './core/search.js';
 import { decodeState, encodeState } from './core/urlstate.js';
@@ -329,6 +330,8 @@ function render(): void {
   if (focused) (document.querySelector<HTMLElement>(focused) ?? dom.out).focus({ preventScroll: true });
   /* An open product page gets its price history, once; the chart appears when it arrives. */
   loadShownHistory(dom.out, render);
+  /* Saved products on the home page get today's price, once per visit. */
+  if (dom.out.querySelector('.saved-shelf')) loadSavedPrices(render);
 }
 
 /* Results follow the typing: the price list answers in milliseconds, so each pause in typing
@@ -436,6 +439,32 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
     liveRequest = new AbortController();
     void recheckShown(liveRequest, state.product);
   },
+  save: trigger => {
+    try {
+      toggleSaved(JSON.parse(trigger.dataset.item ?? '') as SavedItem);
+    } catch {
+      return;
+    }
+    render();
+  },
+  openSaved: trigger => {
+    const item = savedItems().find(saved => saved.key === trigger.dataset.id);
+    if (!item) return;
+    takeStep();
+    state.q = item.q;
+    dom.input.value = item.q;
+    window.scrollTo({ top: 0 });
+    /* The search opens on the list; the saved product is opened once its prices are in. */
+    void startLive().then(() => {
+      if (state.live.status !== 'done' || state.q !== item.q) return;
+      state.product = item.key;
+      render();
+      liveRequest?.abort();
+      liveRequest = new AbortController();
+      void recheckShown(liveRequest, item.key);
+    });
+  },
+  clearSaved: () => { forgetAllSaved(); render(); },
   searchWeb: () => { void startLive(true); },
   allResults: () => { takeStep(); state.product = ''; render(); },
   moreResults: () => { state.resultLimit += 40; render(); },
