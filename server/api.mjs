@@ -3,6 +3,7 @@
    GET /api/search/quick?q=… answers from the saved price list at once, with no paid request.
    GET /api/search?q=… runs the paid web search and adds the price list's answer to it.
    GET /api/history?url=…&url=… gives one product's real price history, from its shop pages' urls.
+   GET /api/advisor?budget=…&use=gaming|editing|office suggests a PC whose parts fit together, from the price list.
    GET /api/health says whether the site is serving prices, and how old they are, for uptime checks.
    Credentials come from the environment and stay on the server; nothing here returns or logs them. */
 
@@ -92,7 +93,7 @@ function combine(web, listed) {
 }
 
 export function createApi({
-  liveSearch, searchIndex = null, recheck = null, priceHistory = null,
+  liveSearch, searchIndex = null, recheck = null, priceHistory = null, advise = null,
   allowClient = createRateLimiter(), allowQuick = createRateLimiter({ limit: 120 }), allowRecheck = createRateLimiter({ limit: 30 }),
   clientHeader = '', log = console.error
 }) {
@@ -168,6 +169,20 @@ export function createApi({
     }
   }
 
+  /* A PC for a budget and a use, from real in-stock listings (server/advisor.mjs). */
+  async function advisor(req, res, url) {
+    if (!advise) return send(res, 503, { error: 'The build advisor is not set up on this server' });
+    if (!allowRecheck(clientAddress(req))) {
+      return send(res, STATUS.rate, { error: 'Too many requests. Please wait a minute and try again.' });
+    }
+    try {
+      return send(res, 200, await advise({ budget: url.searchParams.get('budget'), use: url.searchParams.get('use') }));
+    } catch (error) {
+      if (error instanceof RangeError) return send(res, 400, { error: error.message });
+      return failed(res, error, 'build advisor');
+    }
+  }
+
   /* For an uptime check and the host's health check: 503 only when no prices are being served.
      Old prices still answer 200, with their age, so a host never restarts a working server for it. */
   async function health(req, res) {
@@ -193,6 +208,7 @@ export function createApi({
     if (url.pathname === '/api/health') return health(req, res);
     if (url.pathname === '/api/browse') return browse(req, res);
     if (url.pathname === '/api/history') return history(req, res, url);
+    if (url.pathname === '/api/advisor') return advisor(req, res, url);
     if (url.pathname === '/api/recheck') return recheckPrices(req, res, url);
     if (url.pathname === '/api/search/quick') return quick(req, res, url);
     if (url.pathname !== '/api/search') return send(res, 404, { error: 'Not found' });

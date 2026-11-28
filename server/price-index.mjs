@@ -653,6 +653,16 @@ export function createPriceIndex(input, { now = Date.now, maxAgeMs = 7 * 24 * 60
 
     currentShelves: () => shelves,
 
+    /** Listings whose names or addresses hold every one of `words` and that aren't out of stock,
+        cheapest first: the build advisor's candidates (server/advisor.mjs). */
+    listingsWith(words, limit = 600) {
+      const [sql, values] = holdingAll(words);
+      return statement(`SELECT shop, url, name, price, in_stock AS inStock, image, pkey AS product, checked_at AS checkedAt
+        FROM entries WHERE id IN (${sql}) AND price > 0 AND (in_stock IS NULL OR in_stock = 1) ORDER BY price LIMIT ${Number(limit) || 600}`)
+        .all(...values)
+        .map(row => ({ ...row, inStock: row.inStock === null ? null : row.inStock === 1 }));
+    },
+
     /** Builds the database in slices so the first visitor never waits. */
     warm() {
       return runInSlices((function* () {

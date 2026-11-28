@@ -152,3 +152,59 @@ export function planBasket(keys: string[], offersByKey: Map<string, BasketOffer[
     oneShop: priced > 0 && shops[0]?.picks.size === keys.length ? shops[0] : null
   };
 }
+
+/* ---------- the build advisor (/api/advisor) ---------- */
+
+export type AdviceUse = 'gaming' | 'editing' | 'office';
+
+export interface AdvicePart {
+  role: string; label: string; name: string; price: number; shop: string; url: string;
+  image: string | null; product: string; inStock: boolean | null;
+}
+
+export interface Advice {
+  budget: number; use: AdviceUse; total: number; parts: AdvicePart[]; missing: string[]; notes: string[];
+}
+
+export type AdviceState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'done'; advice: Advice }
+  | { status: 'error'; message: string };
+
+/** What the form last asked for, kept so a re-render shows the same choice. */
+export const adviceForm: { budget: number; use: AdviceUse } = { budget: 80_000, use: 'gaming' };
+let advice: AdviceState = { status: 'idle' };
+export const currentAdvice = (): AdviceState => advice;
+
+export async function fetchAdvice(budget: number, use: AdviceUse, rerender: () => void): Promise<void> {
+  adviceForm.budget = budget;
+  adviceForm.use = use;
+  advice = { status: 'loading' };
+  rerender();
+  try {
+    const response = await fetch(`api/advisor?${new URLSearchParams({ budget: String(budget), use })}`, {
+      signal: AbortSignal.timeout(30_000), headers: { accept: 'application/json' }
+    });
+    const body = await response.json() as Partial<Advice> & { error?: string };
+    advice = response.ok && Array.isArray(body.parts)
+      ? { status: 'done', advice: body as Advice }
+      : { status: 'error', message: body.error ?? 'The build could not be made. Please try again.' };
+  } catch {
+    advice = { status: 'error', message: 'The build could not be made. Check your connection and try again.' };
+  }
+  rerender();
+}
+
+/** Puts the suggested parts in the build, in place of what was there. */
+export function useAdvice(): boolean {
+  if (advice.status !== 'done') return false;
+  store(advice.advice.parts.map(part => ({ key: part.product, product: part.product, q: part.name, title: part.name, image: part.image })));
+  for (const part of advice.advice.parts) prices.delete(part.product);
+  advice = { status: 'idle' };
+  return true;
+}
+
+export function dismissAdvice(): void {
+  advice = { status: 'idle' };
+}

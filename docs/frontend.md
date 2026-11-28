@@ -55,6 +55,9 @@ and `verbatimModuleSyntax` (type-only imports must say `import type`).
   cheapest mix of shops, and the cheapest single shop that has everything (with the shops that
   have the most of it when none has all).
 
+- **Build me a PC** (top of the Build tab): a budget and a use ask `/api/advisor`; the suggested
+  parts can replace the build in one press, after which the Build tab prices them as usual.
+
 ## The address bar
 
 `core/urlstate.ts` turns the state into a query string and back. That makes every search a link

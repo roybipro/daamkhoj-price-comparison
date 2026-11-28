@@ -138,6 +138,26 @@ The lowest price any of the pages asked each day (Bangladesh dates), from the pr
 crawl keeps (`server/price-history.mjs`); `null` on a day all of them were out of stock. Pages
 with no history are ignored; none at all gives `{ "days": [] }`. 400 without a `url`.
 
+## `/api/advisor`
+
+| Parameter | |
+|---|---|
+| `budget` | Taka, 25,000 to 1,500,000 |
+| `use` | `gaming`, `editing` or `office` |
+
+```json
+{ "budget": 80000, "use": "gaming", "total": 77729,
+  "parts": [{ "role": "cpu", "label": "Processor", "name": "Intel Core i3-14100F Processor", "price": 15000,
+              "shop": "shop-a.example", "url": "https://…", "image": null, "product": "intel core i3 14100f" }],
+  "missing": [], "notes": ["LGA1700 platform: the motherboard takes this processor, and DDR4 memory."] }
+```
+
+A PC whose parts fit together, from in-stock listings (`server/advisor.mjs`): no AI, fixed rules.
+The budget is split by shares per use; each part is the best that fits its share and the parts
+already chosen (socket, DDR4/DDR5, a power supply sized and 80 Plus rated for the card); what is
+left goes to the graphics card (gaming) or processor. Prices far under other shops' for the same
+product are never picked. 400 for a budget or use out of range; rate-limited like `/api/recheck`.
+
 ## `/api/health`
 
 ```json
