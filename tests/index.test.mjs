@@ -1014,6 +1014,16 @@ test('a graphics card tier (Ti, Super, XT) is a different card unless asked for'
   assert.equal(matchesQuery('Anker 737 Power Bank PowerCore 24K', 'anker 737 power bank'), true, 'only cards: other names are left alone');
 });
 
+test('a processor search shows no PC, whatever the shop calls it, so its real prices stay', () => {
+  for (const name of ['Intel Core i5 12400 12th Gen Graphics PC', 'Intel Core i5-12400 12th Gen Freelancing PC', 'Intel 12th Gen Core I5 12400 Binary PC']) {
+    assert.equal(matchesQuery(name, 'core i5 12400'), false, name);
+  }
+  assert.equal(matchesQuery('AMD Ryzen 7 7800X3D Components Combo', 'ryzen 7 7800x3d'), false);
+  assert.equal(matchesQuery('Intel Core i5-12400 12th Gen Alder Lake Processor', 'core i5 12400'), true);
+  assert.equal(matchesQuery('Intel Core i5 12400 12th Gen Graphics PC', 'core i5 12400 pc'), true, 'asked for');
+  assert.equal(matchesQuery('AMD Ryzen 7 7800X3D Components Combo', 'ryzen 7 7800x3d combo'), true, 'asked for');
+});
+
 test('drone propellers are not the drone', () => {
   assert.equal(matchesQuery('Dji Mini 4 pro Propellers', 'dji mini 4 pro'), false);
   assert.equal(matchesQuery('Dji Mini 3pro/Mini 3 Propellers', 'dji mini 3'), false);

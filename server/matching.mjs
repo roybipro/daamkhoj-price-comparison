@@ -93,6 +93,12 @@ export function matchesQuery(name, query) {
   if (!asksSystem && /\b(gaming\s+pc|desktop\s+pc|office\s+pc|budget\s+pc(?:[\s-]deal)?|full\s+pc|mini\s+pc|all[\s-]+in[\s-]+one\s+pc|desktop\s+computer|gaming\s+desktop|(?:gaming|productivity|pc)\s+build|pc\s+bundle|with\s+(?:full\s+)?pc|only\s+for\s+pc\s+bundle)\b/i.test(name)) {
     return false;
   }
+  /* A processor search never shows a whole PC or a combo, whatever the shop calls it: "Intel Core
+     i5 12400 12th Gen Graphics PC", "… Freelancing PC", "Ryzen 7 7800X3D Components Combo". Sharing the processor's product,
+     their ৳43,000+ prices also made its real ৳17,000 prices look suspiciously cheap. */
+  if (!asksSystem && cpuOf(query) && /\b(?:pc|combo|bundle)\b(?!\s*(?:case|casing|cooler|fan))/i.test(name) && !/\s(?:for|compatible\s+with)\s+(?:\w+\s+)?pc\b/i.test(name)) {
+    return false;
+  }
   const asksPortableOrAio = /\b(laptop|notebook|macbook|imac|chromebook|vivobook|zenbook|ideapad|thinkpad|thinkbook|legion|loq|victus|omen|nitro|predator|rog|tuf|inspiron|pavilion|aspire|katana|cyborg|stealth|raider|vector|helios|strix|zephyrus)\b/i.test(query);
   if (!asksPortableOrAio &&
     /\b(laptop|notebook|macbook|imac|chromebook)\b/i.test(name) &&
