@@ -1063,7 +1063,7 @@ test('PC part cards keep RAM/SSD/WD lines apart, drop wrong-slug pages, price fr
   assert.equal(index.search('afox me300').found, 0, 'srsltid URL is dropped');
 
   const shelves = buildBrowse(query => index.search(query), { 'a.bd': 1, 'b.bd': 1, 'c.bd': 1 }, [
-    { id: 'pc', label: 'PC & accessories', products: ['ZOTAC GAMING GeForce RTX 3050 Twin'] }
+    { id: 'pc', label: 'PC & accessories', products: ['ZOTAC GAMING GeForce RTX 3050 Twin Edge'] }
   ]);
   assert.equal(shelves.shelves[0].cards[0].from, 39000, 'shelf card starts at cheapest buyable offer');
   assert.equal(shelves.shelves[0].cards[0].shop, 'b.bd');
@@ -1086,4 +1086,35 @@ test('PC part cards keep RAM/SSD/WD lines apart, drop wrong-slug pages, price fr
   const byShop = Object.fromEntries(after.groups.flatMap(group => group.offers).map(offer => [offer.shop, offer]));
   assert.equal(byShop['b.bd'].inStock, false, 'page with no price on recheck becomes out of stock');
   assert.equal(byShop['c.bd'], undefined, '404 product link is removed on recheck');
+});
+
+test('a processor or graphics card gets one key however each shop words it', async () => {
+  const { displayName, productKey } = await import('../server/browse.mjs');
+  const same = (names, key) => { for (const name of names) assert.equal(productKey(name), key, name); };
+  same(['AMD Ryzen 5 7600 AM5 Gaming Processor', 'Ryzen 5 7600 3.8GHz 6-Core Processor', 'AMD Ryzen 5 7600 Tray'], 'amd ryzen 5 7600');
+  same(['Intel 12th Gen Core i5-12400F Processor', 'Intel Core i5 12400F Alder Lake'], 'intel core i5 12400f');
+  same(['Intel Core Ultra 7 265K Desktop Processor'], 'intel core ultra 7 265k');
+  same(['MSI GeForce RTX 5060 8G Ventus 2X OC', 'MSI RTX 5060 VENTUS 2X OC 8GB GDDR7 Graphics Card Price in BD'], 'msi rtx 5060 ventus 2x oc');
+  same(['ZOTAC GAMING GeForce RTX 5060 Twin Edge 8GB', 'ZOTAC GeForce RTX 5060 Twin Edge'], 'zotac rtx 5060 twin edge');
+  /* Different board lines, suffixes and chips stay apart. */
+  assert.notEqual(productKey('MSI GeForce RTX 5060 8G GAMING OC'), productKey('MSI GeForce RTX 5060 8G Ventus 2X OC'));
+  assert.notEqual(productKey('Intel Core i7-12700K'), productKey('Intel Core i7-12700KF'));
+  assert.notEqual(productKey('AMD Ryzen 7 7800X3D'), productKey('AMD Ryzen 7 7800'));
+  assert.notEqual(productKey('Gigabyte RTX 4060 Ti Eagle OC'), productKey('Gigabyte RTX 4060 Eagle OC'));
+  /* Whole computers, combos, laptops and coolers that name a chip are not the chip. */
+  for (const name of [
+    'Dell Pro Tower Essential QVT1260 14th Gen Intel Core i5 14500',
+    'Intel 12th Gen Core i5-12400F Alder Lake Processor and 500GB SSD',
+    'Intel 8th Generation Core i3 8100 Processor (With Full PC)',
+    'MSI GF63 Thin 11UC Core i5 RTX 3050',
+    'ASUS Vivobook 15 Ryzen 5 7520U',
+    'MSI B650M + Ryzen 7 7700 Combo',
+    'Creator Productivity Build Ryzen 7 7700',
+    'Deepcool AK400 Cooler for Ryzen'
+  ]) assert.ok(!/^(amd ryzen|intel core|\w+ (rtx|gtx|rx) \d)/.test(productKey(name)), name);
+  /* A card's name searches back to the same key. */
+  for (const name of ['Intel Core i5-12400F Processor', 'MSI GeForce RTX 5060 8G Ventus 2X OC', 'AMD Ryzen 7 7800X3D']) {
+    const key = productKey(name);
+    assert.equal(productKey(displayName(key, [name])), key, name);
+  }
 });
