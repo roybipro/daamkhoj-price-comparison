@@ -208,7 +208,7 @@ export type LiveState =
 
 export interface LiveSuggestion { name: string; shops: number }
 
-export type ViewName = 'results' | 'stores' | 'compare' | 'how';
+export type ViewName = 'results' | 'stores' | 'compare' | 'how' | 'build';
 export type SortKey = 'value' | 'price' | 'trust' | 'eta';
 /** 'live' items come from the price list; 'product' and 'store' from the sample demo. */
 export interface SuggestItem { kind: 'product' | 'store' | 'live'; id: string; label: string; sub: string }

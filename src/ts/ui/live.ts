@@ -6,6 +6,7 @@ import { escapeHtml, money, pluralCount } from '../core/format.js';
 import { shopLogo } from '../core/links.js';
 import { historyFor, type PriceHistory } from '../core/history.js';
 import { ago, safeHttpUrl } from '../core/live.js';
+import { inBasket, MAX_BASKET, basketItems } from '../core/basket.js';
 import { isSaved, type SavedItem } from '../core/saved.js';
 import { OUT_ICON, priceTag } from './fragments.js';
 import type { LiveGroup, LiveOffer, LiveResult, LiveState } from '../types.js';
@@ -57,7 +58,7 @@ function liveRow(offer: LiveOffer, group: LiveGroup, checkedAt: string): string 
   </div>`;
 }
 
-function liveGroup(group: LiveGroup, checkedAt: string, query: string): string {
+function liveGroup(group: LiveGroup, checkedAt: string, query: string, action = ''): string {
   const buyable = group.offers.filter(offer => offer.inStock !== false);
   const allOut = buyable.length === 0;
   const note = group.comparable
@@ -72,7 +73,7 @@ function liveGroup(group: LiveGroup, checkedAt: string, query: string): string {
       ${pictured ? `<span class="gh-img"><img src="${escapeHtml(pictured)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.remove()"></span>` : ''}
       <div class="gh-main">
         <div class="gh-kicker"><span class="pill live">Live</span>${allOut ? '<span class="tag warn">Out of stock</span>' : ''}</div>
-        <h3>${escapeHtml(group.label)}<span class="sub">${escapeHtml(note)}</span></h3>
+        <h3>${escapeHtml(group.label)}<span class="sub">${escapeHtml(note)}</span></h3>${action ? `<div class="gh-acts">${action}</div>` : ''}
       </div>
       ${choice ? `<div class="gh-price">${priceTag(startOffer.price, 'from')}
         ${endOffer.price > startOffer.price ? `<div class="range">up to <span class="num">${money(endOffer.price)}</span></div>` : ''}</div>` : ''}
@@ -288,17 +289,36 @@ function productDetail(result: LiveResult, card: ResultCard, many: boolean): str
   const item: SavedItem = { key: card.key, q: result.query, title: card.title, image: card.image, price: card.from, savedAt: new Date().toISOString(), urls };
   const saveButton = `<button class="save-btn${saved ? ' on' : ''}" data-act="save" data-item="${escapeHtml(JSON.stringify(item))}" aria-pressed="${saved}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="${saved ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>${saved ? 'Saved' : 'Save'}</button>`;
+  /* One "Add to build" for the product, or one per version when its page lists several: a build
+     is priced by the version it needs. */
+  const versions = groups.filter(group => group.comparable);
+  const perVersion = versions.length > 1;
+  const buildButton = (group: LiveGroup | null): string => {
+    const key = group ? `${card.key} · ${group.label}` : card.key;
+    const inBuild = inBasket(key);
+    const full = !inBuild && basketItems().length >= MAX_BASKET;
+    const data = {
+      /* A version's own listing name, so "32GB" isn't filed under the card's "8GB" title. */
+      item: { key, product: card.key, ...(group && { version: group.label }), q: result.query,
+        title: group ? (group.offers.find(offer => offer.inStock !== false) ?? group.offers[0])?.title ?? card.title : card.title,
+        image: card.image },
+      offers: (group ? [group] : groups).flatMap(each => each.offers).map(({ shop, url, title, price, inStock }) => ({ shop, url, title, price, inStock }))
+    };
+    return `<button class="save-btn${inBuild ? ' on' : ''}" data-act="build" data-item="${escapeHtml(JSON.stringify(data))}" aria-pressed="${inBuild}"${full ? ` disabled title="A build holds up to ${MAX_BASKET} products"` : ''}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inBuild ? '<path d="m5 12.5 4.5 4.5L19 7.5"/>' : '<path d="M12 5v14M5 12h14"/>'}</svg>${inBuild ? 'In your build' : perVersion && group ? 'Add this version' : 'Add to build'}</button>`;
+  };
   const historyBox = `<div data-history="${escapeHtml(card.key)}" data-urls="${escapeHtml(JSON.stringify(urls))}">${history ? historyPanel(history, card) : ''}</div>`;
   return `${many ? `<button class="link back" data-act="allResults">All results for “${escapeHtml(result.query)}”</button>` : ''}
     <div class="detail-head">
       ${card.image ? `<span class="gh-img big"><img src="${escapeHtml(card.image)}" alt="" referrerpolicy="no-referrer" onerror="this.parentElement.remove()"></span>` : ''}
       <div class="dh-main"><h2>${escapeHtml(card.title)}</h2>
         <p>${card.shops.length > 1 ? `${pluralCount(card.shops.length, 'shop')}, ` : '1 shop, '}${card.to > card.from ? `${money(card.from)} to ${money(card.to)}` : money(card.from)}${escapeHtml(statusNote)}</p>
-        ${saveButton}</div>
+        <div class="dh-acts">${saveButton}${perVersion ? '' : buildButton(versions[0] ?? null)}</div></div>
     </div>
     <p class="fine-print">Only the same version is compared. Prices can change, so confirm on the shop's site before you pay.</p>
     ${historyBox}
-    ${groups.map(group => liveGroup(group, result.checkedAt, result.query)).join('')}`;
+    ${perVersion ? '<p class="fine-print">This product comes in several versions: add the one you need to your build from its list below.</p>' : ''}
+    ${groups.map(group => liveGroup(group, result.checkedAt, result.query, perVersion && group.comparable ? buildButton(group) : '')).join('')}`;
 }
 
 export function liveView(live: LiveState, view: { product: string; limit: number } = { product: '', limit: 40 }): string {

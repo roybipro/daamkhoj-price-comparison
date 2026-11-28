@@ -1,12 +1,14 @@
 import { SNAPSHOT, TRUST_WEIGHTS } from './data/meta.js';
 import { buildCatalog, byBestValue } from './core/catalog.js';
 import { loadShownHistory } from './core/history.js';
+import { basketItems, clearBasket, loadBasketPrices, removeFromBasket, toggleBasket, type BasketItem, type BasketOffer } from './core/basket.js';
 import { forgetAllSaved, loadSavedPrices, savedItems, toggleSaved, type SavedItem } from './core/saved.js';
 import { applyFresh, fetchBrowse, fetchLive } from './core/live.js';
 import { createSearch } from './core/search.js';
 import { decodeState, encodeState } from './core/urlstate.js';
 import { toggleTheme } from './core/theme.js';
 import type { Group, LiveState, Offer, RenderContext, SortKey, State, ViewName } from './types.js';
+import { basketView } from './ui/basket.js';
 import { howView, resultsView, storesView, suggestionsView, toolbarView, trayView } from './ui/views.js';
 
 const catalog = buildCatalog();
@@ -21,7 +23,7 @@ const SORTS: Record<SortKey, (a: Offer, b: Offer) => number> = {
 };
 
 const VIEWS: Record<ViewName, (ctx: RenderContext) => string> = {
-  results: resultsView, stores: storesView, compare: resultsView, how: howView
+  results: resultsView, stores: storesView, compare: resultsView, how: howView, build: basketView
 };
 
 const state: State = {
@@ -332,6 +334,30 @@ function render(): void {
   loadShownHistory(dom.out, render);
   /* Saved products on the home page get today's price, once per visit. */
   if (dom.out.querySelector('.saved-shelf')) loadSavedPrices(render);
+  /* The build's products get their shop prices when the Build tab is open. */
+  if (state.view === 'build') loadBasketPrices(render);
+  const count = dom.tabs.querySelector<HTMLElement>('button[data-view="build"] .tab-count');
+  if (count) {
+    const items = basketItems().length;
+    count.hidden = items === 0;
+    count.textContent = String(items);
+  }
+}
+
+/* Opens a product from the Saved shelf or the build: its search, then its page once prices are in. */
+function openProduct(q: string, key: string): void {
+  takeStep();
+  state.q = q;
+  dom.input.value = q;
+  window.scrollTo({ top: 0 });
+  void startLive().then(() => {
+    if (state.live.status !== 'done' || state.q !== q) return;
+    state.product = key;
+    render();
+    liveRequest?.abort();
+    liveRequest = new AbortController();
+    void recheckShown(liveRequest, key);
+  });
 }
 
 /* Results follow the typing: the price list answers in milliseconds, so each pause in typing
@@ -401,7 +427,7 @@ function toggleCompare(id: string): void {
 }
 
 function setView(next: string | undefined): void {
-  if (next !== 'results' && next !== 'stores' && next !== 'compare' && next !== 'how') return;
+  if (next !== 'results' && next !== 'stores' && next !== 'compare' && next !== 'how' && next !== 'build') return;
   takeStep();
   state.view = next;
   render();
@@ -449,21 +475,23 @@ const actions: Record<string, (trigger: HTMLElement) => void> = {
   },
   openSaved: trigger => {
     const item = savedItems().find(saved => saved.key === trigger.dataset.id);
-    if (!item) return;
-    takeStep();
-    state.q = item.q;
-    dom.input.value = item.q;
-    window.scrollTo({ top: 0 });
-    /* The search opens on the list; the saved product is opened once its prices are in. */
-    void startLive().then(() => {
-      if (state.live.status !== 'done' || state.q !== item.q) return;
-      state.product = item.key;
-      render();
-      liveRequest?.abort();
-      liveRequest = new AbortController();
-      void recheckShown(liveRequest, item.key);
-    });
+    if (item) openProduct(item.q, item.key);
   },
+  build: trigger => {
+    try {
+      const { item, offers } = JSON.parse(trigger.dataset.item ?? '') as { item: BasketItem; offers: BasketOffer[] };
+      toggleBasket(item, offers);
+    } catch {
+      return;
+    }
+    render();
+  },
+  openBuild: trigger => {
+    const item = basketItems().find(saved => saved.key === trigger.dataset.id);
+    if (item) openProduct(item.q, item.product);
+  },
+  buildRemove: trigger => { removeFromBasket(trigger.dataset.id ?? ''); render(); },
+  buildClear: () => { clearBasket(); render(); },
   clearSaved: () => { forgetAllSaved(); render(); },
   searchWeb: () => { void startLive(true); },
   allResults: () => { takeStep(); state.product = ''; render(); },
