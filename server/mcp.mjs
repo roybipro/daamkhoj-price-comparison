@@ -54,10 +54,14 @@ export function describeAnswer(answer, siteUrl) {
   }
   for (const group of groups) {
     const offers = group.offers.slice(0, MAX_OFFERS);
-    const best = group.offers.find(offer => offer.inStock !== false) ?? null;
+    const compared = group.comparable !== false;
+    const best = compared ? group.offers.find(offer => offer.inStock !== false) ?? null : null;
     lines.push('');
-    lines.push(`## ${group.label || answer.query}${group.comparable === false ? ' (version unclear: compare with care)' : ''}`);
-    if (best) lines.push(`Cheapest available: ${taka(best.price)} at ${best.shop} — ${best.url}`);
+    lines.push(`## ${group.label || answer.query}`);
+    /* Listings whose version is unclear may be other products (a drone's propellers), so none
+       of them is called the cheapest. */
+    if (!compared) lines.push('These listings may be different versions or parts, so they are not compared: read each title before naming a price.');
+    else if (best) lines.push(`Cheapest available: ${taka(best.price)} at ${best.shop} — ${best.url}`);
     else lines.push('Every shop shows this as out of stock.');
     for (const offer of offers) {
       lines.push(`- ${taka(offer.price)} · ${offer.shop} · ${stockWord(offer.inStock)} · checked ${day(offer.checkedAt)} · ${offer.title} · ${offer.url}`);
@@ -136,7 +140,9 @@ export function createMcp({
   /** One JSON-RPC message in, its answer out (null for a notification). */
   async function answer(message, req) {
     const isRequest = message && typeof message === 'object' && message.jsonrpc === '2.0' && typeof message.method === 'string';
-    if (!isRequest) return { jsonrpc: '2.0', id: message?.id ?? null, error: { code: -32600, message: 'Invalid request' } };
+    /* An id is a string, a number or null (JSON-RPC 2.0). */
+    const goodId = !message || !('id' in message) || message.id === null || ['string', 'number'].includes(typeof message.id);
+    if (!isRequest || !goodId) return { jsonrpc: '2.0', id: goodId ? message?.id ?? null : null, error: { code: -32600, message: 'Invalid request' } };
     if (!('id' in message)) return null;
     const reply = result => ({ jsonrpc: '2.0', id: message.id, result });
     const fail = (code, text) => ({ jsonrpc: '2.0', id: message.id, error: { code, message: text } });

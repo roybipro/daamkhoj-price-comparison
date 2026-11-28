@@ -8,6 +8,8 @@ const NOISE = new Set(['price', 'prices', 'in', 'bd', 'bangladesh', 'buy', 'onli
 const OTHER_PRODUCT = new Set([
   'pro', 'plus', 'max', 'mini', 'ultra', 'lite', 'series', 'fe', 'neo',
   'case', 'cover', 'protector', 'glass', 'strap', 'cable', 'charger', 'adapter', 'pouch', 'skin', 'battery', 'replacement', 'parts',
+  /* Drone parts sold under the drone's name: "Dji Mini 4 pro Propellers" at ৳2,500. */
+  'propeller', 'propellers',
   'sleeve', 'film', 'lens', 'folio', 'keyboard', 'pen', 'pencil', 'stylus', 'tip', 'tips', 'loop', 'holder', 'mount', 'stand', 'dock', 'hub', 'bag', 'guard', 'shield',
   'used', 'refurbished', 'preowned', 'secondhand', 'renewed',
   /* Copies sold under the real name: "AirPods Pro ANC Dubai Version" at ৳750. */
